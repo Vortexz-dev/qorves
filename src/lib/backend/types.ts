@@ -11,6 +11,8 @@ export interface UserProfile {
   desktop: { icons: Record<string, { x: number; y: number }> };
   apps: string[];
 }
+export interface Note { id: string; title: string; body: string; x: number; y: number; updatedAt: number }
+export interface VaultKey { id: string; k: string; f: string }
 export interface World { era: 'SS'; year: number; day: number }
 export interface Backend {
   readonly kind: 'mock' | 'firebase';
@@ -21,5 +23,11 @@ export interface Backend {
   patchProfile(uid: string, patch: Partial<UserProfile>): Promise<void>;
   usernameTaken(username: string): Promise<boolean>;
   world(): Promise<World>;
+  listNotes(uid: string): Promise<Note[]>;
+  saveNote(uid: string, note: Note): Promise<void>;
+  deleteNote(uid: string, id: string): Promise<void>;
+  deleteAllNotes(uid: string): Promise<void>;
+  /** Bu kullanıcının açabildiği içerik anahtarları (DM: hepsi). */
+  vaultKeys(user: UserProfile): Promise<VaultKey[]>;
 }
 export class AuthError extends Error {}

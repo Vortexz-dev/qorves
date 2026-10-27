@@ -1,6 +1,8 @@
 // Neon çizgi simgeler (SVG). Windows logosu yok.
 const s = (p: string) => `<svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 export const ICONS: Record<string, string> = {
+  notepad: s(`<rect x="10" y="6" width="28" height="36" stroke="#00f0ff" stroke-width="2"/><path d="M16 15h16M16 21h16M16 27h10" stroke="#fcee0a" stroke-width="2"/><path d="M30 34l6-6 3 3-6 6h-3z" stroke="#ff2a55" stroke-width="1.6"/>`),
+  note: s(`<path d="M10 6h20l8 8v28H10z" stroke="#fcee0a" stroke-width="2"/><path d="M30 6v8h8" stroke="#fcee0a" stroke-width="2"/><path d="M16 22h16M16 28h16M16 34h9" stroke="#00f0ff" stroke-width="1.8"/>`),
   computer: s(`<rect x="6" y="8" width="36" height="24" rx="1" stroke="#00f0ff" stroke-width="2"/><path d="M18 40h12M24 32v8" stroke="#00f0ff" stroke-width="2"/><path d="M11 14h10M11 19h16M11 24h7" stroke="#fcee0a" stroke-width="2"/><circle cx="36" cy="26" r="1.6" fill="#ff2a55" stroke="none"/>`),
   timeline: s(`<path d="M24 4v40" stroke="#00f0ff" stroke-width="2"/><circle cx="24" cy="15" r="4" fill="#fcee0a" stroke="none"/><path d="M28 15h12v8H28M20 31H8v8h12" stroke="#00f0ff" stroke-width="2"/><circle cx="24" cy="35" r="2.5" stroke="#ff2a55" stroke-width="2"/>`),
   codex: s(`<path d="M8 8h14a4 4 0 0 1 4 4v28a3 3 0 0 0-3-3H8zM40 8H30a4 4 0 0 0-4 4v28a3 3 0 0 1 3-3h11z" stroke="#00f0ff" stroke-width="2"/><circle cx="33" cy="20" r="4" stroke="#fcee0a" stroke-width="2"/><path d="m36 23 3 3" stroke="#fcee0a" stroke-width="2"/><path d="M12 15h8M12 20h6M12 25h8" stroke="#ff2a55" stroke-width="1.6"/>`),

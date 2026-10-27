@@ -4,7 +4,7 @@
  * DİKKAT: Bu dosyada hiçbir şifre yoktur. DungeonMaster kaydı şifresiz tohumlanır;
  * bir tarayıcıda ilk DM girişi, girilen şifreyi yalnız o tarayıcıda (tuzlu SHA-256) kaydeder.
  */
-import type { Backend, Character, UserProfile, World } from './types';
+import type { Backend, Character, UserProfile, World , Note } from './types';
 import { AuthError } from './types';
 
 const K_USERS = 'qv.users.v1', K_SESSION = 'qv.session.v1';
@@ -83,4 +83,17 @@ export const mockBackend: Backend = {
     try { const w = JSON.parse(localStorage.getItem('qv.world.v1') || 'null'); if (w) return w; } catch {}
     return { era: 'SS', year: 214, day: 1 };
   },
+  // Notlar yerel depoda; gizli içerik anahtarları mock'ta yok (yalnız herkese açık bilgi).
+  async listNotes(uid) { return JSON.parse(localStorage.getItem('qv.notes.' + uid) || '[]'); },
+  async saveNote(uid, n) {
+    const a: Note[] = JSON.parse(localStorage.getItem('qv.notes.' + uid) || '[]');
+    const i = a.findIndex((x) => x.id === n.id); if (i >= 0) a[i] = n; else a.push(n);
+    localStorage.setItem('qv.notes.' + uid, JSON.stringify(a));
+  },
+  async deleteNote(uid, id) {
+    const a: Note[] = JSON.parse(localStorage.getItem('qv.notes.' + uid) || '[]');
+    localStorage.setItem('qv.notes.' + uid, JSON.stringify(a.filter((x) => x.id !== id)));
+  },
+  async deleteAllNotes(uid) { localStorage.removeItem('qv.notes.' + uid); },
+  async vaultKeys() { return []; },
 };

@@ -4,8 +4,8 @@
  */
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
-import type { Backend, UserProfile, World } from './types';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import type { Backend, UserProfile, World, Note, VaultKey } from './types';
 import { AuthError } from './types';
 
 export const firebaseConfig = {
@@ -88,5 +88,28 @@ export const firebaseBackend: Backend = {
   async world(): Promise<World> {
     try { const s = await getDoc(doc(db, 'world', 'state')); if (s.exists()) return s.data() as World; } catch {}
     return { era: 'SS', year: 214, day: 1 };
+  },
+  async listNotes(uid) {
+    const s = await getDocs(collection(db, 'users', uid, 'notes'));
+    return s.docs.map((d) => ({ ...(d.data() as Note), id: d.id }));
+  },
+  async saveNote(uid, n) { await setDoc(doc(db, 'users', uid, 'notes', n.id), n); },
+  async deleteNote(uid, id) { await deleteDoc(doc(db, 'users', uid, 'notes', id)); },
+  async deleteAllNotes(uid) {
+    const s = await getDocs(collection(db, 'users', uid, 'notes'));
+    const b = writeBatch(db); s.docs.forEach((d) => b.delete(d.ref)); await b.commit();
+  },
+  async vaultKeys(user) {
+    if (user.role === 'dm') {
+      const s = await getDocs(collection(db, 'vault'));
+      return s.docs.map((d) => ({ id: d.id, ...(d.data() as { k: string; f: string }) }));
+    }
+    try {
+      const g = await getDoc(doc(db, 'grants', user.uid));
+      const ids: string[] = g.exists() ? (g.data().keys ?? []) : [];
+      const out: VaultKey[] = [];
+      for (const id of ids) { try { const v = await getDoc(doc(db, 'vault', id)); if (v.exists()) out.push({ id, ...(v.data() as { k: string; f: string }) }); } catch {} }
+      return out;
+    } catch { return []; }
   },
 };

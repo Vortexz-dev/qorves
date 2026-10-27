@@ -1,18 +1,18 @@
 import { appById } from './apps';
 import { sfx } from '../lib/sfx';
-export interface Win { id: number; app: string; x: number; y: number; w: number; h: number; z: number; min: boolean; max: boolean; closing?: boolean }
+export interface Win { id: number; app: string; x: number; y: number; w: number; h: number; z: number; min: boolean; max: boolean; closing?: boolean; arg?: string; title?: string }
 export const wm = $state<{ wins: Win[]; core: string | null; coreClosing: boolean; z: number; focus: number; start: boolean }>(
   { wins: [], core: null, coreClosing: false, z: 10, focus: -1, start: false });
 let seq = 1;
-export function openApp(id: string) {
+export function openApp(id: string, arg?: string) {
   wm.start = false;
   const a = appById(id);
   if (a.core) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; sfx.open(); } return; }
-  const ex = wm.wins.find((w) => w.app === id);
+  const ex = wm.wins.find((w) => w.app === id && w.arg === arg);
   if (ex) { ex.min = false; focus(ex.id); return; }
   const W = innerWidth, H = innerHeight - 48, w = Math.min(a.w ?? 720, W - 40), h = Math.min(a.h ?? 520, H - 40);
   const n = wm.wins.length;
-  wm.wins.push({ id: seq++, app: id, w, h, x: Math.round((W - w) / 2 + n * 28 - 40), y: Math.round((H - h) / 2 + n * 24 - 30), z: ++wm.z, min: false, max: false });
+  wm.wins.push({ id: seq++, app: id, w, h, x: Math.round((W - w) / 2 + n * 28 - 40), y: Math.round((H - h) / 2 + n * 24 - 30), z: ++wm.z, min: false, max: false, arg });
   wm.focus = seq - 1; sfx.open();
 }
 export function focus(id: number) { const w = wm.wins.find((x) => x.id === id); if (w) { w.z = ++wm.z; wm.focus = id; } }
@@ -32,3 +32,4 @@ export function closeCore() {
   setTimeout(() => { wm.core = null; wm.coreClosing = false; }, 420);
 }
 export function resetWM() { wm.wins = []; wm.core = null; wm.start = false; }
+export function closeAppWins(app: string, arg?: string) { wm.wins.filter((w) => w.app === app && (arg === undefined || w.arg === arg)).forEach((w) => closeWin(w.id)); }

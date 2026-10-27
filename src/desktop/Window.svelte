@@ -23,7 +23,7 @@
   onpointerdown={() => focus(win.id)}>
   <header role="toolbar" tabindex="-1" onpointerdown={down} onpointermove={move} onpointerup={() => (d = null)} ondblclick={() => { win.max = !win.max; sfx.click(); }}>
     <span class="ic">{@html ICONS[app.icon]}</span>
-    <span class="t">{app.title}</span>
+    <span class="t">{win.title ? win.title + ' · ' + app.title : app.title}</span>
     <span class="id mono">PID {String(win.id * 317).padStart(4, '0')}</span>
     <div class="ctl">
       <button aria-label="Küçült" onclick={() => minimize(win.id)}><svg viewBox="0 0 12 12"><path d="M2 9h8" stroke="currentColor" stroke-width="1.6"/></svg></button>
@@ -32,7 +32,7 @@
     </div>
   </header>
   <div class="content">
-    {#await mod}<div class="ld mono">MODÜL YÜKLENİYOR…</div>{:then m}<m.default />{/await}
+    {#await mod}<div class="ld mono">MODÜL YÜKLENİYOR…</div>{:then m}<m.default arg={win.arg} {win} />{/await}
   </div>
 </section>
 
