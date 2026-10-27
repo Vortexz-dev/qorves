@@ -55,7 +55,7 @@
 </script>
 
 <div class="desk" class:entered class:hidden={!!wm.core && !wm.coreClosing}>
-  <Backdrop dim={0.2} />
+  <Backdrop dim={0.05} />
   <div class="brand"><Logo size={22} glitch={false} /><span class="mono">KİŞİSEL TERMİNAL · {user.username.toUpperCase()}</span></div>
   <div class="area" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) { sel = ''; wm.start = false; } }}>
     {#each desk as a, i (a.id)}

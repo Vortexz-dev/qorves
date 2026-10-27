@@ -8,7 +8,7 @@ export const APPS: AppDef[] = [
   { id: 'timeline', title: 'Qorves Timeline', icon: 'timeline', core: true, load: () => import('../apps/CoreTimeline.svelte') },
   { id: 'codex', title: 'Qorves Codex', icon: 'codex', core: true, load: () => import('../apps/CoreCodex.svelte') },
   { id: 'starmap', title: 'Qorves Starmap', icon: 'starmap', core: true, load: () => import('../apps/CoreStarmap.svelte') },
-  { id: 'computer', title: 'Bilgisayarım', icon: 'computer', w: 760, h: 560, load: () => import('../apps/MyComputer.svelte') },
+  { id: 'computer', title: 'Bilgisayarım', icon: 'computer', w: 780, h: 640, load: () => import('../apps/MyComputer.svelte') },
   { id: 'profile', title: 'Profil', icon: 'profile', w: 720, h: 560, load: () => import('../apps/Profile.svelte') },
   { id: 'store', title: 'Q-Mağaza', icon: 'store', w: 760, h: 520, load: () => import('../apps/AppStore.svelte') },
 ];
