@@ -7,6 +7,8 @@
   import { sfx } from '../lib/sfx';
   import MatrixRain from '../ui/MatrixRain.svelte';
   import TagView from '../ui/TagView.svelte';
+  import { showOnTimeline } from '../lib/tlnav.svelte';
+  import { getEntry } from '../lib/kb.svelte';
   let q = $state(''), classic = $state(false), cat = $state('system'), art = $state(''), filter = $state('');
   let inp: HTMLInputElement | undefined = $state();
   const res = $derived(kb.ready && q.trim() ? searchKb(q, 40) : []);
@@ -15,7 +17,7 @@
     .sort((a, b) => (cat === 'event' || cat === 'era' ? (a.ys ?? a.ord ?? 0) - (b.ys ?? b.ord ?? 0) : a.name.localeCompare(b.name, 'tr'))) : []);
   onMount(() => { loadKb(session.user!); setTimeout(() => inp?.focus(), 700); });
   const hl = (s: string, n = 150) => (s.length > n ? s.slice(0, n) + '…' : s);
-  function pick(id: string) { sfx.click(); if (classic) art = id; else openTag(id); }
+  function pick(id: string) { sfx.click(); if (classic) art = id; else if (getEntry(id)?.type === 'event') showOnTimeline(id); else openTag(id); }
   function toggle() { classic = !classic; sfx.glitch(); if (classic && !art) art = list[0]?.id ?? ''; }
 </script>
 

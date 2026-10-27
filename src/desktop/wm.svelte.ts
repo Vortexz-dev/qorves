@@ -7,7 +7,7 @@ let seq = 1;
 export function openApp(id: string, arg?: string) {
   wm.start = false;
   const a = appById(id);
-  if (a.core) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; sfx.open(); } return; }
+  if (a.core) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; sfx.open(); } return; } // çekirdek uygulamalar birbirinin yerine geçer
   const ex = wm.wins.find((w) => w.app === id && w.arg === arg);
   if (ex) { ex.min = false; focus(ex.id); return; }
   const W = innerWidth, H = innerHeight - 48, w = Math.min(a.w ?? 720, W - 40), h = Math.min(a.h ?? 520, H - 40);

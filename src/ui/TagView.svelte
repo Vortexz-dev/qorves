@@ -5,6 +5,7 @@
   import { session } from '../lib/session.svelte';
   import RichText from './RichText.svelte';
   import Chip from './Chip.svelte';
+  import { showOnTimeline } from '../lib/tlnav.svelte';
   let { id, nav }: { id: string; nav?: (id: string) => void } = $props();
   const e = $derived(getEntry(id));
   const m = $derived(tmeta(e?.type ?? 'item'));
@@ -31,6 +32,7 @@
       {/if}
     {/each}
     {#if !e.sections.length && !e.summary}<p class="none">Bu konuda bildiğin bir şey yok.</p>{/if}
+    {#if e.type === 'event'}<button class="tlb mono" onclick={() => showOnTimeline(e.id)}>◆ TIMELINE'DA GÖSTER</button>{/if}
     <footer>
       {#if e.parent && getEntry(e.parent)}<div class="rel"><span class="mono">BAĞLI</span><Chip id={e.parent} {nav} /></div>{/if}
       {#if ends.length}<div class="rel"><span class="mono">UÇLAR</span>{#each ends as x}<Chip id={x} {nav} />{/each}</div>{/if}
@@ -53,6 +55,8 @@
   .sum{font-size:17px;color:#e8f6ff;border-left:2px solid var(--c);padding-left:12px}
   h4{font-size:10.5px;letter-spacing:.3em;color:var(--c);opacity:.85;margin-bottom:3px}
   section p{color:#c9d6e2}
+  .tlb{align-self:flex-start;background:rgba(255,209,128,.08);border:1px solid rgba(255,209,128,.5);color:#ffd180;padding:7px 14px;font-size:11px;letter-spacing:.2em}
+  .tlb:hover{background:rgba(255,209,128,.2)}
   .none{color:var(--mut);font-style:italic}
   footer{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px;font-size:14px}
   .rel{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}.rel>span{font-size:10px;letter-spacing:.2em;color:var(--mut);margin-right:6px}
