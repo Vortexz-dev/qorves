@@ -1,0 +1,54 @@
+rules_version = '2';
+// QORVES — Firestore güvenlik kuralları.
+// Oyuncu yalnız kendi profilini, notlarını ve dosyalarını okur/yazar.
+// DM (users/{uid}.role == 'dm'; kendi kendine atanamaz) her şeyi okur. Bilgi kilitleri (grants, vault, world) yalnız DM yazar.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function isDM() {
+      return signedIn() && exists(/databases/$(db)/documents/users/$(request.auth.uid))
+        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role == 'dm';
+    }
+    // DM rolü yalnız önceden belirlenmiş DM hesabının ilk kaydında kabul edilir.
+    function dmEmail() { return 'dungeonmaster@qorves-sistem.firebaseapp.com'; }
+
+    match /users/{uid} {
+      allow read: if isMe(uid) || isDM();
+      allow create: if isMe(uid) && request.resource.data.uid == uid && (
+        request.resource.data.role == 'player' ||
+        (request.resource.data.role == 'dm' && request.auth.token.email == dmEmail()));
+      allow update: if (isMe(uid) && request.resource.data.role == resource.data.role
+                        && request.resource.data.uid == resource.data.uid) || isDM();
+      allow delete: if isDM();
+
+      match /notes/{noteId} {
+        allow read: if isMe(uid) || isDM();
+        allow write: if isMe(uid) && (request.resource == null || request.resource.data.size() < 40);
+      }
+      match /files/{fileId} {
+        allow read: if isMe(uid) || isDM();
+        allow write: if isMe(uid);
+        match /chunks/{n} {
+          allow read: if isMe(uid) || isDM();
+          allow write: if isMe(uid) && (request.resource == null || request.resource.data.d.size() < 900000);
+        }
+      }
+    }
+    // Oyuncu başına açık bilgi anahtarları: oyuncu kendininkini okur, yalnız DM yazar.
+    match /grants/{uid} {
+      allow read: if isMe(uid) || isDM();
+      allow write: if isDM();
+    }
+    // Kilitli bilgi paketlerinin anahtarları (Faz 2).
+    match /vault/{keyId} {
+      allow read: if isDM() || (signedIn() && request.auth.uid in resource.data.readers);
+      allow write: if isDM();
+    }
+    // Oyun günü, olaylar: herkes okur, DM yazar.
+    match /world/{docId} {
+      allow read: if signedIn();
+      allow write: if isDM();
+    }
+  }
+}
