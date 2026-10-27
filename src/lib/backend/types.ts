@@ -13,6 +13,8 @@ export interface UserProfile {
 }
 export interface Note { id: string; title: string; body: string; x: number; y: number; updatedAt: number }
 export interface VaultKey { id: string; k: string; f: string }
+export interface EventOverride { tpl: string; sys: string; lane?: string; start: number; end: number }
+export interface WorldEvents { overrides?: EventOverride[]; cleared?: string[]; disabled?: string[]; paused?: boolean; seed?: string }
 export interface World { era: 'SS'; year: number; day: number }
 export interface Backend {
   readonly kind: 'mock' | 'firebase';
@@ -29,5 +31,7 @@ export interface Backend {
   deleteAllNotes(uid: string): Promise<void>;
   /** Bu kullanıcının açabildiği içerik anahtarları (DM: hepsi). */
   vaultKeys(user: UserProfile): Promise<VaultKey[]>;
+  /** DM olay kancaları: world/events {overrides, cleared, disabled, paused} */
+  worldEvents(): Promise<WorldEvents | null>;
 }
 export class AuthError extends Error {}

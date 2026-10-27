@@ -96,4 +96,5 @@ export const mockBackend: Backend = {
   },
   async deleteAllNotes(uid) { localStorage.removeItem('qv.notes.' + uid); },
   async vaultKeys() { return []; },
+  async worldEvents() { try { return JSON.parse(localStorage.getItem('qv.worldEvents') || 'null'); } catch { return null; } },
 };

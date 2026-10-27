@@ -5,7 +5,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc } from 'firebase/firestore';
-import type { Backend, UserProfile, World, Note, VaultKey } from './types';
+import type { Backend, UserProfile, World, Note, VaultKey, WorldEvents } from './types';
 import { AuthError } from './types';
 
 export const firebaseConfig = {
@@ -111,5 +111,8 @@ export const firebaseBackend: Backend = {
       for (const id of ids) { try { const v = await getDoc(doc(db, 'vault', id)); if (v.exists()) out.push({ id, ...(v.data() as { k: string; f: string }) }); } catch {} }
       return out;
     } catch { return []; }
+  },
+  async worldEvents() {
+    try { const s = await getDoc(doc(db, 'world', 'events')); return s.exists() ? (s.data() as WorldEvents) : null; } catch { return null; }
   },
 };
