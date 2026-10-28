@@ -39,6 +39,9 @@ export async function loadEvents(systems: SysRef[], lanes: LaneRef[]) {
   return data!;
 }
 export const evData = () => data;
+const CUSTOM: Tpl = { id: 'custom', name: 'Resmî Duyuru', cat: 'GUV', where: '', effect: '', sev: 2, freq: '', w: 0, by: 'Ortak Hat Yayın Ağı', msg: '', sys: [], lanes: [], all: false };
+/** world/events canlı güncellemesi (DM paneli değiştirince harita anında görür). */
+export function setWorldLive(w: WorldEvents | null) { world = w; }
 function pick(sys: string, slot: number, j: number) {
   const list = elig.get(sys); if (!list?.length) return null;
   const tot = list.reduce((a, b) => a + b.w, 0); let r = hash(`${data!.seed}|${sys}|${slot}|${j}|t`) * tot;
@@ -68,8 +71,10 @@ export function activeAt(now: number, systems: SysRef[]): ActiveEvent[] {
   const cleared = new Set(world?.cleared ?? []);
   const res = out.filter((e) => !cleared.has(e.key));
   for (const o of world?.overrides ?? []) {
-    const t = data.templates.find((x) => x.id === o.tpl);
-    if (t && o.start <= now && o.end > now) res.push({ key: `ovr:${o.tpl}:${o.sys}:${o.start}`, tpl: t, sys: o.sys, lane: o.lane, start: o.start, end: o.end, forced: true });
+    const base = data.templates.find((x) => x.id === o.tpl) ?? (o.tpl === 'custom' ? CUSTOM : null);
+    if (!base || o.start > now || o.end <= now) continue;
+    const t: Tpl = { ...base, id: o.tpl === 'custom' ? 'custom:' + o.start : base.id, name: o.name || base.name, msg: o.msg || base.msg, effect: o.effect ?? base.effect, by: o.by || base.by, sev: o.sev ?? base.sev, cat: o.cat || base.cat };
+    res.push({ key: `ovr:${o.tpl}:${o.sys}:${o.start}`, tpl: t, sys: o.sys, lane: o.lane, start: o.start, end: o.end, forced: true });
   }
   return res;
 }

@@ -7,7 +7,9 @@
   import { kb, loadKb, getEntry, childrenOf, bodiesOf, type Body } from '../lib/kb.svelte';
   import { session } from '../lib/session.svelte';
   import { openTag } from '../lib/tags.svelte';
-  import { loadEvents, activeAt, type ActiveEvent, type EvData } from '../lib/events';
+  import { loadEvents, activeAt, setWorldLive, type ActiveEvent, type EvData } from '../lib/events';
+  import { watchMarkers, watchDoc, type Marker } from '../lib/live';
+  import type { WorldEvents } from '../lib/backend';
   import { sfx, ambient } from '../lib/sfx';
   import RichText from '../ui/RichText.svelte';
   import { tmeta } from '../lib/types';
@@ -29,6 +31,12 @@
   const isDM = $derived(session.user?.role === 'dm');
   const base = import.meta.env.BASE_URL;
   const known = (id: string) => !!getEntry(id);
+  // DM işaretleri (gemi konumu / görev noktası); kurallar yalnız izinli oyunculara okutur
+  let marks = $state<Marker[]>([]);
+  const marksOf = (id: string) => marks.filter((m) => m.sys === id);
+  function applyMarks() { if (!sc) return; const g = new Map<string, { ship: string[]; mission: string[] }>();
+    for (const m of marks) { const x = g.get(m.sys) ?? { ship: [], mission: [] }; x[m.kind].push(m.label); g.set(m.sys, x); } sc.setMarkers(g); }
+  $effect(() => { marks; untrack(applyMarks); });
   const S = $derived(map ? new Map(map.systems.map((s) => [s.id, s])) : new Map());
   const focus = $derived(hov ?? sel);
   const fs = $derived(focus ? S.get(focus) : null);
@@ -90,7 +98,7 @@
   function makeCluster(near?: string) {
     sc = new ClusterScene(host!, ov!, map!, known, { hover: (id) => (hov = id), select: (id) => (sel = id) }, q);
     if (sel) sc.selected = sel;
-    sc.setLayers(labels, lanesOn, terr); sc.setFilter(new Set(hidden)); refreshEvents();
+    sc.setLayers(labels, lanesOn, terr); sc.setFilter(new Set(hidden)); refreshEvents(); applyMarks();
     if (near) { sc.placeNear(near, 9); sc.select(near); sc.flyTo(near, 85, 1800); }
   }
   /** Sisteme gir: kümede yakına dalış + çizgi geçişi, küme sahnesi kapanır, sistem sahnesi uzaktan içeri süzülür. */
@@ -132,7 +140,8 @@
   }
 
   onMount(() => {
-    let alive = true, timer = 0;
+    let alive = true, timer = 0, stopEv = () => {};
+    const u0 = session.user!; const stopMk = watchMarkers(u0.role === 'dm' ? null : u0.uid, (m) => (marks = m));
     const esc = (e: KeyboardEvent) => { if (e.key !== 'Escape') return;
       if (lightbox.open) return;
       if (busy) { e.stopImmediatePropagation(); return; }
@@ -146,9 +155,10 @@
         evd = await loadEvents(data.systems, data.lanes);
         makeCluster();
         timer = setInterval(() => { if (!document.hidden) refreshEvents(); }, 15000) as unknown as number;
+        stopEv = watchDoc<WorldEvents>(['world', 'events'], (w) => { setWorldLive(w); refreshEvents(); });
       } catch (e) { err = String(e); }
     })();
-    return () => { alive = false; clearInterval(timer); stopAmb(); removeEventListener('keydown', esc, true); sc?.dispose(); sc = null; sys2?.dispose(); sys2 = null; };
+    return () => { alive = false; clearInterval(timer); stopEv(); stopMk(); stopAmb(); removeEventListener('keydown', esc, true); sc?.dispose(); sc = null; sys2?.dispose(); sys2 = null; };
   });
 </script>
 
@@ -170,10 +180,13 @@
       {#each list as s (s.id)}
         <button class:on={sel === s.id} onclick={() => selectSys(s.id)} onmouseenter={() => { hov = s.id; if (sc) sc.hovered = s.id; }} onmouseleave={() => { hov = null; if (sc) sc.hovered = null; }}>
           <i style:background={STAR_COLOR[s.stype]}></i>{known(s.id) ? s.name : 'Bilinmeyen sinyal'}{#if known(s.id) && CAPITALS[s.id]}<svg class="capi" class:old={s.id === 'sys-imperion'} viewBox="0 0 16 16"><title>{s.name + ' · ' + CAPITALS[s.id]}</title><path d="M2 12h12l1-7-4 3-3-5-3 5-4-3z"/></svg>{/if}
+          {#if marksOf(s.id).length}<span class="mkg" title={marksOf(s.id).map((m) => m.label).join(', ')}>{marksOf(s.id).some((m) => m.kind === 'ship') ? '▲' : '◆'}</span>{/if}
           {#if evFor(s.id).length}<em style:color={evd?.sev[evFor(s.id)[0].tpl.sev].color}>▲</em>{/if}
         </button>
       {/each}
     </div>
+    {#if marks.length}<div class="mono h">İŞARETLER</div>
+    <div class="mks">{#each marks as m (m.id)}<button class="mk-{m.kind}" onclick={() => selectSys(m.sys)} title={m.note}><b>{m.kind === 'ship' ? '▲' : '◆'}</b>{m.label}<small>{known(m.sys) ? S.get(m.sys)?.name : 'Bilinmeyen sinyal'}</small></button>{/each}</div>{/if}
     <div class="mono h">BÖLGELER</div>
     <div class="facs">
       {#each Object.entries(map?.factions ?? {}) as [k, f] (k)}
@@ -208,6 +221,7 @@
         {#each gates as g (g.id)}<button class:on={bsel === g.id} onclick={() => focusBody(g.id)} onmouseenter={() => sys2 && (sys2.hovered = g.id)} onmouseleave={() => sys2 && (sys2.hovered = null)}><i class="k-gate" style:border-color={g.color}></i>{g.lane.name}<small class="kd">→ {S.get(g.to)?.name}</small></button>{/each}{/if}
       {#if !blist.length}<div class="none mono">BU SİSTEMİN DÜNYALARI HAKKINDA BİLGİN YOK</div>{/if}
     </div>
+    {#if marksOf(cs.id).length}<div class="mks">{#each marksOf(cs.id) as m (m.id)}<div class="mk-{m.kind} mkr"><b>{m.kind === 'ship' ? '▲ GEMİN BURADA' : '◆ GÖREV NOKTASI'}</b>{m.label}{#if m.note}<small>{m.note}</small>{/if}</div>{/each}</div>{/if}
     <div class="mono h">KATMANLAR</div>
     <div class="tog">
       <label><input type="checkbox" bind:checked={orbits} />Yörüngeler</label>
@@ -383,6 +397,13 @@
   .ov :global(.sm-lbl .cap){pointer-events:auto;cursor:help;position:relative;display:inline-grid;place-items:center;width:17px;height:17px;border:1px solid rgba(252,238,10,.7);background:rgba(20,16,0,.75);box-shadow:0 0 8px rgba(252,238,10,.35);text-decoration:none}
   .ov :global(.sm-lbl .cap svg){width:12px;height:12px;fill:var(--ye);stroke:var(--ye);stroke-width:.6}
   .ov :global(.sm-lbl .cap.old){border-color:rgba(184,160,96,.6);background:rgba(10,8,0,.6);box-shadow:none}.ov :global(.sm-lbl .cap.old svg){fill:none;stroke:#b8a060;stroke-width:1.2}
+  .ov :global(.sm-lbl .mk s){pointer-events:auto;cursor:help;position:relative;text-decoration:none;margin-left:5px;font-size:12px}
+  .ov :global(.sm-lbl .mk .sh){color:#39ff8a;text-shadow:0 0 8px #39ff8a;animation:evb 1.6s infinite}.ov :global(.sm-lbl .mk .mi){color:#ff9b2f;text-shadow:0 0 8px #ff9b2f}
+  .ov :global(.sm-lbl .mk s:hover::after){content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;color:#000;background:#dff6ff;padding:4px 8px}
+  .mkg{margin-left:auto;color:#39ff8a;font-size:11px}
+  .mks{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px}
+  .mks button,.mks .mkr{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;text-align:left;background:rgba(0,0,0,.35);border:1px solid rgba(57,255,138,.35);color:var(--tx);padding:5px 8px;font-size:13px}
+  .mks .mk-mission{border-color:rgba(255,155,47,.45)}.mks b{color:#39ff8a;font-family:var(--f-mono);font-size:11px}.mks .mk-mission b{color:#ff9b2f}.mks small{color:var(--mut);font-size:11px;margin-left:auto}.mks .mkr small{margin-left:0;flex-basis:100%}
   .ov :global(.sm-lbl .cap:hover::after){content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;color:#000;background:var(--ye);padding:4px 8px;box-shadow:0 0 12px rgba(252,238,10,.4)}
   .gh{font-size:9px;letter-spacing:.3em;color:#c78bff;margin:8px 0 2px 4px}
   .gev{font-size:12px;border-left:3px solid var(--sv);padding:3px 8px;background:rgba(255,255,255,.03)}.gev b{color:var(--sv);font-size:9.5px;letter-spacing:.15em}

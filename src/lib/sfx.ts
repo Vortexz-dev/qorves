@@ -36,6 +36,12 @@ export const sfx = {
   error: () => { tone(160, 0.18, 'square', 0.18); tone(120, 0.22, 'square', 0.14, 0, 0.12); },
   granted: () => { tone(660, 0.09, 'triangle', 0.16); tone(990, 0.12, 'triangle', 0.16, 0, 0.08); tone(1320, 0.2, 'triangle', 0.12, 0, 0.16); },
   glitch: () => noise(0.18, 0.12, 900),
+  ping: () => { tone(1240, 0.06, 'square', 0.07); tone(620, 0.1, 'square', 0.06, 0, 0.07); noise(0.05, 0.04, 3000); },
+  alarm: () => { noise(0.25, 0.1, 600); tone(220, 0.3, 'sawtooth', 0.12, -80); tone(330, 0.25, 'sawtooth', 0.1, 0, 0.18); },
+  rattle: () => { for (let i = 0; i < 7; i++) tone(380 + Math.random() * 700, 0.03, 'square', 0.05, 0, i * 0.06 + Math.random() * 0.03); noise(0.4, 0.05, 2500); },
+  thud: () => { tone(90, 0.18, 'sine', 0.25, -40); noise(0.06, 0.08, 500); },
+  crit: () => { tone(523, 0.12, 'triangle', 0.18); tone(784, 0.14, 'triangle', 0.18, 0, 0.1); tone(1046, 0.3, 'triangle', 0.18, 0, 0.2); tone(1568, 0.4, 'sine', 0.1, 0, 0.32); },
+  fumble: () => { tone(300, 0.4, 'sawtooth', 0.16, -220); tone(150, 0.5, 'square', 0.1, -80, 0.25); noise(0.3, 0.08, 300); },
   boot: () => { tone(55, 1.2, 'sawtooth', 0.12, 110); noise(0.4, 0.04, 400); },
 };
 /** Ortam sesi: prosedürel, alçak uğultu. Ana ses düğmesine bağlı; açılışta yavaşça gelir, kapanışta söner. */

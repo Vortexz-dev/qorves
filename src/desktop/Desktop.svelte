@@ -6,7 +6,7 @@
   import { sfx } from '../lib/sfx';
   import Backdrop from '../ui/Backdrop.svelte';
   import Logo from '../ui/Logo.svelte';
-  import { APPS } from './apps';
+  import { APPS, visibleApps } from './apps';
   import { ICONS } from './icons';
   import { wm, openApp, resetWM } from './wm.svelte';
   import Taskbar from './Taskbar.svelte';
@@ -14,15 +14,18 @@
   import Window from './Window.svelte';
   import CoreShell from './CoreShell.svelte';
   import { notes, loadNotes, createNote, updateNote, removeNote } from '../lib/notes.svelte';
-  import { loadKb } from '../lib/kb.svelte';
+  import { loadKb, resetKb } from '../lib/kb.svelte';
   import { ask } from '../lib/confirm.svelte';
   import { desk as dk, loadItems, createFolder, renameItem, moveTo, removeItem, placeItem, dropTarget, setTakenProvider } from '../lib/desk.svelte';
   import { openImage } from '../lib/lightbox.svelte';
   import CtxMenu, { type MI } from '../ui/CtxMenu.svelte';
+  import SysNotify, { pushToast } from '../ui/SysNotify.svelte';
+  import { startPresence, watchDoc, watchKnowledge, watchDrops } from '../lib/live';
+  import { ghos, startGhos, stopGhos } from '../lib/ghos.svelte';
 
   const GX = 104, GY = 112, OX = 18, OY = 18;
   const user = session.user!;
-  const desk = $derived(APPS.filter((a) => a.id !== 'profile' && !a.hidden && (!a.optional || (user.apps ?? []).includes(a.id))));
+  const desk = $derived(visibleApps(user).filter((a) => a.id !== 'profile'));
   const pos = $state<Record<string, { x: number; y: number }>>({});
   const free = () => { for (let x = OX; ; x += GX) for (let y = OY; y <= innerHeight - 48 - GY; y += GY) if (!Object.values(pos).some((p) => p.x === x && p.y === y)) return { x, y }; };
   $effect.pre(() => { desk.forEach((a, i) => { if (!pos[a.id]) pos[a.id] = user.desktop?.icons?.[a.id] ?? (i < 6 ? { x: OX, y: OY + i * GY } : free()); }); });
@@ -39,7 +42,7 @@
   const nameOf = (k: string) => k.startsWith('note:') ? (notes.list.find((n) => 'note:' + n.id === k)?.title || 'Adsız not') : itemOf(k)?.name ?? '';
   function openKey(k: string) {
     if (k.startsWith('note:')) return openApp('notepad', k.slice(5));
-    const it = itemOf(k); if (it) { if (it.kind === 'folder') openApp('explorer', it.id); else openImage(it.src!, it.name); return; }
+    const it = itemOf(k); if (it) { if (it.kind === 'folder') openApp('explorer', it.id); else if (it.kind === 'doc') openApp('docview', it.id); else openImage(it.src!, it.name); return; }
     openApp(k);
   }
   async function delKey(k: string) {
@@ -105,15 +108,34 @@
     user.desktop = { icons };
   }
   function commitRen(k: string, v: string) { renameItem(k.startsWith('it:') ? k.slice(3) : k, v); ren = ''; }
+  let ghStarted = false;
+  $effect(() => {
+    const on = user.role === 'dm' || (user.apps ?? []).includes('ghos');
+    if (on && !ghStarted) { ghStarted = true; startGhos(user.uid, user.role === 'dm', (c) => { sfx.ping();
+      const who = c.last?.from ?? ''; const nm = c.names?.[who] ?? 'Bilinmeyen düğüm';
+      pushToast('ghOS-Net', user.role === 'dm' ? `${c.names?.['npc:' + c.npc] ?? 'NPC'} ← ${nm}` : nm, '▒▒ şifreli paket alındı · çözmek için aç', () => openApp('ghos', c.id)); }); }
+    else if (!on && ghStarted) { ghStarted = false; stopGhos(); }
+  });
   onMount(() => {
     resetWM();
     loadNotes(); loadItems();
+    const stopP = startPresence(user);
+    const stopW = watchDoc<{ era: 'SS'; year: number; day: number }>(['world', 'state'], (w) => { if (w) session.world = { era: w.era ?? 'SS', year: w.year, day: w.day }; });
+
     const idle = (window as any).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 1500));
     idle(() => loadKb(user));
+    // DM'den masaüstüne gelen belgeler: canlı eklenir, ilk yüklemeden sonra gelen için bildirim
+    let dropFirst = true;
+    const stopD = watchDrops(user.uid, (list) => {
+      for (const it of list) if (!dk.items.some((x) => x.id === it.id)) { dk.items.push(it); if (!dropFirst) { sfx.glitch(); pushToast('Gelen aktarım', it.name, 'Masaüstüne yeni bir belge bırakıldı.', () => openApp('docview', it.id)); } }
+      dropFirst = false;
+    });
+    // DM yeni bilgi açınca/kapatınca bilgi bankası yeniden kurulur
+    const stopK = user.role === 'dm' ? () => {} : watchKnowledge(user.uid, () => { resetKb(); loadKb(user); sfx.granted(); pushToast('Codex', 'Bilgi erişimin güncellendi', 'Yeni kayıtlar Codex ve haritada.'); });
     const t = setTimeout(() => (entered = true), 30);
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (menu) menu = null; else if (wm.start) wm.start = false; } };
     addEventListener('keydown', esc);
-    return () => { clearTimeout(t); removeEventListener('keydown', esc); };
+    return () => { clearTimeout(t); removeEventListener('keydown', esc); stopP(); stopW(); stopK(); stopD(); stopGhos(); };
   });
 </script>
 
@@ -126,7 +148,7 @@
         style:left="{pos[a.id].x}px" style:top="{pos[a.id].y}px" style:--d="{i * 60}ms"
         onpointerdown={(e) => down(e, a.id)} onpointermove={(e) => move(e, a.id)} onpointerup={(e) => up(e, a.id)} oncontextmenu={(e) => { sel = a.id; ctx(e, a.id); }}
         ondblclick={() => openApp(a.id)} onkeydown={(e) => e.key === 'Enter' && openApp(a.id)} onmouseenter={() => sfx.hover()}>
-        <span class="ic">{@html ICONS[a.icon]}</span><span class="lb">{a.title}</span>
+        <span class="ic">{@html ICONS[a.icon]}</span><span class="lb">{a.title}</span>{#if a.id === 'ghos' && ghos.unread}<i class="badge mono">{ghos.unread}</i>{/if}
       </button>{/if}
     {/each}
     {#each [...dnotes.map((n) => ({ k: 'note:' + n.id, name: n.title || 'Adsız not', kind: 'note', src: '' })), ...ditems.map((it) => ({ k: 'it:' + it.id, name: it.name, kind: it.kind, src: it.src ?? '' }))] as o, i (o.k)}
@@ -150,6 +172,7 @@
   {#each wm.wins as w (w.id)}<Window win={w} />{/each}
   {#if wm.start}<StartPanel />{/if}
   <Taskbar />
+  <SysNotify uid={user.uid} />
 </div>
 {#if wm.core}<CoreShell id={wm.core} />{/if}
 
@@ -176,6 +199,8 @@
   .ic :global(svg){width:100%;height:100%}
   .lb{font-size:13px;font-weight:600;line-height:1.1;text-align:center;text-shadow:0 1px 3px #000,0 0 8px rgba(0,0,0,.8)}
   .core .lb{color:var(--ye)}
+  .badge{position:absolute;top:2px;right:16px;min-width:18px;height:18px;padding:0 5px;background:#39ff8a;color:#000;font-style:normal;font-size:11px;line-height:18px;border-radius:9px;box-shadow:0 0 10px #39ff8a;animation:bp 1.4s infinite}
+  @keyframes bp{50%{box-shadow:0 0 2px #39ff8a}}
   .note .ic{filter:drop-shadow(0 0 6px rgba(252,238,10,.45))}
   .lb{max-width:88px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 </style>

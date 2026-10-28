@@ -5,6 +5,7 @@
 import MiniSearch from 'minisearch';
 import { backend, type UserProfile } from './backend';
 import { TYPE_ORDER } from './types';
+import { revealsOf } from './live';
 export interface Section { t: string; x: string; k?: string; o: number }
 export interface Entry {
   id: string; type: string; name: string; aliases?: string[]; summary?: string; key: string; parent?: string;
@@ -46,10 +47,15 @@ export function loadKb(user: UserProfile) {
     const bundles: Bundle[] = [await (await fetch(BASE + 'pub.json')).json()];
     const keys = await backend.vaultKeys(user).catch(() => []);
     const sealed = await Promise.all(keys.map((k) => decrypt(k.k, k.f)));
-    sealed.forEach((b) => b && bundles.push(b));
+    const tags = ['k.public'];
+    sealed.forEach((b, i) => { if (b) { bundles.push(b); tags.push(keys[i].id); } });
+    // DM'nin oyuncuya tek tek açtığı kayıtlar (users/{uid}/reveals; düz metin, yalnız o oyuncu okuyabilir)
+    if (user.role !== 'dm') for (const r of await revealsOf(user.uid).catch(() => [])) {
+      bundles.push({ e: [r.e as Omit<Entry, 'sections'>], s: (r.s ?? []).map((x) => ({ ...x, id: r.id })), b: (r.b ?? []) as unknown as Body[] }); tags.push('reveal');
+    }
     kb.keys = ['k.public', ...keys.map((k) => k.id)];
     for (const b of bundles) for (const e of b.e) map.set(e.id, { ...e, sections: [] } as Entry);
-    for (const b of bundles) for (const s of b.s) map.get(s.id)?.sections.push({ t: s.t, x: s.x, o: s.o });
+    bundles.forEach((b, i) => { for (const s of b.s) { const e = map.get(s.id); if (e && !e.sections.some((z) => z.t === s.t && z.o === s.o)) e.sections.push({ t: s.t, x: s.x, o: s.o, k: tags[i] }); } });
     for (const b of bundles) for (const x of b.b ?? []) bodies.set(x.id, { ...x });
     for (const b of bundles) for (const x of b.bx ?? []) { const o = bodies.get(x.id); if (o) o.dm = x.x; }
     for (const e of map.values()) {

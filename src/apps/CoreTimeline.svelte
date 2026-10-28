@@ -10,6 +10,7 @@
   import { sfx } from '../lib/sfx';
   import { FB } from '../lib/tlimg';
   import RichText from '../ui/RichText.svelte';
+  import { watchTl, type TlEvent } from '../lib/live';
 
   const RACE: Record<string, { c: string; n: string }> = { elf: { c: '#7cffb2', n: 'ELF' }, cuce: { c: '#ffb347', n: 'CÜCE' }, insan: { c: '#00f0ff', n: 'İNSAN' } };
   const BANDS = [
@@ -19,9 +20,13 @@
   ];
   const H_EV = 230, H_BAND = 150, TOP = 140, ORB = 0.42;
   type Row = { kind: 'band'; label: string; i: number } | { kind: 'ev'; e: Entry; side: number; i: number };
+  // DM'nin yayımladığı yeni olaylar (taslaklar yalnız DM'ye görünür)
+  let tl = $state<TlEvent[]>([]);
+  const tlEntry = (t: TlEvent): Entry & { draft?: boolean } => ({ id: 'tl:' + t.id, type: 'event', name: t.name, date: t.date, ys: t.ys, race: t.race, summary: t.summary, key: 'k.tl', draft: !t.published,
+    sections: t.text ? [{ t: 'Ayrıntı', x: t.text, o: 0 }] : [] });
   const rows = $derived.by(() => {
     if (!kb.ready) return [] as Row[];
-    const ev = allEntries().filter((e) => e.type === 'event').sort((a, b) => (b.ys ?? -1e6) - (a.ys ?? -1e6) || a.id.localeCompare(b.id));
+    const ev = [...allEntries().filter((e) => e.type === 'event'), ...tl.map(tlEntry)].sort((a, b) => (b.ys ?? -1e6) - (a.ys ?? -1e6) || a.id.localeCompare(b.id));
     const out: Row[] = []; let band = -1, n = 0;
     for (const e of ev) {
       const bi = BANDS.findIndex((b) => (e.ys ?? -1e6) >= b.min);
@@ -111,11 +116,12 @@
   function jump(i: number) { sfx.click(); sc?.scrollTo({ top: Math.max(0, offs[i] - 40), behavior: settings.reduceMotion ? 'auto' : 'smooth' }); }
   onMount(() => {
     loadKb(session.user!);
+    const stopTl = watchTl(session.user!.role === 'dm', (t) => (tl = t));
     resize(); orbC = vh * ORB; kick();
     addEventListener('resize', resize);
     const vis = () => { cancelAnimationFrame(raf); raf = 0; if (!document.hidden) kick(); };
     document.addEventListener('visibilitychange', vis);
-    return () => { alive = false; cancelAnimationFrame(raf); raf = 0; removeEventListener('resize', resize); document.removeEventListener('visibilitychange', vis); };
+    return () => { stopTl(); alive = false; cancelAnimationFrame(raf); raf = 0; removeEventListener('resize', resize); document.removeEventListener('visibilitychange', vis); };
   });
 </script>
 
@@ -138,7 +144,7 @@
             <article class="card" use:measure={r.i}>
               <div class="im"><img src={img(e)} alt={e.name} loading="lazy" decoding="async" /></div>
               <div class="tx">
-                <div class="meta mono"><b>{rc.n}</b>{#if eraName(e)}<span>{eraName(e)}</span>{/if}</div>
+                <div class="meta mono"><b>{rc.n}</b>{#if eraName(e)}<span>{eraName(e)}</span>{/if}{#if e.key === 'k.tl'}<span class="new">{(e as Entry & { draft?: boolean }).draft ? 'TASLAK · YALNIZ DM' : 'YENİ KAYIT'}</span>{/if}</div>
                 <h3>{e.name}</h3>
                 <p class="sum">{#if e.summary}<RichText text={e.summary} self={e.id} />{:else}<i>Ayrıntılar bilinmiyor.</i>{/if}</p>
                 {#if e.sections.some((s) => s.x && s.x !== e.summary)}
@@ -148,7 +154,7 @@
               {#if open[e.id]}
                 <div class="full">
                   {#each e.sections as s}{#if s.x && s.x !== e.summary}<h4 class="mono">{s.t}</h4><p><RichText text={s.x} self={e.id} /></p>{/if}{/each}
-                  <button class="tag mono" onclick={() => openTag(e.id)}>KODEKS KAYDI ›</button>
+                  {#if e.key !== 'k.tl'}<button class="tag mono" onclick={() => openTag(e.id)}>KODEKS KAYDI ›</button>{/if}
                 </div>
               {/if}
             </article>
@@ -197,6 +203,7 @@
   @keyframes gl{0%{clip-path:inset(0 0 60% 0)}30%{clip-path:inset(40% 0 0 0);filter:hue-rotate(60deg)}60%{clip-path:inset(0)}}
   .hl .card{border-color:var(--ye);box-shadow:0 0 0 2px var(--ye),0 0 40px rgba(252,238,10,.35);animation:hlp 1s 3}
   @keyframes hlp{50%{box-shadow:0 0 0 2px var(--ye),0 0 70px rgba(252,238,10,.6)}}
+  .meta .new{color:#000;background:var(--ye);padding:0 6px;letter-spacing:.15em}
   .im{height:100%;min-height:180px;max-height:220px;overflow:hidden;background:#0a0f18}
   .im img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(1.05) contrast(1.05)}
   .tx{padding:12px 16px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}

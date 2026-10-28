@@ -8,6 +8,7 @@ export const session = $state<{ stage: Stage; user: UserProfile | null; world: W
 });
 export async function enterDesktop(u: UserProfile) {
   session.user = u; session.world = await backend.world(); session.stage = 'desktop';
+  u.lastLogin = Date.now(); backend.patchProfile(u.uid, { lastLogin: u.lastLogin }).catch(() => {});
 }
 export async function logout() {
   await backend.logout(); resetKb(); tagui.stack = []; notes.list = []; notes.loaded = false; session.user = null; session.remembered = null; session.stage = 'press';

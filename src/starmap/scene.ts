@@ -162,7 +162,7 @@ export class ClusterScene {
       for (let i = 0; i < 24; i++) { const a = (i / 24) * 6.283, b = ((i + 1) / 24) * 6.283; ringV.push(d.x + Math.cos(a) * 2.2, 0, d.z + Math.sin(a) * 2.2, d.x + Math.cos(b) * 2.2, 0, d.z + Math.sin(b) * 2.2); }
       const label = document.createElement('div'); label.className = 'sm-lbl' + (known ? '' : ' unk') + (d.owner === 'dm' ? ' dm' : '');
       const cap = known && CAPITALS[d.id] ? `<s class="cap${d.id === 'sys-imperion' ? ' old' : ''}" data-tip="${d.name + ' · ' + CAPITALS[d.id]}"><svg viewBox="0 0 16 16"><path d="M2 12h12l1-7-4 3-3-5-3 5-4-3z"/><path d="M2 14h12"/></svg></s>` : '';
-      label.innerHTML = `${cap}<b>${known ? d.name : 'Bilinmeyen sinyal'}</b><i class="ev"></i>`; label.style.setProperty('--fc', fc);
+      label.innerHTML = `${cap}<b>${known ? d.name : 'Bilinmeyen sinyal'}</b><i class="ev"></i><span class="mk"></span>`; label.style.setProperty('--fc', fc);
       this.overlay.appendChild(label);
       const haloOp = d.stype === 'blackhole' ? 0.08 : d.owner === 'dm' || d.stype === 'unknown' ? 0.1 : 0.16, coreOp = d.stype === 'blackhole' ? 0.4 : 0.9;
       this.sys.set(d.id, { d, pos, group, core, halo, haloOp, coreOp, extra, terr, label, known, dim: 1 });
@@ -217,6 +217,12 @@ export class ClusterScene {
     for (const l of this.lanes) { const s = laneSev.get(l.d.id);
       if (s && !l.label) { l.label = document.createElement('div'); l.label.className = 'sm-lev'; this.overlay.appendChild(l.label); }
       if (l.label) { l.label.style.display = s ? 'block' : 'none'; if (s) l.label.style.setProperty('--sv', colors[s].color); } }
+  }
+  /** DM işaretleri: sistem → gemi konumu / görev noktası rozetleri */
+  setMarkers(m: Map<string, { ship: string[]; mission: string[] }>) {
+    const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+    for (const o of this.sys.values()) { const el = o.label.querySelector('.mk') as HTMLElement, x = m.get(o.d.id);
+      el.innerHTML = x ? (x.ship.length ? `<s class="sh" data-tip="${esc('Gemi: ' + x.ship.join(', '))}">▲</s>` : '') + (x.mission.length ? `<s class="mi" data-tip="${esc('Görev: ' + x.mission.join(', '))}">◆${x.mission.length > 1 ? x.mission.length : ''}</s>` : '') : ''; }
   }
   flyTo(id: string, dist = 85, dur = 1400) {
     const o = this.sys.get(id); if (!o) return;

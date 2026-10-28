@@ -17,8 +17,8 @@ export const firebaseConfig = {
   appId: '1:285999705743:web:ba86689beb5223757e8afa',
 };
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 export const USER_RE = /^[a-z0-9][a-z0-9._-]{2,23}$/i;

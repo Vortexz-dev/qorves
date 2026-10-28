@@ -3,7 +3,7 @@
   import { settings, saveSettings } from '../lib/settings.svelte';
   import { RACES } from '../lib/data/character';
   import { sfx } from '../lib/sfx';
-  import { APPS } from './apps';
+  import { visibleApps } from './apps';
   import { ICONS } from './icons';
   import { wm, openApp, resetWM } from './wm.svelte';
   const u = session.user!;
@@ -18,7 +18,7 @@
   </div>
   <div class="sec mono">UYGULAMALAR</div>
   <div class="apps">
-    {#each APPS.filter((a) => !a.hidden) as a}
+    {#each visibleApps(u) as a}
       <button class="app" class:core={a.core} onclick={() => openApp(a.id)} onmouseenter={() => sfx.hover()}>
         <span class="ic">{@html ICONS[a.icon]}</span>{a.title}{#if a.core}<i class="mono">ÇEKİRDEK</i>{/if}
       </button>
