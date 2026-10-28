@@ -59,7 +59,7 @@ export class ClusterScene {
   hovered: string | null = null; selected: string | null = null; showLabels = true; showLanes = true; showTerr = true; quality: Quality;
   private down = { x: 0, y: 0 }; private v = new THREE.Vector3();
   constructor(private host: HTMLElement, private overlay: HTMLElement, private data: MapData, private known: (id: string) => boolean, private hooks: Hooks, quality: Quality) {
-    this.quality = quality; if (location.search.includes('qc=1')) (globalThis as any).__qcC = this; // QC_HOOK
+    this.quality = quality;
     this.renderer = new THREE.WebGLRenderer({ antialias: Q[quality].aa, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x020309, 1); this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 0.92;
     host.appendChild(this.renderer.domElement);

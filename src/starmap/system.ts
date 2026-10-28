@@ -50,7 +50,7 @@ export class SystemScene {
   private fly: { t0: number; dur: number; fromT: THREE.Vector3; fromP: THREE.Vector3; o: O | null; offT: THREE.Vector3; offP: THREE.Vector3; done?: () => void } | null = null;
   private follow: O | null = null; private lastFollow = new THREE.Vector3(); private reticle: THREE.Sprite; private snapReq: { id: string; res: (u: string[]) => void } | null = null; private snapping = false;
   constructor(private host: HTMLElement, private overlay: HTMLElement, private sys: SysData, bodies: Body[], private hooks: SysHooks, quality: Quality, private opts: SysOpts = {}) {
-    this.quality = quality; if (location.search.includes('qc=1')) (globalThis as any).__qcS = this; // QC_HOOK
+    this.quality = quality;
     this.renderer = new THREE.WebGLRenderer({ antialias: Q[quality].aa, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x010207, 1); this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.0;
     host.appendChild(this.renderer.domElement);
