@@ -18,7 +18,7 @@ export const STAR_COLOR: Record<string, string> = { A: '#bcd0ff', F: '#f8f7ff', 
 export const LANE_COLOR: Record<string, string> = { 'Rün': '#6ff7ff', Astar: '#ffd36b', Karma: '#c78bff' };
 const Q = { low: { dpr: 1, bg: 5000, disk: 6000, neb: 6, bloom: false }, med: { dpr: 1.5, bg: 12000, disk: 15000, neb: 10, bloom: true }, high: { dpr: 2, bg: 22000, disk: 32000, neb: 14, bloom: true } };
 
-interface SysObj { d: SysData; pos: THREE.Vector3; group: THREE.Group; core: THREE.Sprite; halo: THREE.Sprite; extra: THREE.Object3D[]; terr: THREE.Mesh; label: HTMLDivElement; known: boolean; dim: number }
+interface SysObj { d: SysData; pos: THREE.Vector3; group: THREE.Group; core: THREE.Sprite; halo: THREE.Sprite; haloOp: number; coreOp: number; extra: THREE.Object3D[]; terr: THREE.Mesh; label: HTMLDivElement; known: boolean; dim: number }
 export interface Hooks { hover: (id: string | null) => void; select: (id: string | null) => void }
 
 const POINT_VS = `attribute float size; attribute vec3 color; attribute float tw; varying vec3 vC; varying float vT; uniform float uPR; uniform float uTime;
@@ -27,7 +27,11 @@ void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); gl_Position = proje
   gl_PointSize = clamp(size * uPR * (420.0 / -mv.z), 0.6, 9.0 * uPR); }`;
 const POINT_FS = `varying vec3 vC; varying float vT; void main(){ vec2 p = gl_PointCoord - 0.5; float d = length(p); if (d > 0.5) discard;
   float a = smoothstep(0.5, 0.0, d); a = a * a; gl_FragColor = vec4(vC * vT, a); }`;
-const LANE_VS = `attribute float aU; attribute float aV; varying float vU; varying float vV; void main(){ vU = aU; vV = aV; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
+// Hat şeridi ekran uzayında sabit kalınlıkta: merkez çizgi + yön, kalınlık piksel cinsinden.
+const LANE_VS = `attribute float aU; attribute float aV; attribute vec3 aDir; uniform vec2 uRes; uniform float uW; varying float vU; varying float vV;
+void main(){ vU = aU; vV = aV; vec4 c = projectionMatrix * modelViewMatrix * vec4(position,1.0); vec4 n = projectionMatrix * modelViewMatrix * vec4(position + aDir,1.0);
+  vec2 sc = c.xy / max(abs(c.w), 1e-4); vec2 sn = n.xy / max(abs(n.w), 1e-4); vec2 d = normalize((sn - sc) * uRes + 1e-6); vec2 perp = vec2(-d.y, d.x);
+  c.xy += perp * aV * uW / uRes * 2.0 * c.w; gl_Position = c; }`;
 const LANE_FS = `uniform vec3 uColor; uniform float uTime; uniform float uOp; uniform float uMode; uniform float uLen; varying float vU; varying float vV;
 void main(){ float core = exp(-vV * vV * 5.0); float edge = smoothstep(0.0, 6.0, vU) * smoothstep(uLen, uLen - 6.0, vU);
   float a; 
@@ -134,14 +138,14 @@ export class ClusterScene {
       if (d.stype === 'redgiant') { cs = 11 * s; hs = 46 * s; } if (d.stype === 'whitedwarf') { cs = 4.5 * s; hs = 16 * s; } if (d.stype === 'unknown' || d.owner === 'dm') { cs = 4; hs = 10; halo.material.opacity = 0.12; }
       core.scale.setScalar(cs); halo.scale.setScalar(hs); group.add(halo, core);
       if (d.stype === 'blackhole') {
-        core.material.color.set('#ffcc88'); core.scale.setScalar(3);
-        const ring = this.sprite('ring', '#ffb060', 1); ring.scale.setScalar(26 * s); const disk = this.sprite('disk', '#000000', 1, false); disk.scale.setScalar(9 * s); disk.renderOrder = 2;
+        core.material.color.set('#ffb070'); core.scale.setScalar(1.6);
+        const ring = this.sprite('ring', '#ff9a50', 0.55); ring.scale.setScalar(22 * s); const disk = this.sprite('disk', '#000000', 1, false); disk.scale.setScalar(8 * s); disk.renderOrder = 2;
         const comp = this.sprite('glow', STAR_COLOR.K, 0.9); comp.scale.setScalar(5); comp.position.set(7, 1, -5);
-        halo.material.color.set('#ff7a2a'); halo.material.opacity = 0.25; group.add(ring, disk, comp); extra.push(ring);
+        halo.material.color.set('#7a3010'); halo.scale.setScalar(16 * s); group.add(ring, disk, comp); extra.push(ring);
       }
       if (d.stype === 'pulsar') { for (const r of [0, Math.PI / 2]) { const b = this.sprite('beam', '#bfe6ff', 0.55); b.scale.set(70, 70, 1); b.material.rotation = r; group.add(b); extra.push(b); } }
       if (d.stype === 'magnetar') { const b = this.sprite('glow', '#7a4dff', 0.4); b.scale.setScalar(40); group.add(b); extra.push(b); }
-      if (d.stype === 'triple') { for (const [c, o] of [['#ff6a4a', [5, 0.5, 3]], ['#eaf4ff', [-4, -0.5, 4]]] as const) { const x = this.sprite('glow', c, 0.95); x.scale.setScalar(3.6); x.position.set(...o); group.add(x); }
+      if (d.stype === 'triple') { for (const [c, o] of [['#ff6a4a', [5, 0.5, 3]], ['#eaf4ff', [-4, -0.5, 4]]] as [string, [number, number, number]][]) { const x = this.sprite('glow', c, 0.95); x.scale.setScalar(3.6); x.position.set(o[0], o[1], o[2]); group.add(x); }
         const neb = this.sprite('soft', '#59ff9a', 0.12); neb.scale.setScalar(55); const neb2 = this.sprite('soft', '#ff4a5a', 0.08); neb2.scale.setScalar(40); neb2.position.set(8, 0, 6); group.add(neb, neb2); }
       if (d.stype === 'binary') { const x = this.sprite('glow', '#ff6a4a', 0.95); x.scale.setScalar(3.4); x.position.set(5.5, 0.6, -3); group.add(x); extra.push(x); }
       if (d.name === 'Ozgrund') { const dust = this.sprite('soft', '#8a5a3a', 0.25); dust.scale.setScalar(36); group.add(dust); }
@@ -154,7 +158,8 @@ export class ClusterScene {
       const label = document.createElement('div'); label.className = 'sm-lbl' + (known ? '' : ' unk') + (d.owner === 'dm' ? ' dm' : '');
       label.innerHTML = `<b>${known ? d.name : 'Bilinmeyen sinyal'}</b><i class="ev"></i>`; label.style.setProperty('--fc', fc);
       this.overlay.appendChild(label);
-      this.sys.set(d.id, { d, pos, group, core, halo, extra, terr, label, known, dim: 1 });
+      const haloOp = d.stype === 'blackhole' ? 0.1 : d.owner === 'dm' || d.stype === 'unknown' ? 0.12 : 0.35, coreOp = d.stype === 'blackhole' ? 0.45 : 1;
+      this.sys.set(d.id, { d, pos, group, core, halo, haloOp, coreOp, extra, terr, label, known, dim: 1 });
     }
     const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(stalkV, 3));
     this.scene.add(new THREE.LineSegments(sg, new THREE.LineBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0.28, depthWrite: false })));
@@ -165,15 +170,16 @@ export class ClusterScene {
     const MODE: Record<string, number> = { open: 0, closed: 1, danger: 2, collapsed: 3, rumor: 4 };
     for (const d of this.data.lanes) {
       const A = this.sys.get(d.a)!.pos, B = this.sys.get(d.b)!.pos, dir = B.clone().sub(A), len = dir.length(); dir.normalize();
-      const perp = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize(), w = d.status === 'open' ? 1.5 : 1.1, N = 2;
-      const pos: number[] = [], u: number[] = [], vv: number[] = [], idx: number[] = [];
+      const w = d.status === 'open' ? 2.4 : 1.8, N = 24;
+      const pos: number[] = [], u: number[] = [], vv: number[] = [], dd: number[] = [], idx: number[] = [];
       for (let i = 0; i <= N; i++) { const t = i / N, c = A.clone().lerp(B, t);
-        for (const side of [-1, 1]) { const p = c.clone().addScaledVector(perp, side * w); pos.push(p.x, p.y, p.z); u.push(t * len); vv.push(side); } }
+        for (const side of [-1, 1]) { pos.push(c.x, c.y, c.z); dd.push(dir.x, dir.y, dir.z); u.push(t * len); vv.push(side); } }
       for (let i = 0; i < N; i++) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aU', new THREE.Float32BufferAttribute(u, 1)); g.setAttribute('aV', new THREE.Float32BufferAttribute(vv, 1)); g.setIndex(idx);
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aDir', new THREE.Float32BufferAttribute(dd, 3));
+      g.setAttribute('aU', new THREE.Float32BufferAttribute(u, 1)); g.setAttribute('aV', new THREE.Float32BufferAttribute(vv, 1)); g.setIndex(idx);
       const col = d.status === 'danger' ? '#ff3355' : d.status === 'rumor' ? '#b06bff' : d.status === 'collapsed' ? '#8892a6' : d.status === 'closed' ? '#8892a6' : LANE_COLOR[d.kind] ?? '#9fe8ff';
       const mat = new THREE.ShaderMaterial({ vertexShader: LANE_VS, fragmentShader: LANE_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-        uniforms: { uColor: { value: new THREE.Color(col) }, uTime: { value: 0 }, uOp: { value: 1 }, uMode: { value: MODE[d.status] ?? 0 }, uLen: { value: len } } });
+        uniforms: { uColor: { value: new THREE.Color(col) }, uTime: { value: 0 }, uOp: { value: 1 }, uMode: { value: MODE[d.status] ?? 0 }, uLen: { value: len }, uRes: { value: new THREE.Vector2(1, 1) }, uW: { value: w } } });
       const mesh = new THREE.Mesh(g, mat); mesh.frustumCulled = false; this.scene.add(mesh);
       this.lanes.push({ d, mesh, mat, mid: A.clone().lerp(B, 0.5) });
     }
@@ -212,6 +218,8 @@ export class ClusterScene {
     if (dir.y < 0.35) { dir.y = 0.45; dir.normalize(); }
     this.fly = { t0: performance.now(), dur, fromT: this.controls.target.clone(), toT: o.pos.clone(), fromP: this.camera.position.clone(), toP: o.pos.clone().addScaledVector(dir, dist) };
   }
+  /** Sistemden dönüşte: kamerayı sistemin dibine koy (ters geçişin başlangıcı). */
+  placeNear(id: string, dist = 10) { const o = this.sys.get(id); if (!o) return; const dir = new THREE.Vector3(0, 0.45, 0.9).normalize(); this.controls.target.copy(o.pos); this.camera.position.copy(o.pos).addScaledVector(dir, dist); this.fly = null; }
   overview() { this.fly = { t0: performance.now(), dur: 1400, fromT: this.controls.target.clone(), toT: new THREE.Vector3(0, 0, 20), fromP: this.camera.position.clone(), toP: new THREE.Vector3(0, 250, 330) }; }
   select(id: string | null) { this.selected = id; this.hooks.select(id); }
   private pick(cx: number, cy: number) {
@@ -228,6 +236,7 @@ export class ClusterScene {
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h, false);
     this.composer?.setSize(w, h); this.composer?.setPixelRatio(this.renderer.getPixelRatio());
     for (const m of this.pointMats) m.uniforms.uPR.value = this.renderer.getPixelRatio();
+    const pr = this.renderer.getPixelRatio(); for (const l of this.lanes) { l.mat.uniforms.uRes.value.set(w * pr, h * pr); l.mat.uniforms.uW.value = (l.d.status === 'open' ? 2.4 : 1.8) * pr; }
   };
   private onVis = () => { if (document.hidden) this.stop(); else this.start(); };
   start() { if (this.running) return; this.running = true; this.clock.getDelta(); this.raf = requestAnimationFrame(this.frame); }
@@ -243,11 +252,11 @@ export class ClusterScene {
     for (const o of this.sys.values()) {
       const st = o.d.stype, pulse = st === 'redgiant' ? 1 + Math.sin(t * 0.7) * 0.06 : st === 'magnetar' ? 1 + Math.sin(t * 9) * 0.05 * Math.sin(t * 2.3) : 1 + Math.sin(t * 1.3 + o.pos.x) * 0.03;
       const hl = o.d.id === this.hovered || o.d.id === this.selected ? 1.25 : 1;
-      o.group.scale.setScalar(pulse * hl); o.core.material.opacity = o.dim; o.halo.material.opacity = (o.d.owner === 'dm' ? 0.12 : 0.35) * o.dim;
-      o.terr.material.opacity = (o.d.owner === 'dm' ? 0 : 0.13) * o.dim;
+      o.group.scale.setScalar(pulse * hl); o.core.material.opacity = o.coreOp * o.dim; o.halo.material.opacity = o.haloOp * o.dim;
+      (o.terr.material as THREE.MeshBasicMaterial).opacity = (o.d.owner === 'dm' ? 0 : 0.13) * o.dim;
       if (st === 'pulsar') o.extra.forEach((b, i) => ((b as THREE.Sprite).material.rotation = t * 2.2 + i * Math.PI / 2));
       if (st === 'blackhole') ((o.extra[0] as THREE.Sprite).material.rotation = t * 0.25);
-      if (st === 'magnetar') (o.extra[0] as THREE.Sprite).material.opacity = (0.25 + 0.2 * Math.abs(Math.sin(t * 3.1))) * o.dim;
+      if (st === 'magnetar') ((o.extra[0] as THREE.Sprite).material as THREE.SpriteMaterial).opacity = (0.25 + 0.2 * Math.abs(Math.sin(t * 3.1))) * o.dim;
     }
     const ret = (sp: THREE.Sprite, id: string | null, s: number) => { const o = id ? this.sys.get(id) : null; sp.visible = !!o; if (o) { sp.position.copy(o.pos); const d = this.camera.position.distanceTo(o.pos); sp.scale.setScalar(Math.max(8, d * 0.06) * s); sp.material.rotation = t * 0.6 * s; } };
     ret(this.reticle, this.selected, 1); ret(this.hovRet, this.hovered !== this.selected ? this.hovered : null, 0.8);

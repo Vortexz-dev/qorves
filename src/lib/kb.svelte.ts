@@ -10,13 +10,18 @@ export interface Entry {
   id: string; type: string; name: string; aliases?: string[]; summary?: string; key: string; parent?: string;
   date?: string; ys?: number; race?: string; ends?: string[]; region?: string; range?: string; ord?: number; sections: Section[];
 }
-interface Bundle { e: Omit<Entry, 'sections'>[]; s: { id: string; o: number; t: string; x: string }[] }
+export interface Body {
+  id: string; sys: string; name: string; pop?: string; note?: string; kind: string; cls: string; type: string; orbit?: string; au?: number; au2?: number; parent?: string; l4?: string;
+  star?: string; grav?: string; atm?: string; temp?: string; life?: string; count?: number; ring?: boolean; city?: boolean; key: string; ent?: string; desc?: string; img?: string; dm?: string; o: number;
+}
+interface Bundle { e: Omit<Entry, 'sections'>[]; s: { id: string; o: number; t: string; x: string }[]; b?: Body[]; bx?: { id: string; x: string }[] }
 export const kb = $state({ ready: false, loading: false, count: 0, keys: [] as string[] });
 const map = new Map<string, Entry>();
 let linkRe: RegExp | null = null;
 const nameId = new Map<string, string>();
 const back = new Map<string, Set<string>>();
 const kids = new Map<string, string[]>();
+const bodies = new Map<string, Body>();
 let ms: MiniSearch | null = null;
 let pending: Promise<void> | null = null;
 const STOP = new Set(['Kapı', 'Kapılar', 'Yeni', 'Eski']);
@@ -45,6 +50,8 @@ export function loadKb(user: UserProfile) {
     kb.keys = ['k.public', ...keys.map((k) => k.id)];
     for (const b of bundles) for (const e of b.e) map.set(e.id, { ...e, sections: [] } as Entry);
     for (const b of bundles) for (const s of b.s) map.get(s.id)?.sections.push({ t: s.t, x: s.x, o: s.o });
+    for (const b of bundles) for (const x of b.b ?? []) bodies.set(x.id, { ...x });
+    for (const b of bundles) for (const x of b.bx ?? []) { const o = bodies.get(x.id); if (o) o.dm = x.x; }
     for (const e of map.values()) {
       e.sections.sort((a, b) => a.o - b.o);
       if (e.parent && map.has(e.parent)) { const a = kids.get(e.parent) ?? []; a.push(e.id); kids.set(e.parent, a); }
@@ -73,8 +80,10 @@ export function loadKb(user: UserProfile) {
   })();
   return pending;
 }
-export function resetKb() { map.clear(); nameId.clear(); back.clear(); kids.clear(); ms = null; linkRe = null; pending = null; kb.ready = false; kb.count = 0; }
+export function resetKb() { bodies.clear(); map.clear(); nameId.clear(); back.clear(); kids.clear(); ms = null; linkRe = null; pending = null; kb.ready = false; kb.count = 0; }
 export const getEntry = (id: string) => map.get(id);
+/** Bir sistemin, kullanıcının anahtarlarıyla görebildiği gök cisimleri (Kodeks sırasıyla). */
+export const bodiesOf = (sys: string) => [...bodies.values()].filter((b) => b.sys === sys).sort((a, b) => a.o - b.o);
 export const allEntries = () => [...map.values()];
 export const childrenOf = (id: string) => (kids.get(id) ?? []).map((k) => map.get(k)!).filter(Boolean);
 export const backlinksOf = (id: string) => [...(back.get(id) ?? [])].map((k) => map.get(k)!).filter(Boolean);
