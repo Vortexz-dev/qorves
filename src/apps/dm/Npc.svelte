@@ -56,11 +56,11 @@
     </div>
   {:else}
   <div class="pl">
-    {#if npc && !spy}
+    {#if npc}
       <div class="nh" style:--c={npc.color}><b>{npc.name}</b><small>{npc.style}</small><button class="lk" onclick={() => (ed = { ...npc })}>düzenle</button><button class="lk red" onclick={() => del(npc)}>sil</button></div>
       <h4 class="mono">KİMİNLE YAZIŞ</h4>
       {#each dm.users as u (u.uid)}{@const c = convsOf.find((x) => x.members.includes(u.uid))}
-        <button class="cv" class:on={peer === u.uid && !!cid} onclick={() => openWith(u.uid)}><i class:on={isOnline(dm.pres.find((p) => p.uid === u.uid))}></i>{pname(u.uid)}{#if c && unreadFor(c, me)}<em>YENİ</em>{/if}<small>{c?.last ? (c.last.from === me ? 'sen: ' : '') + c.last.text.slice(0, 36) : 'konuşma yok'}</small></button>
+        <button class="cv" class:on={peer === u.uid && !!cid && !spy} onclick={() => openWith(u.uid)}><i class:on={isOnline(dm.pres.find((p) => p.uid === u.uid))}></i>{pname(u.uid)}{#if c && unreadFor(c, me)}<em>YENİ</em>{/if}<small>{c?.last ? (c.last.from === me ? 'sen: ' : '') + c.last.text.slice(0, 36) : 'konuşma yok'}</small></button>
       {/each}
     {/if}
     {#if msg}<p class="msg mono">{msg}</p>{/if}

@@ -99,7 +99,7 @@
   .sw input:checked+span{border-color:var(--cy);background:rgba(0,240,255,.15)}.sw input:checked+span::after{left:16px;background:var(--cy);box-shadow:0 0 6px var(--cy)}
   .nt{font-size:11.5px;color:var(--mut);margin-top:8px}
   .en{display:flex;flex-direction:column;min-height:0}
-  .fl{display:flex;gap:8px;align-items:center;margin-bottom:8px}.fl input{flex:1}.ck{display:flex;gap:5px;align-items:center;font-size:13px;white-space:nowrap}
+  .fl{display:flex;gap:8px;align-items:center;margin-bottom:8px}.fl input{flex:1;min-width:0}.fl select{flex:none;width:170px}.ck{display:flex;gap:5px;align-items:center;font-size:13px;white-space:nowrap}
   .rows{flex:1;overflow:auto;border:1px solid var(--line)}
   .r{display:grid;grid-template-columns:80px 1fr 150px 100px;gap:8px;align-items:center;padding:5px 10px;border-bottom:1px solid rgba(0,240,255,.07);font-size:14px}
   .r.on{background:rgba(57,255,138,.04)}.ty{font-size:11px;font-family:var(--f-mono)}.n small{color:var(--mut);font-size:12px}

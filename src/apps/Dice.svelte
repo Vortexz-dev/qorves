@@ -95,7 +95,7 @@
   .adv{display:flex;border:1px solid var(--line)}.adv button{flex:1;background:none;border:0;color:var(--mut);padding:7px 0;font:inherit;font-size:10.5px;letter-spacing:.18em}
   .adv button.on{background:rgba(0,240,255,.14);color:var(--cy)}.adv .a.on{background:rgba(57,255,138,.15);color:#39ff8a}.adv .d.on{background:rgba(255,42,85,.15);color:var(--rd)}
   .adv.off{opacity:.35;pointer-events:none}
-  .act{display:flex;gap:8px}.act .go{flex:1;font-family:var(--f-mono);letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .act{display:flex;gap:8px}.act .go{flex:1;font-family:var(--f-mono);letter-spacing:.04em;font-size:13px;padding-left:12px;padding-right:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .err{color:var(--rd);font-size:12px}
   .tray{position:relative;overflow:hidden;perspective:900px;display:flex;flex-direction:column;align-items:center;justify-content:center}
   .grid{position:absolute;inset:-50%;background:linear-gradient(rgba(0,240,255,.07) 1px,transparent 1px) 0 0/40px 40px,linear-gradient(90deg,rgba(0,240,255,.07) 1px,transparent 1px) 0 0/40px 40px;transform:rotateX(62deg) translateY(10%);pointer-events:none}

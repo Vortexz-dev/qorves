@@ -42,9 +42,9 @@
   const fs = $derived(focus ? S.get(focus) : null);
   const ss = $derived(sel ? S.get(sel) : null);
   const se = $derived(sel ? getEntry(sel) : null);
-  const evFor = (id: string) => ev.filter((e) => e.sys === id || (e.lane && map?.lanes.find((l) => l.id === e.lane && (l.a === id || l.b === id)))).sort((a, b) => b.tpl.sev - a.tpl.sev);
+  const evFor = (id: string) => ev.filter((e) => e.sys === id || (e.lane && map?.lanes.find((l) => l.id === e.lane && (l.a === id || l.b === id)))).sort((a, b) => Number(!!b.forced) - Number(!!a.forced) || b.tpl.sev - a.tpl.sev);
   const focusEv = $derived(focus ? evFor(focus) : []);
-  const topEv = $derived([...ev].sort((a, b) => b.tpl.sev - a.tpl.sev).slice(0, 4));
+  const topEv = $derived([...ev].sort((a, b) => Number(!!b.forced) - Number(!!a.forced) || b.tpl.sev - a.tpl.sev).slice(0, 4)); // DM yayınları önce
   const list = $derived(map ? map.systems.filter((s) => !hidden.includes(s.owner) && (!search || (known(s.id) ? s.name : '').toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr')))).sort((a, b) => a.name.localeCompare(b.name, 'tr')) : []);
   const lanesOf = (id: string) => (map?.lanes ?? []).filter((l) => (l.a === id || l.b === id) && known(l.id));
   const cs = $derived(cur ? S.get(cur) : null);

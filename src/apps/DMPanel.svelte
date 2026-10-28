@@ -53,6 +53,7 @@
   nav button{display:flex;align-items:center;background:none;border:0;border-left:2px solid transparent;color:var(--tx);text-align:left;padding:10px 14px;font:inherit;font-size:15px}
   nav button:hover{background:rgba(0,240,255,.06)}nav button.on{border-left-color:var(--rd);background:rgba(255,42,85,.1);color:#fff}
   nav em{margin-left:auto;font-style:normal;font-family:var(--f-mono);font-size:10px;background:#ff2a8a;color:#000;padding:0 5px}
+  .dmp :global(.btn.small){font-size:11.5px;letter-spacing:.1em;padding:6px 12px;white-space:nowrap;--cut:8px}
   main{min-height:0;min-width:0;overflow:hidden}
   .no{padding:30px;color:var(--mut);font-size:12px;letter-spacing:.2em}
 </style>

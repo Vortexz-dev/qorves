@@ -25,11 +25,12 @@ service cloud.firestore {
       match /notes/{noteId} {
         allow read: if isMe(uid) || isDM();
         allow write: if isMe(uid) && (request.resource == null || request.resource.data.size() < 40);
+        allow delete: if isDM();
       }
       // Masaüstü klasörleri ve kaydedilmiş görseller: yalnız ad + adres (veri yok).
       match /items/{itemId} {
         allow read: if isMe(uid) || isDM();
-        allow delete: if isMe(uid);
+        allow delete: if isMe(uid) || isDM();
         allow create, update: if (isMe(uid) || isDM()) && request.resource.data.size() < 14
           && request.resource.data.kind in ['folder', 'image', 'doc']
           && (!('body' in request.resource.data) || (request.resource.data.body is string && request.resource.data.body.size() < 20000))
@@ -55,9 +56,11 @@ service cloud.firestore {
       match /files/{fileId} {
         allow read: if isMe(uid) || isDM();
         allow write: if isMe(uid);
+        allow delete: if isDM();
         match /chunks/{n} {
           allow read: if isMe(uid) || isDM();
           allow write: if isMe(uid) && (request.resource == null || request.resource.data.d.size() < 900000);
+          allow delete: if isDM();
         }
       }
     }
@@ -80,6 +83,7 @@ service cloud.firestore {
     match /presence/{uid} {
       allow read: if signedIn();
       allow write: if isMe(uid) && request.resource.data.uid == uid && request.resource.data.size() < 10;
+      allow delete: if isDM();
     }
     // ghOS-Net: NPC kimlikleri yalnız DM yazar.
     match /npcs/{id} {
