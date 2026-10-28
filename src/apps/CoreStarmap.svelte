@@ -1,13 +1,14 @@
 <script lang="ts">
   // Qorves Starmap — küme görünümü. Sahne starmap/scene.ts; olay motoru lib/events.ts.
-  import { onMount } from 'svelte';
-  import { ClusterScene, STAR_COLOR, LANE_COLOR, type MapData, type Quality } from '../starmap/scene';
-  import { SystemScene } from '../starmap/system';
+  import { onMount, untrack } from 'svelte';
+  import { openImage, lightbox } from '../lib/lightbox.svelte';
+  import { ClusterScene, STAR_COLOR, LANE_COLOR, CAPITALS, type MapData, type Quality, type LaneData } from '../starmap/scene';
+  import { SystemScene, type LaneGate } from '../starmap/system';
   import { kb, loadKb, getEntry, childrenOf, bodiesOf, type Body } from '../lib/kb.svelte';
   import { session } from '../lib/session.svelte';
   import { openTag } from '../lib/tags.svelte';
   import { loadEvents, activeAt, type ActiveEvent, type EvData } from '../lib/events';
-  import { sfx } from '../lib/sfx';
+  import { sfx, ambient } from '../lib/sfx';
   import RichText from '../ui/RichText.svelte';
   import { tmeta } from '../lib/types';
 
@@ -17,7 +18,8 @@
     stream: 'Plazma akıntısı', debris: 'Enkaz sahası', wormhole: 'Kurt deliği', star: 'Yıldız', star2: 'Eş yıldız' };
   let host: HTMLDivElement | undefined = $state(), ov: HTMLDivElement | undefined = $state();
   let mode = $state<'cluster' | 'system'>('cluster'), cur = $state<string | null>(null), sys2: SystemScene | null = null;
-  let bsel = $state<string | null>(null), bhov = $state<string | null>(null), snaps = $state<Record<string, string[]>>({}), lightbox = $state<string | null>(null);
+  let bsel = $state<string | null>(null), bhov = $state<string | null>(null), snaps = $state<Record<string, string[]>>({});
+  let pinned = $state(localStorage.getItem('qv.mapPin') === '1'), lopen = $state(false), aopen = $state(false);
   let orbits = $state(true), moving = $state(true), busy = false;
   let map = $state<MapData | null>(null), sc: ClusterScene | null = null;
   let hov = $state<string | null>(null), sel = $state<string | null>(null);
@@ -43,9 +45,36 @@
   const bs = $derived<Body | null>(bsel ? bmap.get(bsel) ?? null : null);
   const be = $derived(bs?.ent ? getEntry(bs.ent) : null);
   const starEnt = $derived(cur ? childrenOf(cur).find((e) => e.type === 'star') : null);
-  const tree = $derived.by(() => { const top = blist.filter((b) => !b.parent || !bmap.has(b.parent)); return top.map((b) => ({ b, kids: blist.filter((k) => k.parent === b.id) })); });
+  const tree = $derived.by(() => { const cg = new Set(gates.map((g) => g.canon).filter(Boolean)); const top = blist.filter((b) => (!b.parent || !bmap.has(b.parent)) && !cg.has(b.id)); return top.map((b) => ({ b, kids: blist.filter((k) => k.parent === b.id) })); });
   const generic = (t?: string) => !t || /sistemindeki bir|üzerinde\/yakınında|^\W*$/.test(t);
   const rows = (b: Body) => ([['Yörünge', b.orbit ? b.orbit + (/\d/.test(b.orbit) && !/yörünge|L4|arasında|'den/i.test(b.orbit) ? ' AB' : '') : ''], ['Yerçekimi', b.grav], ['Atmosfer', b.atm], ['Sıcaklık', b.temp], ['Yaşam', b.life]] as [string, string | undefined][]).filter(([, v]) => v && v !== '—');
+  const STATUS_TR: Record<string, string> = { open: 'Açık', closed: 'Kapalı', danger: 'Tehlikeli', collapsed: 'Çökmüş', rumor: 'Söylenti' };
+  const laneCol = (l: LaneData) => l.status === 'danger' ? '#ff3355' : l.status === 'rumor' ? '#b06bff' : l.status === 'collapsed' || l.status === 'closed' ? '#8892a6' : LANE_COLOR[l.kind] ?? '#9fe8ff';
+  const DIRS = ['doğu', 'güneydoğu', 'güney', 'güneybatı', 'batı', 'kuzeybatı', 'kuzey', 'kuzeydoğu'];
+  const dirName = (ang: number) => DIRS[((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8]; // ekranda +z aşağı = güney
+  type GateInfo = LaneGate & { lane: LaneData; to: string };
+  /** Her bilinen hat için bir geçit; yön kümedeki hedef sistemin gerçek yönü. Kodeks'teki geçitler (Beş Geçit, Eski Köprü…) kendi hatlarına eşlenir. */
+  function gatesFor(id: string): GateInfo[] {
+    const s0 = S.get(id); if (!s0) return [];
+    const out: GateInfo[] = lanesOf(id).map((l) => { const o = l.a === id ? l.b : l.a, t = S.get(o)!;
+      return { id: 'lg-' + l.id, lane: l, to: o, ang: Math.atan2(t.z - s0.z, t.x - s0.x), status: l.status, color: laneCol(l), name: l.name + ' geçidi' }; });
+    const free = new Set(out.map((g) => g.id));
+    for (const b of bodiesOf(id).filter((b) => b.kind === 'gate' || (b.kind === 'station' && /geçit/i.test(b.name)))) {
+      const n = /Beş/.test(b.name) ? 5 : /iki geçit|geçitleri/i.test(b.name + ' ' + b.type) ? 2 : 1, w0 = b.name.split(/\s+/)[0].toLocaleLowerCase('tr');
+      const score = (g: GateInfo) => (/kara hat/i.test(b.type) && /kara hat/i.test(g.lane.name) ? 5 : 0) + (g.lane.name.toLocaleLowerCase('tr').includes(w0) ? 4 : 0) + ((S.get(g.to)?.name ?? '').toLocaleLowerCase('tr') === w0 ? 4 : 0);
+      const c = out.filter((g) => free.has(g.id)).map((g) => [g, score(g)] as const).sort((x, y) => y[1] - x[1]);
+      let pick = c.filter((x) => x[1] > 0).slice(0, n).map((x) => x[0]);
+      if (pick.length < n && n > 1) pick = pick.concat(c.filter((x) => x[1] === 0 && x[0].status === 'open').slice(0, n - pick.length).map((x) => x[0]));
+      pick.forEach((g, i) => { g.canon = b.id; free.delete(g.id); g.au = b.au2 && n === 2 ? (i ? b.au2 : b.au) : n === 5 ? 30 + i * 3.75 : b.au; if (b.star === 'B') g.host = 'B';
+        g.name = (b.kind === 'station' ? b.name.split(' ')[0] + ' geçidi' : b.name.replace(/ geçitleri$/, '')) + ' · ' + g.lane.name; });
+    }
+    return out;
+  }
+  const gates = $derived(cur && map && kb.ready ? gatesFor(cur) : []);
+  const gmap = $derived(new Map(gates.map((g) => [g.id, g])));
+  const gs = $derived(bsel ? gmap.get(bsel) ?? null : null);
+  const gcanon = $derived(gs?.canon ? bmap.get(gs.canon) ?? null : null);
+  const leftOpen = $derived(pinned || lopen);
   const left = (e: ActiveEvent) => Math.max(1, Math.ceil((e.end - now) / 60000));
 
   function refreshEvents() {
@@ -60,6 +89,7 @@
   const sysHooks = { hover: (id: string | null) => (bhov = id), select: (id: string | null) => selectBody(id) };
   function makeCluster(near?: string) {
     sc = new ClusterScene(host!, ov!, map!, known, { hover: (id) => (hov = id), select: (id) => (sel = id) }, q);
+    if (sel) sc.selected = sel;
     sc.setLayers(labels, lanesOn, terr); sc.setFilter(new Set(hidden)); refreshEvents();
     if (near) { sc.placeNear(near, 9); sc.select(near); sc.flyTo(near, 85, 1800); }
   }
@@ -69,7 +99,7 @@
     const id = ss.id; sc?.flyTo(id, 12, 1000); setTimeout(() => (warp = 1), 450);
     setTimeout(() => {
       sc?.dispose(); sc = null; hov = null; cur = id; bsel = null; mode = 'system';
-      sys2 = new SystemScene(host!, ov!, S.get(id)!, bodiesOf(id), sysHooks, q); sys2.setLayers(labels, orbits, moving);
+      sys2 = new SystemScene(host!, ov!, S.get(id)!, bodiesOf(id), sysHooks, q, { gates: gatesFor(id) }); sys2.setLayers(labels, orbits, moving);
       warp = 2; setTimeout(() => { warp = 0; busy = false; }, 900);
     }, 1500);
   }
@@ -80,24 +110,35 @@
     sys2.dispose(); sys2 = null; bsel = null; bhov = null; mode = 'cluster'; sel = id; makeCluster(id); cur = null;
     warp = 2; setTimeout(() => { warp = 0; busy = false; }, 900);
   }
+  /** Geçitten hedef sisteme: kümeye dön, hedefi seç, içine gir. */
+  async function jump(to: string) { if (busy) return; await back(); setTimeout(() => { if (!known(to)) return; sel = to; sc?.select(to); setTimeout(enter, 900); }, 950); }
   function selectBody(id: string | null) {
     bsel = id; if (!id || !sys2) return; sfx.click();
     if (!snaps[id]) sys2.snapshot(id).then((u) => (snaps = { ...snaps, [id]: u }));
   }
   function focusBody(id: string) { sys2?.focus(id); }
-  $effect(() => { sc?.setFilter(new Set(hidden)); });
-  $effect(() => { sc?.setLayers(labels, lanesOn, terr); });
-  $effect(() => { if (sc && sc.quality !== q) { sc.setQuality(q); localStorage.setItem('qv.mapq', q); } if (sys2 && sys2.quality !== q) { sys2.setQuality(q); localStorage.setItem('qv.mapq', q); } });
-  $effect(() => { sys2?.setLayers(labels, orbits, moving); });
+  // Not: önce durumu oku (sahne henüz yokken de bağımlılık kurulsun), sonra uygula.
+  $effect(() => { const h = new Set(hidden); sc?.setFilter(h); });
+  $effect(() => { const a = labels, b = lanesOn, c = terr; sc?.setLayers(a, b, c); });
+  $effect(() => { const a = labels, b = orbits, c = moving; sys2?.setLayers(a, b, c); });
+  $effect(() => { const qq = q; untrack(() => applyQuality(qq)); });
+  /** Kalite değişince sahne yeni ayarlarla baştan kurulur (piksel oranı, AA, bloom, oktav, nokta/kaya sayıları); kamera yerinde kalır. */
+  function applyQuality(qq: Quality) {
+    localStorage.setItem('qv.mapq', qq);
+    if (sc && sc.quality !== qq && !busy) { const pose = sc.getPose(); sc.dispose(); makeCluster(); sc!.setPose(pose); }
+    if (sys2 && sys2.quality !== qq && !busy && cur) { const pose = sys2.getPose(), keep = bsel; sys2.dispose();
+      sys2 = new SystemScene(host!, ov!, S.get(cur)!, bodiesOf(cur), sysHooks, qq, { intro: false, gates: gatesFor(cur) }); sys2.setLayers(labels, orbits, moving); sys2.setPose(pose);
+      if (keep) { sys2.select(keep); snaps = {}; } }
+  }
 
   onMount(() => {
     let alive = true, timer = 0;
     const esc = (e: KeyboardEvent) => { if (e.key !== 'Escape') return;
-      if (lightbox) { lightbox = null; e.stopImmediatePropagation(); return; }
+      if (lightbox.open) return;
       if (busy) { e.stopImmediatePropagation(); return; }
       if (mode === 'system') { e.stopImmediatePropagation(); if (bsel) { bsel = null; sys2?.select(null); sys2?.overview(); } else back(); return; }
       if (sel) { sel = null; sc?.select(null); sc?.overview(); e.stopImmediatePropagation(); } };
-    addEventListener('keydown', esc, true);
+    addEventListener('keydown', esc, true); const stopAmb = ambient('starmap');
     (async () => {
       try {
         const [data] = await Promise.all([fetch(import.meta.env.BASE_URL + 'data/starmap.json').then((r) => r.json()), loadKb(session.user!)]);
@@ -107,7 +148,7 @@
         timer = setInterval(() => { if (!document.hidden) refreshEvents(); }, 15000) as unknown as number;
       } catch (e) { err = String(e); }
     })();
-    return () => { alive = false; clearInterval(timer); removeEventListener('keydown', esc, true); sc?.dispose(); sc = null; sys2?.dispose(); sys2 = null; };
+    return () => { alive = false; clearInterval(timer); stopAmb(); removeEventListener('keydown', esc, true); sc?.dispose(); sc = null; sys2?.dispose(); sys2 = null; };
   });
 </script>
 
@@ -116,15 +157,19 @@
   <div class="ov" bind:this={ov}></div>
   <div class="vig"></div>
 
+  <!-- sol kenar: dar sekme; fare kenara gelince ya da tıklayınca açılır, sabitlenebilir -->
+  <div class="edge" role="presentation" onmouseenter={() => (lopen = true)} onmouseleave={(e) => { if (!(e.relatedTarget as Element | null)?.closest?.('.pan.left')) lopen = false; }}></div>
+  {#if !leftOpen}<button class="etab mono" onclick={() => (lopen = true)} onmouseenter={() => (lopen = true)}>{mode === 'cluster' ? 'KÜME' : 'SİSTEM'} <span>›</span></button>{/if}
   {#if mode === 'cluster'}
   <!-- sol: arama ve süzgeç -->
-  <aside class="pan left">
+  <aside class="pan left" class:col={!leftOpen} onmouseleave={(e) => { if (!(e.relatedTarget as Element | null)?.closest?.('.edge, .etab')) lopen = false; }}>
+    <button class="pin mono" class:on={pinned} title={pinned ? 'Sabitlemeyi kaldır' : 'Paneli sabitle'} onclick={() => { pinned = !pinned; localStorage.setItem('qv.mapPin', pinned ? '1' : '0'); }}>{pinned ? '◉ SABİT' : '○ SABİTLE'}</button>
     <div class="ttl mono">QORVES STARMAP <small>KÜME</small></div>
     <input class="inp" bind:value={search} placeholder="Sistem ara…" />
     <div class="lst">
       {#each list as s (s.id)}
         <button class:on={sel === s.id} onclick={() => selectSys(s.id)} onmouseenter={() => { hov = s.id; if (sc) sc.hovered = s.id; }} onmouseleave={() => { hov = null; if (sc) sc.hovered = null; }}>
-          <i style:background={STAR_COLOR[s.stype]}></i>{known(s.id) ? s.name : 'Bilinmeyen sinyal'}
+          <i style:background={STAR_COLOR[s.stype]}></i>{known(s.id) ? s.name : 'Bilinmeyen sinyal'}{#if known(s.id) && CAPITALS[s.id]}<svg class="capi" class:old={s.id === 'sys-imperion'} viewBox="0 0 16 16"><title>{s.name + ' · ' + CAPITALS[s.id]}</title><path d="M2 12h12l1-7-4 3-3-5-3 5-4-3z"/></svg>{/if}
           {#if evFor(s.id).length}<em style:color={evd?.sev[evFor(s.id)[0].tpl.sev].color}>▲</em>{/if}
         </button>
       {/each}
@@ -147,7 +192,8 @@
 
   {:else if cs}
   <!-- sol: sistem cisimleri -->
-  <aside class="pan left" style:--fc={map?.factions[cs.owner]?.color}>
+  <aside class="pan left" class:col={!leftOpen} onmouseleave={(e) => { if (!(e.relatedTarget as Element | null)?.closest?.('.edge, .etab')) lopen = false; }} style:--fc={map?.factions[cs.owner]?.color}>
+    <button class="pin mono" class:on={pinned} title={pinned ? 'Sabitlemeyi kaldır' : 'Paneli sabitle'} onclick={() => { pinned = !pinned; localStorage.setItem('qv.mapPin', pinned ? '1' : '0'); }}>{pinned ? '◉ SABİT' : '○ SABİTLE'}</button>
     <div class="ttl mono">SİSTEM <small>{cs.name.toLocaleUpperCase('tr')}</small></div>
     <div class="mono sub">{STYPE[cs.stype]} · {map?.factions[cs.owner]?.name}</div>
     <div class="lst blst">
@@ -158,6 +204,8 @@
           <button class="kid" class:on={bsel === k.id} onclick={() => focusBody(k.id)} onmouseenter={() => sys2 && (sys2.hovered = k.id)} onmouseleave={() => sys2 && (sys2.hovered = null)}><i class="k-{k.kind}"></i>{k.name}<small class="kd">{KIND[k.kind]}</small></button>
         {/each}
       {/each}
+      {#if gates.length}<div class="gh mono">HAT GEÇİTLERİ</div>
+        {#each gates as g (g.id)}<button class:on={bsel === g.id} onclick={() => focusBody(g.id)} onmouseenter={() => sys2 && (sys2.hovered = g.id)} onmouseleave={() => sys2 && (sys2.hovered = null)}><i class="k-gate" style:border-color={g.color}></i>{g.lane.name}<small class="kd">→ {S.get(g.to)?.name}</small></button>{/each}{/if}
       {#if !blist.length}<div class="none mono">BU SİSTEMİN DÜNYALARI HAKKINDA BİLGİN YOK</div>{/if}
     </div>
     <div class="mono h">KATMANLAR</div>
@@ -173,9 +221,9 @@
   {/if}
 
   <!-- sağ üst: yerel uyarılar -->
-  <section class="alerts">
+  <section class="alerts" class:open={aopen} role="complementary" onmouseenter={() => (aopen = true)} onmouseleave={() => (aopen = false)}>
     {#if mode === 'system' && cs}
-    <header class="mono"><span class="dot" class:hot={evFor(cs.id).length}></span>YEREL UYARILAR · {cs.name.toLocaleUpperCase('tr')}</header>
+    <header class="mono"><span class="dot" class:hot={evFor(cs.id).length}></span>YEREL UYARILAR · {cs.name.toLocaleUpperCase('tr')}{#if evFor(cs.id).length > 1}<em class="more">+{evFor(cs.id).length - 1} {aopen ? '▴' : '▾'}</em>{/if}</header>
     {#each evFor(cs.id) as e (e.key)}
       {@const sv = evd?.sev[e.tpl.sev]}
       <article style:--sv={sv?.color}>
@@ -185,7 +233,7 @@
       </article>
     {:else}<div class="none mono">BU SİSTEMDE AKTİF UYARI YOK</div>{/each}
     {:else}
-    <header class="mono"><span class="dot" class:hot={ev.length}></span>YEREL UYARILAR{#if fs} · {known(fs.id) ? fs.name.toLocaleUpperCase('tr') : '???'}{:else} · KÜME ({ev.length}){/if}</header>
+    <header class="mono"><span class="dot" class:hot={ev.length}></span>YEREL UYARILAR{#if fs} · {known(fs.id) ? fs.name.toLocaleUpperCase('tr') : '???'}{:else} · KÜME ({ev.length}){/if}{#if (fs ? focusEv : topEv).length > 1}<em class="more">+{(fs ? focusEv : topEv).length - 1} {aopen ? '▴' : '▾'}</em>{/if}</header>
     {#each (fs ? focusEv : topEv) as e (e.key)}
       {@const sv = evd?.sev[e.tpl.sev]}
       <article style:--sv={sv?.color}>
@@ -212,8 +260,20 @@
           <div class="own"><span class="chip" role="button" tabindex="0" onclick={() => map?.factions[cs.owner].state && getEntry(map.factions[cs.owner].state!) && openTag(map.factions[cs.owner].state!)} onkeydown={() => {}}>{map?.factions[cs.owner]?.name}</span></div>
           {#if bsel === 'star'}<table class="ph"><tbody><tr><td>Yıldız</td><td>{cs.star || STYPE[cs.stype]}</td></tr>{#if starEnt?.summary && !generic(starEnt.summary) && !cs.star.includes(starEnt.summary.replace(/\.$/, ''))}<tr><td>Not</td><td>{starEnt.summary}</td></tr>{/if}</tbody></table>
           {:else}<p class="sum">{bsel === 'star-Gwathren' ? 'Isilwen B, kızıl cüce, patlama yıldızı; A\'dan ortalama 38 AB.' : bsel === 'star-Morwen B' ? 'M2 V kızıl cüce, A\'dan 38 AB; ara sıra patlama.' : 'Genç, sıcak beyaz cüce; A\'dan ~900 AB. Hithlin bulutsusunu parlatır.'}</p>{/if}
-          {@render gallery(bsel, null)}
+          {@render gallery(bsel, null, bsel === 'star' ? cs.name : bsel.slice(5))}
           <div class="act"><button class="btn ghost" onclick={() => openTag(cur!)}>Sistem kodeksi</button></div>
+        {:else if gs}
+          <div class="mono k">Hat geçidi + istasyon · {gs.lane.kind}</div>
+          <h2>{gs.name}</h2>
+          <div class="own"><span class="chip" role="button" tabindex="0" onclick={() => map?.factions[cs.owner].state && getEntry(map.factions[cs.owner].state!) && openTag(map.factions[cs.owner].state!)} onkeydown={() => {}}>{map?.factions[cs.owner]?.name}</span><span class="mono dg" style:color={gs.color}>{STATUS_TR[gs.status] ?? gs.status}</span></div>
+          <table class="ph"><tbody>
+            <tr><td>Hat</td><td>{gs.lane.name}</td></tr><tr><td>Hedef</td><td>{S.get(gs.to)?.name} · {S.get(gs.to) ? map?.factions[S.get(gs.to)!.owner]?.name : ''}</td></tr>
+            <tr><td>Yön</td><td>Sistemin {dirName(gs.ang)} kıyısı{#if gs.au}{" · ~" + gs.au + " AB"}{/if}</td></tr><tr><td>Tür</td><td>{gs.lane.kind}</td></tr><tr><td>Süre</td><td>{gs.lane.days}</td></tr><tr><td>Tehlike</td><td>{gs.lane.danger}</td></tr>
+          </tbody></table>
+          {#if gcanon}<p class="sum"><b>{gcanon.name}</b> · {gcanon.type}{#if gcanon.orbit} · {gcanon.orbit} AB{/if}</p>{#if gcanon.desc}<p class="desc"><RichText text={gcanon.desc} self={gcanon.ent} /></p>{/if}{#if gcanon.dm}<div class="dmnote"><span class="mono">DM · GİZLİ</span><RichText text={gcanon.dm} self={gcanon.ent} /></div>{/if}{/if}
+          {#each ev.filter((e) => e.lane === gs.lane.id) as e (e.key)}<div class="gev" style:--sv={evd?.sev[e.tpl.sev].color}><b class="mono">{evd?.sev[e.tpl.sev].label}</b> {e.tpl.name} · kalan {left(e)} dk</div>{/each}
+          {@render gallery(gs.id, null, gs.name)}
+          <div class="act">{#if getEntry(gs.lane.id)}<button class="btn ghost" onclick={() => openTag(gs.lane.id)}>Hat kodeksi</button>{/if}<button class="btn" disabled={!known(gs.to) || gs.status === 'collapsed' || gs.status === 'closed'} onclick={() => jump(gs.to)}>Hedefe geç ›</button></div>
         {:else if bs}
           <div class="mono k">{KIND[bs.kind]} · {bs.type}{#if bs.note} · {bs.note}{/if}</div>
           <h2>{bs.name}</h2>
@@ -223,7 +283,7 @@
           {#if be?.summary && !generic(be.summary) && be.type !== 'system'}<p class="sum"><RichText text={be.summary} self={be.id} /></p>{/if}
           {#if bs.desc}<p class="desc"><RichText text={bs.desc} self={bs.ent} /></p>{/if}
           {#if bs.dm}<div class="dmnote"><span class="mono">DM · GİZLİ</span><RichText text={bs.dm} self={bs.ent} /></div>{/if}
-          {@render gallery(bs.id, bs.img ?? null)}
+          {@render gallery(bs.id, bs.img ?? null, bs.name)}
           {#if be && childrenOf(be.id).length}
             <div class="mono h">ETİKETLER</div>
             <div class="tags">{#each childrenOf(be.id) as c (c.id)}<button class="tg" style:--c={tmeta(c.type).color} onclick={() => openTag(c.id)}>{c.name}</button>{/each}</div>
@@ -233,11 +293,11 @@
       </aside>
     {/key}
   {/if}
-  {#snippet gallery(id: string, img: string | null)}
+  {#snippet gallery(id: string, img: string | null, name: string)}
     <div class="mono h">GÖRÜNTÜLER</div>
     <div class="gal">
-      {#if img}<button onclick={() => (lightbox = base + 'img/bd/' + img)}><img src={base + 'img/bd/' + img} alt="" loading="lazy" /></button>{/if}
-      {#each snaps[id] ?? [] as u, i (i)}<button onclick={() => (lightbox = u)}><img src={u} alt="" /><em class="mono">SİMÜLASYON</em></button>{/each}
+      {#if img}<button onclick={() => openImage(base + 'img/bd/' + img, name)}><img src={base + 'img/bd/' + img} alt={name} loading="lazy" /></button>{/if}
+      {#each snaps[id] ?? [] as u, i (i)}<button onclick={() => openImage(u, name + ' · simülasyon')}><img src={u} alt={name + ' · simülasyon'} /><em class="mono">SİMÜLASYON</em></button>{/each}
       {#if !snaps[id]}<div class="snapld mono">GÖRÜNTÜ İŞLENİYOR…</div>{/if}
     </div>
   {/snippet}
@@ -295,7 +355,6 @@
       {#if warp === 1 && (cs || ss)}<div class="wtag mono">{mode === 'system' ? 'KÜMEYE DÖNÜŞ' : 'SİSTEME GİRİŞ · ' + (ss?.name ?? '').toLocaleUpperCase('tr')}</div>{/if}
     </div>
   {/if}
-  {#if lightbox}<button class="lb" onclick={() => (lightbox = null)}><img src={lightbox} alt="" /></button>{/if}
   {#if !map && !err}<div class="ld mono">KÜME VERİSİ YÜKLENİYOR…</div>{/if}
   {#if err}<div class="ld mono err">HARİTA AÇILAMADI: {err}</div>{/if}
 </div>
@@ -314,7 +373,19 @@
   .ov :global(.sm-lev){position:absolute;left:0;top:0;margin:-6px 0 0 -6px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid var(--sv);filter:drop-shadow(0 0 5px var(--sv));animation:evb 1.4s infinite}
   @keyframes evb{50%{opacity:.35}}
   .pan{position:absolute;z-index:4;background:rgba(5,8,14,.82);border:1px solid rgba(0,240,255,.25);backdrop-filter:blur(6px)}
-  .left{left:16px;top:58px;bottom:16px;width:240px;display:flex;flex-direction:column;gap:8px;padding:12px}
+  .left{left:16px;top:58px;bottom:16px;width:240px;display:flex;flex-direction:column;gap:8px;padding:12px;transition:transform .35s cubic-bezier(.2,.9,.2,1),opacity .3s;z-index:6}
+  .left.col{transform:translateX(calc(-100% - 20px));opacity:0;pointer-events:none}
+  .edge{position:absolute;left:0;top:46px;bottom:0;width:14px;z-index:5}
+  .etab{position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:5;writing-mode:vertical-rl;padding:16px 5px;background:rgba(5,8,14,.85);border:1px solid rgba(0,240,255,.35);border-left:0;color:var(--cy);font-size:10px;letter-spacing:.35em;animation:ai .3s both}
+  .etab span{color:var(--ye)}.etab:hover{background:rgba(0,240,255,.12)}
+  .pin{position:absolute;right:10px;top:10px;background:none;border:0;color:var(--mut);font-size:9px;letter-spacing:.18em;padding:0}.pin.on{color:var(--ye)}
+  .capi{width:13px;height:13px;fill:var(--ye);stroke:none;margin-left:4px;filter:drop-shadow(0 0 3px rgba(252,238,10,.6));flex:none}.capi.old{fill:none;stroke:#b8a060;stroke-width:1.3}
+  .ov :global(.sm-lbl .cap){pointer-events:auto;cursor:help;position:relative;display:inline-grid;place-items:center;width:17px;height:17px;border:1px solid rgba(252,238,10,.7);background:rgba(20,16,0,.75);box-shadow:0 0 8px rgba(252,238,10,.35);text-decoration:none}
+  .ov :global(.sm-lbl .cap svg){width:12px;height:12px;fill:var(--ye);stroke:var(--ye);stroke-width:.6}
+  .ov :global(.sm-lbl .cap.old){border-color:rgba(184,160,96,.6);background:rgba(10,8,0,.6);box-shadow:none}.ov :global(.sm-lbl .cap.old svg){fill:none;stroke:#b8a060;stroke-width:1.2}
+  .ov :global(.sm-lbl .cap:hover::after){content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;color:#000;background:var(--ye);padding:4px 8px;box-shadow:0 0 12px rgba(252,238,10,.4)}
+  .gh{font-size:9px;letter-spacing:.3em;color:#c78bff;margin:8px 0 2px 4px}
+  .gev{font-size:12px;border-left:3px solid var(--sv);padding:3px 8px;background:rgba(255,255,255,.03)}.gev b{color:var(--sv);font-size:9.5px;letter-spacing:.15em}
   .ttl{font-size:12px;letter-spacing:.3em;color:var(--cy)}.ttl small{color:var(--ye);margin-left:6px}
   .lst{flex:1;min-height:80px;overflow:auto;display:flex;flex-direction:column}
   .lst button{display:flex;align-items:center;gap:8px;padding:4px 6px;background:none;border:0;color:var(--tx);text-align:left;font-size:13.5px}
@@ -330,7 +401,13 @@
   .qual button{flex:1;background:none;border:1px solid var(--line);color:var(--mut);font-family:var(--f-mono);font-size:9.5px;padding:4px 0}
   .qual button.on{border-color:var(--cy);color:var(--cy)}
   .ovw{background:none;border:1px solid var(--line);color:var(--cy);padding:6px;font-size:10.5px;letter-spacing:.2em}.ovw:hover{border-color:var(--cy)}
-  .alerts{position:absolute;right:16px;top:58px;width:340px;max-height:42vh;overflow:auto;z-index:4;display:flex;flex-direction:column;gap:6px}
+  .alerts{position:absolute;right:16px;top:58px;width:340px;max-height:42vh;overflow:hidden;z-index:7;display:flex;flex-direction:column;gap:6px;transition:max-height .35s}
+  .alerts.open{max-height:76vh;overflow:auto}
+  .alerts:not(.open) article:not(:first-of-type){display:none}
+  .alerts:not(.open) article:first-of-type .eff,.alerts:not(.open) article:first-of-type .by{display:none}
+  .alerts.open article:not(:first-of-type){animation:ad .3s both}
+  @keyframes ad{from{opacity:0;transform:translateY(-10px)}}
+  .alerts header .more{margin-left:auto;font-style:normal;color:var(--cy)}
   .alerts header{font-size:10.5px;letter-spacing:.22em;color:var(--ye);background:rgba(5,8,14,.85);border:1px solid rgba(252,238,10,.35);padding:7px 10px;display:flex;align-items:center;gap:8px}
   .dot{width:8px;height:8px;border-radius:50%;background:#3a4252}.dot.hot{background:var(--rd);box-shadow:0 0 8px var(--rd);animation:evb 1s infinite}
   .alerts article{background:rgba(5,8,14,.88);border:1px solid color-mix(in srgb,var(--sv) 40%,transparent);border-left:3px solid var(--sv);padding:8px 10px;animation:ai .3s both}
@@ -352,7 +429,7 @@
   .ln{display:flex;flex-direction:column;gap:3px}.ln button{display:flex;align-items:center;gap:7px;background:none;border:0;color:var(--tx);text-align:left;font-size:12.5px;padding:2px 0}
   .ln i{width:14px;height:3px;flex:none}.ln span{color:var(--mut);font-size:11.5px}.ln button:hover b{color:var(--ye)}
   .act{display:flex;gap:8px;margin-top:auto;padding-top:8px}.act .btn{flex:1}
-  .legend{position:absolute;left:272px;bottom:16px;z-index:4;background:rgba(5,8,14,.8);border:1px solid var(--line);padding:6px 10px;font-size:11.5px;color:#c9d6e2}
+  .legend{position:absolute;left:40px;bottom:16px;z-index:4;background:rgba(5,8,14,.8);border:1px solid var(--line);padding:6px 10px;font-size:11.5px;color:#c9d6e2}
   .legend>button{background:none;border:0;color:var(--cy);font-size:10px;letter-spacing:.25em;padding:0}
   .lg{display:flex;flex-direction:column;gap:5px;margin-top:6px}.lg>div{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;max-width:620px}
   .lg span{font-size:9.5px;letter-spacing:.2em;color:var(--mut);width:70px}
@@ -380,7 +457,6 @@
   .gal em{position:absolute;left:3px;bottom:2px;font-size:7.5px;letter-spacing:.15em;color:var(--cy);font-style:normal;text-shadow:0 0 3px #000}
   .snapld{grid-column:span 2;display:grid;place-items:center;font-size:9px;letter-spacing:.2em;color:var(--mut);border:1px dashed var(--line);aspect-ratio:2}
   .bpan{top:calc(42vh + 70px)}
-  .lb{position:absolute;inset:0;z-index:9;background:rgba(0,0,0,.85);border:0;display:grid;place-items:center;cursor:zoom-out}.lb img{max-width:80%;max-height:85%;border:1px solid var(--cy);box-shadow:0 0 40px rgba(0,240,255,.25)}
   .wtag{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;letter-spacing:.4em;color:var(--cy);text-shadow:0 0 10px var(--cy);animation:ai .4s .3s both}
   .warp.out{pointer-events:none}.warp.out .streaks{animation:wzo .9s ease-out forwards}.warp.out .flash{animation:wfo .9s forwards}
   @keyframes wzo{0%{transform:scale(3.4) rotate(12deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:0}}

@@ -11,10 +11,15 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { Body } from '../lib/kb.svelte';
 import type { SysData, Quality } from './scene';
 import { glowTex, softTex, nebulaTex, reticleTex } from './textures';
+import { lookOf } from './looks';
 import { STAR_VS, STAR_FS, CORONA_VS, CORONA_FS, PLANET_VS, PLANET_FS, RING_VS, RING_FS, DISK_FS, LENS_FS, BEAM_VS, BEAM_FS, FLOW_VS, FLOW_FS, WORM_FS } from './shaders';
 
 export interface SysHooks { hover: (id: string | null) => void; select: (id: string | null) => void }
-const Q = { low: { dpr: 1, stars: 4000, rocks: 0.35, bloom: false, seg: 48 }, med: { dpr: 1.5, stars: 9000, rocks: 0.7, bloom: true, seg: 64 }, high: { dpr: 2, stars: 16000, rocks: 1, bloom: true, seg: 96 } };
+/** Hat geçidi: kümedeki gerçek yöne göre sistemin kıyısında (lore'da AB verilen geçitlerde o uzaklıkta). */
+export interface LaneGate { id: string; name: string; ang: number; status: string; color: string; canon?: string; au?: number; host?: 'B' }
+export interface SysOpts { intro?: boolean; gates?: LaneGate[] }
+// Kalite: piksel oranı, kenar yumuşatma, bloom, gürültü oktavı (yüzey ayrıntısı + yüksekte kabartı), küre parçalılığı, yıldız/kaya sayısı
+const Q = { low: { dpr: 0.8, aa: false, oct: 3, stars: 3000, rocks: 0.3, bloom: false, seg: 32 }, med: { dpr: 1.25, aa: true, oct: 5, stars: 9000, rocks: 0.7, bloom: true, seg: 64 }, high: { dpr: 2, aa: true, oct: 6, stars: 18000, rocks: 1.2, bloom: true, seg: 128 } };
 interface StarDef { r: number; c: string; hot: string; scale: number; contrast: number; spots: number; corona: number; rays: number; flare: number }
 const SD = (r: number, c: string, hot: string, o: Partial<StarDef> = {}): StarDef => ({ r, c, hot, scale: 3.2, contrast: 0.85, spots: 0.25, corona: 4.2, rays: 0.8, flare: 0.8, ...o });
 export const STARS: Record<string, StarDef> = {
@@ -29,43 +34,24 @@ const STYPE_STAR: Record<string, string> = { triple: 'K', binary: 'F', blackhole
 type Kind = 'star' | 'star2' | 'planet' | 'moon' | 'belt' | 'swarm' | 'station' | 'gate' | 'singularity' | 'disk' | 'stream' | 'debris' | 'wormhole';
 interface O {
   id: string; b: Body | null; kind: Kind; name: string; obj: THREE.Object3D; r: number; orbit: number; omega: number; phase: number; incl: number; parent: O | null;
-  pos: THREE.Vector3; label: HTMLDivElement; line?: THREE.Line; dot?: THREE.Sprite; mat?: THREE.ShaderMaterial; spin: number; pick: boolean; extra?: (t: number) => void; l4?: O;
+  pos: THREE.Vector3; label: HTMLDivElement; line?: THREE.Line; dot?: THREE.Sprite; mat?: THREE.ShaderMaterial; spin: number; pick: boolean; extra?: (t: number) => void; l4?: O; oq?: THREE.Quaternion;
 }
 const h = (s: string) => { let x = 2166136261; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return (x >>> 0) / 4294967295; };
 const gnum = (s?: string) => { const m = (s ?? '').replace(',', '.').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : 1; };
 const C = (x: string) => new THREE.Color(x);
 const c1Of = (m: THREE.ShaderMaterial) => (m.uniforms.uC1.value as THREE.Color).clone().lerp(new THREE.Color('#ffffff'), 0.45);
-const PAL: Record<string, [number, string, string, string, string, number]> = { // cls: [shader no, c1, c2, c3, atm, atmS]
-  rocky: [0, '#6e6a64', '#a49c90', '#000', '#9aa4b0', 0], hot: [0, '#5a3b2a', '#b37a58', '#000', '#d09060', 0], iron: [0, '#3e3e44', '#7d6a58', '#000', '#888', 0],
-  cold: [0, '#72808c', '#b6c0c6', '#000', '#b8d0e8', 0.3], terran: [1, '#3f6b34', '#8a7a52', '#1d4f8f', '#6fb0ff', 0.9], garden: [15, '#4c8a3a', '#7a9a4a', '#2a6a9a', '#7fc0ff', 0.9],
-  ocean: [2, '#5b6b3a', '#5b6b3a', '#12407e', '#6fb0ff', 1], gas: [3, '#c9a878', '#ecdfc4', '#a2643a', '#e8d6b0', 0.45], icegiant: [4, '#5fb0cc', '#a2dcea', '#000', '#9fe8ff', 0.6],
-  stripped: [4, '#6a6e74', '#8a8e94', '#000', '#888', 0.15], ice: [5, '#bcd2e2', '#ffffff', '#000', '#cfe8ff', 0.15], lava: [6, '#2a1a14', '#ff4a10', '#ffd060', '#ff7030', 0.5],
-  desert: [7, '#b5653a', '#d8a066', '#6a2e1a', '#e0a070', 0.5], savanna: [7, '#b8994e', '#d6b870', '#6b5a2a', '#ffd9a0', 0.6], karst: [16, '#b0aca0', '#d8d4c8', '#2b3a2a', '#9fc4e8', 0.7],
-  jungle: [8, '#1f5a25', '#3f7a2a', '#1d4f7a', '#8fd0ff', 1], snow: [9, '#dde8f0', '#ffffff', '#6c7f6a', '#cfe8ff', 0.8], volcanic: [10, '#4a3048', '#6b4a30', '#ff6020', '#c08060', 0.5],
-  glass: [11, '#0b0d12', '#000', '#000', '#7a5cff', 0.25], venus: [12, '#d8c088', '#f0e0b0', '#b89858', '#f0d090', 1], smog: [13, '#6a6050', '#8a7a60', '#000', '#b09070', 1],
-  locked: [14, '#c8a070', '#9ab0c8', '#4a6a3a', '#a0c0e0', 0.5],
-};
-const NAME_PAL: Record<string, Partial<{ c1: string; c2: string; c3: string; atm: string }>> = {
-  Mernoth: { c1: '#3b3530', c2: '#5a4f45', c3: '#2a2420' }, Papaver: { c1: '#e8d890', c2: '#f4ecc0', c3: '#c8b060' }, Salinas: { c1: '#c8c0b4', c2: '#e8e4dc', c3: '#9a9088' },
-  Ladros: { c1: '#8f9a7e', c2: '#b8b8a0', c3: '#4a6a7a' }, Skalv: { c1: '#c8a830', c2: '#8a3a1a', c3: '#ff7020' }, Rubigo: { c1: '#8a3a22', c2: '#b8643c' }, Ketilmark: { atm: '#40ff9a' },
-  Hrima: { c1: '#e6f0f6', c2: '#ffffff' }, Odlevo: { c1: '#b8a080', c2: '#d8c4a8', c3: '#8a5a3a' }, Titan: { c1: '#c09060', c2: '#e8d4b0', c3: '#8a4a2a' }, Askurr: { c1: '#4a4440', c2: '#6a625a', c3: '#2a2624' },
-  Corvallis: { c1: '#b04a2a', c2: '#d88a52', c3: '#5a2010' }, Myrkdal: { c1: '#3a2a22', c2: '#5a4032' }, Thognstein: { c1: '#4a4c52', c2: '#6a6c72' }, Paludra: { c1: '#8a8a3a', c2: '#a4a050', c3: '#4a5a3a', atm: '#d8d070' },
-  Velmor: { c1: '#4f7a3a', c2: '#8a7a52', c3: '#1a5a9a' }, Abundia: { c1: '#56703a', c2: '#a8a8a0', c3: '#244f7a' }, Aelum: { atm: '#bfe8ff' }, Dorh: { c1: '#6a7a2a', c2: '#a08a3a', c3: '#3a5a4a', atm: '#e0d080' },
-  Imperion: { c1: '#4f7a3a', c2: '#c8a060', c3: '#2a5a8a' }, 'Taht Kayası': { c1: '#7a7a78', c2: '#e8eef0', c3: '#2a4a6a' }, Nivara: {}, Fecunda: { c1: '#9ab8a0', c2: '#c8d8c8', c3: '#1d5a8f' },
-};
-
 export class SystemScene {
   renderer: THREE.WebGLRenderer; scene = new THREE.Scene(); camera: THREE.PerspectiveCamera; controls: OrbitControls;
   composer: EffectComposer | null = null; bloom: UnrealBloomPass | null = null; bloomBase = 0.7; bloomThr = 0.62; quality: Quality;
-  objs: O[] = []; byId = new Map<string, O>(); hovered: string | null = null; selected: string | null = null;
+  objs: O[] = []; byId = new Map<string, O>(); private canonGates: { b: Body; base: object }[] = []; edge = 0; hovered: string | null = null; selected: string | null = null;
   showLabels = true; showOrbits = true; moving = true; extent = 120;
   private tex: Record<string, THREE.Texture> = {}; private star!: O; private starDef: StarDef; private timeMats: THREE.ShaderMaterial[] = [];
   private raf = 0; private clock = new THREE.Clock(); private running = false; private t = 0; private v = new THREE.Vector3(); private down = { x: 0, y: 0 };
   private fly: { t0: number; dur: number; fromT: THREE.Vector3; fromP: THREE.Vector3; o: O | null; offT: THREE.Vector3; offP: THREE.Vector3; done?: () => void } | null = null;
   private follow: O | null = null; private lastFollow = new THREE.Vector3(); private reticle: THREE.Sprite; private snapReq: { id: string; res: (u: string[]) => void } | null = null; private snapping = false;
-  constructor(private host: HTMLElement, private overlay: HTMLElement, private sys: SysData, bodies: Body[], private hooks: SysHooks, quality: Quality) {
-    this.quality = quality;
-    this.renderer = new THREE.WebGLRenderer({ antialias: quality !== 'low', powerPreference: 'high-performance' });
+  constructor(private host: HTMLElement, private overlay: HTMLElement, private sys: SysData, bodies: Body[], private hooks: SysHooks, quality: Quality, private opts: SysOpts = {}) {
+    this.quality = quality; if (location.search.includes('qc=1')) (globalThis as any).__qcS = this; // QC_HOOK
+    this.renderer = new THREE.WebGLRenderer({ antialias: Q[quality].aa, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x010207, 1); this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.0;
     host.appendChild(this.renderer.domElement);
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.05, 9000);
@@ -75,7 +61,7 @@ export class SystemScene {
     this.starDef = STARS[sys.stype] ?? STARS[STYPE_STAR[sys.stype] ?? 'G'];
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.05));
     const pl = new THREE.PointLight(C(this.starDef.c).lerp(C('#ffffff'), 0.6), 2.4, 0, 0); this.scene.add(pl);
-    this.buildBackground(); this.buildStar(); this.buildBodies(bodies);
+    this.buildBackground(); this.buildStar(); this.buildBodies(bodies); this.buildLaneGates(opts.gates ?? []);
     this.reticle = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.ret, color: C('#fcee0a').multiplyScalar(0.55), transparent: true, opacity: 0.7, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
     this.reticle.visible = false; this.reticle.renderOrder = 9; this.scene.add(this.reticle);
     this.setQuality(quality);
@@ -85,10 +71,11 @@ export class SystemScene {
     this.resize(); this.update(0);
     // giriş: uzaktan içeri süzülme
     const ov = this.overviewPose();
-    this.camera.position.copy(ov.p.clone().multiplyScalar(7).add(new THREE.Vector3(0, ov.p.length() * 2, 0))); this.controls.target.copy(ov.t);
-    this.flyPose(ov.t, ov.p, 2600, null);
+    if (opts.intro === false) { this.camera.position.copy(ov.p); this.controls.target.copy(ov.t); }
+    else { this.camera.position.copy(ov.p.clone().multiplyScalar(7).add(new THREE.Vector3(0, ov.p.length() * 2, 0))); this.controls.target.copy(ov.t); this.flyPose(ov.t, ov.p, 2600, null); }
     this.start();
   }
+  private SM(p: THREE.ShaderMaterialParameters) { return new THREE.ShaderMaterial({ ...p, defines: { OCT: Q[this.quality].oct } }); }
   // ---------- ölçek ----------
   private R(au: number) { return this.starDef.r * 1.6 + 3 + 30 * Math.log(1 + au / 0.04); }
   private overviewPose() { const d = Math.max(60, this.extent * 1.55); return { t: new THREE.Vector3(0, 0, 0), p: new THREE.Vector3(0, d * 0.55, d) }; }
@@ -120,10 +107,10 @@ export class SystemScene {
   // ---------- yıldız ----------
   private starMesh(def: StarDef, r: number) {
     const g = new THREE.Group(); const seg = Q[this.quality].seg;
-    const mat = new THREE.ShaderMaterial({ vertexShader: STAR_VS, fragmentShader: STAR_FS, uniforms: { uColor: { value: C(def.c) }, uHot: { value: C(def.hot) }, uTime: { value: 0 }, uScale: { value: def.scale },
+    const mat = this.SM({ vertexShader: STAR_VS, fragmentShader: STAR_FS, uniforms: { uColor: { value: C(def.c) }, uHot: { value: C(def.hot) }, uTime: { value: 0 }, uScale: { value: def.scale },
       uContrast: { value: def.contrast }, uSpots: { value: def.spots }, uInt: { value: def === STARS.redgiant ? 1.0 : 1.15 } } });
     this.timeMats.push(mat); const s = new THREE.Mesh(new THREE.SphereGeometry(r, seg, seg / 2), mat); g.add(s);
-    const cm = new THREE.ShaderMaterial({ vertexShader: CORONA_VS, fragmentShader: CORONA_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    const cm = this.SM({ vertexShader: CORONA_VS, fragmentShader: CORONA_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       uniforms: { uColor: { value: C(def.c).lerp(C(def.hot), 0.35) }, uTime: { value: 0 }, uR: { value: 1 / def.corona }, uRays: { value: def.rays }, uFlare: { value: def.flare }, uInt: { value: 1.1 } } });
     this.timeMats.push(cm); const cor = new THREE.Mesh(new THREE.PlaneGeometry(r * def.corona * 2, r * def.corona * 2), cm); cor.name = 'corona'; g.add(cor);
     const gop = def.r < 1.5 ? 0.6 : 0.3, glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.glow, color: C(def.c), transparent: true, opacity: gop, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -139,14 +126,14 @@ export class SystemScene {
     if (st === 'redgiant') extra.push((t) => g.scale.setScalar(1 + Math.sin(t * 2 * Math.PI / 7) * 0.035)); // 380 günlük nabız, hızlandırılmış
     if (st === 'pulsar') { // dönen ışın konileri, eğik eksen
       const axis = new THREE.Group(); axis.rotation.z = 0.5; g.add(axis);
-      const bm = new THREE.ShaderMaterial({ vertexShader: BEAM_VS, fragmentShader: BEAM_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uC: { value: C('#bfe6ff') }, uTime: { value: 0 } } });
+      const bm = this.SM({ vertexShader: BEAM_VS, fragmentShader: BEAM_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uC: { value: C('#bfe6ff') }, uTime: { value: 0 } } });
       this.timeMats.push(bm);
       for (const s of [1, -1]) { const cg = new THREE.ConeGeometry(9, 170, 32, 1, true); cg.translate(0, -85, 0); cg.rotateX(s > 0 ? Math.PI : 0); const c = new THREE.Mesh(cg, bm); c.rotation.x = 0.9; axis.add(c); }
       extra.push((t) => (axis.rotation.y = t * 1.6));
     }
     if (st === 'magnetar') { // dipol alan çizgileri
       const fg = new THREE.Group(); fg.rotation.z = 0.35; g.add(fg);
-      const fm = new THREE.ShaderMaterial({ vertexShader: FLOW_VS, fragmentShader: FLOW_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uC: { value: C('#b48cff') }, uTime: { value: 0 }, uSpeed: { value: 0.6 }, uOp: { value: 0.8 } } });
+      const fm = this.SM({ vertexShader: FLOW_VS, fragmentShader: FLOW_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uC: { value: C('#b48cff') }, uTime: { value: 0 }, uSpeed: { value: 0.6 }, uOp: { value: 0.8 } } });
       this.timeMats.push(fm);
       for (const L of [6, 10, 16, 24, 34]) for (let k = 0; k < 8; k++) { const pts: number[] = [], tt: number[] = [], ph = (k / 8) * Math.PI * 2;
         for (let i = 0; i <= 80; i++) { const th = 0.12 + (i / 80) * (Math.PI - 0.24), r = L * Math.sin(th) ** 2; if (r < d.r) continue; pts.push(r * Math.sin(th) * Math.cos(ph), r * Math.cos(th), r * Math.sin(th) * Math.sin(ph)); tt.push(i / 80); }
@@ -161,23 +148,52 @@ export class SystemScene {
   // ---------- cisimler ----------
   private add(o: O) { this.objs.push(o); this.byId.set(o.id, o); }
   private mkLabel(text: string, kind: string) { const l = document.createElement('div'); l.className = 'sb-lbl k-' + kind; l.innerHTML = `<b>${text}</b>`; this.overlay.appendChild(l); return l; }
-  private orbitLine(r: number, color: string, op: number, incl = 0, dashed = false) {
+  private orbitLine(r: number, color: string, op: number, incl = 0, dashed = false, oq?: THREE.Quaternion) {
     const pts: number[] = []; const n = 256; for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2; pts.push(Math.cos(a) * r, 0, Math.sin(a) * r); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     const m = dashed ? new THREE.LineDashedMaterial({ color: C(color), transparent: true, opacity: op, depthWrite: false, dashSize: r * 0.02, gapSize: r * 0.025 }) : new THREE.LineBasicMaterial({ color: C(color), transparent: true, opacity: op, depthWrite: false });
-    const l = new THREE.Line(g, m); l.rotation.x = incl; if (dashed) l.computeLineDistances(); this.scene.add(l); return l;
+    const l = new THREE.Line(g, m); if (oq) l.quaternion.copy(oq); else l.rotation.x = -incl; if (dashed) l.computeLineDistances(); this.scene.add(l); return l;
   }
-  private planetMat(b: Body, cls: string) {
-    const p = PAL[cls] ?? PAL.rocky, np = NAME_PAL[b.name] ?? NAME_PAL[b.name.split(' (')[0]] ?? {};
-    const sd = h(b.id); let c1 = C(np.c1 ?? p[1]), c2 = C(np.c2 ?? p[2]); const c3 = C(np.c3 ?? p[3]);
-    if (cls === 'gas' && !np.c1) { const alt = [['#c9a878', '#ecdfc4', '#a2643a'], ['#b8a890', '#e4dccc', '#7a6a5a'], ['#a8b4c0', '#dce4ea', '#6a7a8a'], ['#c08a5a', '#e8c49a', '#8a4a2a']][Math.floor(sd * 4)]; c1 = C(alt[0]); c2 = C(alt[1]); c3.set(alt[2]); }
-    c1.offsetHSL((sd - 0.5) * 0.04, 0, (sd - 0.5) * 0.08);
+  private planetMat(b: Body) {
+    const L = lookOf(b), sd = h(b.id);
     const sc = C(this.starDef.c).lerp(C('#ffffff'), this.sys.stype === 'redgiant' ? 0.35 : 0.6);
-    const atmTxt = (b.atm ?? '').toLocaleLowerCase('tr'); let atmS = p[5]; if (p[0] === 0 && atmTxt && !atmTxt.startsWith('yok') && atmTxt !== '—') atmS = 0.3;
-    const mat = new THREE.ShaderMaterial({ vertexShader: PLANET_VS, fragmentShader: PLANET_FS, uniforms: {
-      uCls: { value: p[0] }, uC1: { value: c1 }, uC2: { value: c2 }, uC3: { value: c3 }, uAtm: { value: C(np.atm ?? p[4]) }, uAtmS: { value: atmS }, uSeed: { value: sd * 50 }, uTime: { value: 0 },
-      uCity: { value: b.city ? 1 : 0 }, uStar: { value: new THREE.Vector3() }, uStarCol: { value: sc }, uLit: { value: 1 } } });
-    this.timeMats.push(mat); return mat;
+    const dir = new THREE.Vector3(h(b.id + 'cx') - 0.5, (h(b.id + 'cy') - 0.5) * 0.9, h(b.id + 'cz') - 0.5).normalize();
+    const mat = this.SM({ vertexShader: PLANET_VS, fragmentShader: PLANET_FS, uniforms: {
+      uCls: { value: L.sh }, uC1: { value: L.c1 }, uC2: { value: L.c2 }, uC3: { value: L.c3 }, uC4: { value: L.c4 }, uP: { value: L.P }, uQ: { value: L.Q }, uAtm: { value: L.atm }, uAtmS: { value: L.atmS },
+      uSeed: { value: sd * 50 }, uTime: { value: 0 }, uCity: { value: L.city }, uCityMode: { value: L.cityMode }, uCityDir: { value: dir }, uStar: { value: new THREE.Vector3() }, uStarCol: { value: sc }, uLit: { value: 1 } } });
+    this.timeMats.push(mat); return { mat, L };
+  }
+  /** Uydu yörüngeleri: her cisim bir öncekinin dışında, aralarında boşlukla; böylece hiçbir eğiklikte iç içe geçmezler. */
+  private slots = new Map<O, number>();
+  private slot(host: O, r: number, gap = 0.55) {
+    let cur = this.slots.get(host); if (cur === undefined) cur = host.r * (host.b?.ring || host.b?.cls === 'garden' ? 2.7 : 1.75) + 0.6;
+    const orbit = cur + r; this.slots.set(host, orbit + r + gap); return orbit;
+  }
+  /** Uydu sistemi komşu gezegenin yörüngesine taşarsa sistemi (yörünge + boyut) birlikte küçült; uydular yine çakışmaz. */
+  private fitMoons() {
+    const kids = (h: O) => this.objs.filter((x) => x.parent === h && (x.kind === 'moon' || x.kind === 'swarm' || x.kind === 'station'));
+    const base = (h: O) => h.r * (h.b?.ring || h.b?.cls === 'garden' ? 2.7 : 1.75) + 0.6;
+    const ext = (h: O) => Math.max(h.r * (h.b?.ring ? 2.4 : 1), ...kids(h).map((x) => (x.kind === 'swarm' ? x.r + 0.4 : x.orbit + x.r)));
+    const shrink = (h: O, f: number) => { const b0 = base(h);
+      for (const x of kids(h)) {
+        if (x.kind === 'swarm') { const rs = (x as O & { rs: { r: number; s: number }[] }).rs; for (const m of rs) { m.r = b0 + (m.r - b0) * f; m.s *= f; } x.r = Math.max(...rs.map((m) => m.r)); continue; }
+        const o0 = x.orbit; x.orbit = b0 + (x.orbit - b0) * f; x.r *= f; x.obj.scale.multiplyScalar(f); if (x.line) x.line.scale.multiplyScalar(x.orbit / o0);
+        if (x.kind === 'moon') x.omega = Math.sign(x.omega || 1) * this.moonOmega(h, x.orbit);
+      } };
+    const pl = this.objs.filter((o) => o.kind === 'planet' && o.parent === this.star).sort((a, b) => a.orbit - b.orbit);
+    for (let it = 0; it < 12; it++) { let hit = false;
+      for (let i = 0; i + 1 < pl.length; i++) { const a = pl[i], b = pl[i + 1], room = (b.orbit - a.orbit) * 0.94, ea = ext(a), eb = ext(b);
+        if (ea + eb <= room) continue; hit = true; shrink(ea - a.r >= eb - b.r ? a : b, 0.85); }
+      if (!hit) break; }
+    // küçültme yetmezse (iki halkalı dev çok yakın): dıştaki gezegeni görsel ölçekte biraz dışarı it
+    for (let i = 0; i + 1 < pl.length; i++) { const a = pl[i], b = pl[i + 1], need = (ext(a) + ext(b)) / 0.94 - (b.orbit - a.orbit);
+      if (need > 0) { const o0 = b.orbit; b.orbit += need; if (b.line) b.line.scale.multiplyScalar(b.orbit / o0); } }
+  }
+  private moonOmega(host: O, orbit: number) { return Math.min(0.5, Math.max(0.01, 0.32 * Math.pow(orbit / Math.max(host.r, 0.5), -1.5) * 2.2)); }
+  private moonletGeo() { // çukurlu, düzensiz küçük uydu
+    const g = new THREE.IcosahedronGeometry(1, 2), p = g.attributes.position as THREE.BufferAttribute, v = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const k = 1 + (h('m' + Math.round(v.x * 7) + ',' + Math.round(v.y * 7) + ',' + Math.round(v.z * 7)) - 0.5) * 0.35; v.multiplyScalar(k); p.setXYZ(i, v.x, v.y, v.z); }
+    g.computeVertexNormals(); return g;
   }
   private bodySize(b: Body, moon: boolean) { return this.bodySize0(b, moon) * 1.7; }
   private bodySize0(b: Body, moon: boolean) {
@@ -195,7 +211,7 @@ export class SystemScene {
       const defs: [string, number, StarDef][] = this.sys.stype === 'binary' ? [['Gwathren', 38, SD(1.6, '#ff4a1e', '#ffa064', { spots: 0.5, flare: 1.6, corona: 5 })]]
         : [['Morwen B', 38, SD(1.7, '#ff4a1e', '#ffa064', { spots: 0.4, flare: 1.2, corona: 5 })], ['Morwen C', 900, SD(0.7, '#cfe4ff', '#ffffff', { contrast: 0.2, spots: 0, corona: 14, rays: 1.5, flare: 0 })]];
       for (const [nm, au, def] of defs) { const { g, cor, fade } = this.starMesh(def, def.r); this.scene.add(g);
-        const o: O = { id: 'star-' + nm, b: null, kind: 'star2', name: nm, obj: g, r: def.r, orbit: this.R(au), omega: 0.0015, phase: h(nm) * 6.28, incl: 0.02, parent: this.star, pos: new THREE.Vector3(), label: this.mkLabel(nm, 'star'), spin: 0.01, pick: true, extra: () => { cor.quaternion.copy(this.camera.quaternion); fade(); } };
+        const lg = (this.opts.gates ?? []).find((x) => x.host === 'B'); const o: O = { id: 'star-' + nm, b: null, kind: 'star2', name: nm, obj: g, r: def.r, orbit: this.R(au), omega: nm === 'Morwen B' && lg ? 0 : 0.00015, phase: nm === 'Morwen B' && lg ? -lg.ang : h(nm) * 6.28, incl: 0.02, parent: this.star, pos: new THREE.Vector3(), label: this.mkLabel(nm, 'star'), spin: 0.01, pick: true, extra: () => { cor.quaternion.copy(this.camera.quaternion); fade(); } };
         o.line = this.orbitLine(o.orbit, '#ff8a5a', 0.12, o.incl, true); this.add(o); comp.push(o); }
     }
     const last = new Map<string, O>();
@@ -208,40 +224,56 @@ export class SystemScene {
       const base = { id: b.id, b, name: b.name, phase: sd * 6.283, incl: (sd - 0.5) * 0.05, pos: new THREE.Vector3(), spin: 0.05 + sd * 0.1, pick: true } as const;
       const omegaFor = (x: number) => Math.min(0.05, Math.max(0.0012, 0.035 * Math.pow(Math.max(x, 0.01), -1.5)));
       if (b.kind === 'planet' || b.kind === 'moon') {
-        const moon = !!b.parent && host.kind !== 'star2'; const r = this.bodySize(b, moon); const mat = this.planetMat(b, b.cls);
+        const moon = !!b.parent && host.kind !== 'star2'; const r = this.bodySize(b, moon); const { mat, L } = this.planetMat(b);
         const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, seg, seg / 2), mat); mesh.rotation.z = (sd - 0.5) * 0.5; this.scene.add(mesh);
-        const sib = moon ? [...this.objs].filter((x) => x.parent === host && (x.kind === 'moon' || x.kind === 'station' || x.kind === 'swarm')).length : 0;
-        const orbit = moon ? host.r * 2.1 + 1.0 + sib * 1.35 + r : localR(au);
-        const o: O = { ...base, kind: moon ? 'moon' : 'planet', obj: mesh, r, orbit, omega: moon ? 0.12 / (1 + sib * 0.5) : omegaFor(au), parent: host, label: this.mkLabel(b.name, moon ? 'moon' : 'planet'), mat };
+        const orbit = moon ? this.slot(host, r) : localR(au);
+        const o: O = { ...base, kind: moon ? 'moon' : 'planet', obj: mesh, r, orbit, omega: moon ? this.moonOmega(host, orbit) : omegaFor(au), parent: host, label: this.mkLabel(b.name, moon ? 'moon' : 'planet'), mat };
+        if (moon) { o.incl = (sd - 0.5) * 0.35; o.oq = new THREE.Quaternion().setFromEuler(new THREE.Euler(o.incl, h(b.id + 'n') * 6.283, 0, 'YXZ')); }
+        else o.oq = new THREE.Quaternion().setFromEuler(new THREE.Euler(o.incl, h(b.id + 'n') * 6.283, 0, 'YXZ'));
+        void L;
         if (b.ring || b.cls === 'garden') { const ri = b.cls === 'garden' ? r * 1.5 : r * 1.4, ro = b.cls === 'garden' ? r * 1.62 : r * 2.4;
-          const rm = new THREE.ShaderMaterial({ vertexShader: RING_VS, fragmentShader: RING_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: b.cls === 'garden' ? THREE.AdditiveBlending : THREE.NormalBlending,
+          const rm = this.SM({ vertexShader: RING_VS, fragmentShader: RING_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: b.cls === 'garden' ? THREE.AdditiveBlending : THREE.NormalBlending,
             uniforms: { uC: { value: C(b.cls === 'garden' ? '#fff4d0' : '#d8c8a8') }, uIn: { value: ri }, uOut: { value: ro }, uSeed: { value: sd * 9 }, uCenter: { value: new THREE.Vector3() } } });
           const ring = new THREE.Mesh(new THREE.RingGeometry(ri, ro, 128, 1), rm); ring.rotation.x = -Math.PI / 2 + 0.35; this.scene.add(ring);
           o.extra = () => { ring.position.copy(o.pos); rm.uniforms.uCenter.value.copy(o.pos); }; }
         const dot = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.glow, color: c1Of(mat), transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false }));
         dot.scale.setScalar(moon ? 0.008 : 0.014); this.scene.add(dot); o.dot = dot;
-        o.line = moon ? this.orbitLine(orbit, '#7fe6ff', 0.14) : this.orbitLine(orbit, '#7fe6ff', 0.2, o.incl, host.kind === 'star2');
+        o.line = moon ? this.orbitLine(orbit, '#7fe6ff', 0.12, 0, false, o.oq) : this.orbitLine(orbit, '#7fe6ff', 0.2, 0, host.kind === 'star2', o.oq);
         this.add(o); last.set(b.id, o); continue;
       }
-      if (b.kind === 'swarm' && parentO) { // sayısı verilen adsız uydular
-        const n = b.count ?? 6, geo = new THREE.IcosahedronGeometry(1, 1), mat = new THREE.MeshStandardMaterial({ color: 0x9a968e, roughness: 1 });
-        const im = new THREE.InstancedMesh(geo, mat, n); this.scene.add(im); const dummy = new THREE.Object3D();
-        const rs = Array.from({ length: n }, (_, i) => ({ r: host.r * 2.4 + 1.5 + h(b.id + i) * host.r * 2.6, a: h(b.id + 'a' + i) * 6.28, w: 0.05 + h(b.id + 'w' + i) * 0.08, y: (h(b.id + 'y' + i) - 0.5) * host.r * 0.4, s: 0.08 + h(b.id + 's' + i) * 0.16 }));
-        const o: O = { ...base, kind: 'swarm', obj: im, r: host.r * 4, orbit: 0, omega: 0, parent: host, label: this.mkLabel(b.name, 'swarm'), pick: false };
-        o.extra = (t) => { rs.forEach((x, i) => { const a = x.a + t * x.w; dummy.position.set(host.pos.x + Math.cos(a) * x.r, host.pos.y + x.y, host.pos.z + Math.sin(a) * x.r); dummy.scale.setScalar(x.s); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); }); im.instanceMatrix.needsUpdate = true; o.pos.copy(host.pos); };
+      if (b.kind === 'swarm' && parentO) { // sayısı verilen adsız uydular: her biri kendi yörünge kabuğunda, çarpışmasız
+        const n = b.count ?? 6, geo = this.moonletGeo(), mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0.02 });
+        const im = new THREE.InstancedMesh(geo, mat, n); this.scene.add(im); const dummy = new THREE.Object3D(); const hostCls = host.b?.cls ?? '';
+        // düzenli iç uydular küçük eğiklikte; dıştakiler düzensiz: büyük eğiklik, bir kısmı ters yönde (gerçek gaz devi uydu sistemleri gibi)
+        const TYPES: [string, number][] = [['#d8e2ea', 0], ['#a8b2b6', 0], ['#8a8580', 0], ['#5a5650', 0], ['#3e3a36', 0], ['#d8c060', 0], ['#9a5a3a', 0], ['#c8d4dc', 0]];
+        const rs = Array.from({ length: n }, (_, i) => {
+          const s0 = 0.09 + h(b.id + 's' + i) ** 2 * 0.26, f = i / Math.max(1, n - 1), irr = f > 0.55;
+          const orbit = this.slot(host, s0, irr ? 0.55 : 0.3);
+          const incl = irr ? (h(b.id + 'i' + i) - 0.5) * 1.6 : (h(b.id + 'i' + i) - 0.5) * 0.12, node = h(b.id + 'o' + i) * 6.283;
+          const retro = irr && h(b.id + 'r' + i) < 0.4 ? -1 : 1;
+          const t = f < 0.15 && /gas/.test(hostCls) && h(b.id + 't' + i) < 0.5 ? 5 : f > 0.7 ? (h(b.id + 't' + i) < 0.6 ? 4 : 6) : Math.floor(h(b.id + 't' + i) * 4) + (f > 0.35 ? 1 : 0);
+          const c = C(TYPES[t][0]).offsetHSL((h(b.id + 'h' + i) - 0.5) * 0.04, 0, (h(b.id + 'l' + i) - 0.5) * 0.12); im.setColorAt(i, c);
+          return { r: orbit, s: s0, a: h(b.id + 'a' + i) * 6.283, w: retro * this.moonOmega(host, orbit), q: new THREE.Quaternion().setFromEuler(new THREE.Euler(incl, node, 0, 'YXZ')), rot: new THREE.Euler(h(b.id + 'x' + i) * 6, h(b.id + 'y' + i) * 6, 0), sq: 0.7 + h(b.id + 'z' + i) * 0.3 };
+        });
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        const outer = Math.max(...rs.map((x) => x.r));
+        const o: O = { ...base, kind: 'swarm', obj: im, r: outer, orbit: 0, omega: 0, parent: host, label: this.mkLabel(b.name, 'swarm'), pick: false }; (o as O & { rs?: unknown }).rs = rs;
+        const v = new THREE.Vector3();
+        o.extra = (t) => { rs.forEach((x, i) => { const a = x.a + t * x.w; v.set(Math.cos(-a) * x.r, 0, Math.sin(-a) * x.r).applyQuaternion(x.q); dummy.position.copy(host.pos).add(v); dummy.rotation.copy(x.rot); dummy.rotation.z = t * 0.1; dummy.scale.set(x.s, x.s * x.sq, x.s); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); }); im.instanceMatrix.needsUpdate = true; o.pos.copy(host.pos); };
         this.add(o); continue;
       }
       if (b.kind === 'belt') this.buildBelt(b, host, localR, base); 
       else if (b.kind === 'station') this.buildStation(b, parentO, localR, base, omegaFor, last);
-      else if (b.kind === 'gate') this.buildGates(b, localR, base);
+      else if (b.kind === 'gate') { if ((this.opts.gates ?? []).some((g) => g.canon === b.id)) this.canonGates.push({ b, base }); else this.buildGates(b, localR, base); }
       else if (b.kind === 'singularity') this.buildSingularity(b, localR(au), base, omegaFor(au));
       else if (b.kind === 'disk') { /* Saelis tekillikle birlikte çizilir */ const s = this.byId.get(b.parent ?? ''); if (s) { const o: O = { ...base, kind: 'disk', obj: new THREE.Object3D(), r: 6, orbit: 0, omega: 0, parent: s, label: this.mkLabel(b.name, 'moon'), pick: true }; o.extra = () => o.pos.copy(s.pos).add(new THREE.Vector3(5, 0, 0)); this.add(o); } }
       else if (b.kind === 'stream') this.buildStream(b, base);
       else if (b.kind === 'debris') this.buildDebris(b, localR(au), base);
-      else if (b.kind === 'wormhole') { const wm = new THREE.ShaderMaterial({ vertexShader: CORONA_VS.replace('uv * 2.0 - 1.0', 'uv'), fragmentShader: WORM_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uTime: { value: 0 } } });
+      else if (b.kind === 'wormhole') { const wm = this.SM({ vertexShader: CORONA_VS.replace('uv * 2.0 - 1.0', 'uv'), fragmentShader: WORM_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uTime: { value: 0 } } });
         this.timeMats.push(wm); const m = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), wm); this.scene.add(m);
         const o: O = { ...base, kind: 'wormhole', obj: m, r: 3, orbit: localR(au), omega: 0, parent: this.star, label: this.mkLabel(b.name, 'gate') }; o.extra = () => m.quaternion.copy(this.camera.quaternion); this.add(o); }
     }
+    this.fitMoons();
     this.extent = Math.max(40, ...this.objs.filter((o) => (o.kind === 'planet' || o.kind === 'belt' || o.kind === 'singularity') && o.orbit < 280).map((o) => o.orbit + (o.b?.au2 ? 0 : o.r)));
   }
   private buildBelt(b: Body, host: O, localR: (x: number) => number, base: object) {
@@ -282,9 +314,9 @@ export class SystemScene {
   private buildStation(b: Body, parentO: O | null, localR: (x: number) => number, base: object, omegaFor: (x: number) => number, last: Map<string, O>) {
     const ringy = /halka/i.test(b.name + b.type) || b.name === 'Ceres';
     if (parentO && parentO.kind !== 'star2') { // gezegen yörüngesinde halka istasyon
-      const sib = this.objs.filter((x) => x.parent === parentO && (x.kind === 'moon' || x.kind === 'station')).length;
       const g = this.stationMesh(ringy ? parentO.r * 1.55 : 0.5, ringy); if (ringy) g.rotation.z = 0.15;
-      const o: O = { ...(base as O), kind: 'station', obj: g, r: ringy ? parentO.r * 1.6 : 0.5, orbit: ringy ? 0 : parentO.r * 2.1 + 1 + sib * 1.35, omega: ringy ? 0 : 0.1, parent: parentO, label: this.mkLabel(b.name, 'station') };
+      const orb = ringy ? 0 : this.slot(parentO, 0.6);
+      const o: O = { ...(base as O), kind: 'station', obj: g, r: ringy ? parentO.r * 1.6 : 0.5, orbit: orb, omega: ringy ? 0 : this.moonOmega(parentO, orb), parent: parentO, label: this.mkLabel(b.name, 'station') };
       if (ringy) o.extra = (t) => { g.position.copy(parentO.pos); g.rotation.y = t * 0.05; o.pos.copy(parentO.pos).add(new THREE.Vector3(o.r, 0, 0)); };
       else o.line = this.orbitLine(o.orbit, '#7fe6ff', 0.12);
       this.add(o); return;
@@ -293,7 +325,7 @@ export class SystemScene {
     const au = b.au ?? 1, g = this.stationMesh(ringy ? 1.4 : 0.9, ringy || /Velaith|Ferraria/.test(b.name), /Catena/.test(b.name) ? '#ff9a3a' : '#00f0ff');
     const o: O = { ...(base as O), kind: 'station', obj: g, r: 1, orbit: l4 ? l4.orbit : localR(au), omega: l4 ? l4.omega : omegaFor(au), parent: this.star, label: this.mkLabel(b.name, 'station'), l4 };
     if (l4) o.phase = l4.phase + Math.PI / 3; else o.line = this.orbitLine(o.orbit, '#7fe6ff', 0.1, o.incl, true);
-    if (/geçit/i.test(b.name)) { // Nimloth İstasyonu ve iki geçit
+    if (/geçit/i.test(b.name) && !(this.opts.gates ?? []).some((g) => g.canon === b.id)) { // Nimloth İstasyonu ve iki geçit (hat geçidi yoksa)
       for (let i = 0; i < 2; i++) { const gt = this.gateMesh('#8fd8ff', true); this.scene.add(gt); const ang = 0.3 + i * 0.3; const prev = o.extra; o.extra = (t) => { prev?.(t); gt.position.set(Math.cos(-(o.phase + ang)) * o.orbit, 0, Math.sin(-(o.phase + ang)) * o.orbit); gt.lookAt(0, 0, 0); }; }
     }
     this.add(o); last.set(b.id, o);
@@ -316,13 +348,60 @@ export class SystemScene {
     o.extra = (t) => { gates.forEach((x, i) => { const a = o.phase + i * (n === 5 ? 1.2566 : 0.5); x.g.position.set(host.pos.x + Math.cos(-a) * x.r, host.pos.y, host.pos.z + Math.sin(-a) * x.r); x.g.lookAt(host.pos); x.g.rotateZ(t * 0.2); }); o.pos.copy(gates[0].g.position); };
     this.add(o);
   }
+  /** Geçit + istasyon yapısı: halka, sekiz pilon, enerji zarı; yanında yaşam halkalı istasyon, güneş panelleri, yanıp sönen seyir ışıkları. */
+  private gateStation(color: string, status: string) {
+    const g = new THREE.Group(), broken = status === 'collapsed', shut = status === 'closed';
+    const hull = new THREE.MeshStandardMaterial({ color: 0x8a96a4, metalness: 0.75, roughness: 0.35, emissive: C(color), emissiveIntensity: broken ? 0.02 : 0.08 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x3a4048, metalness: 0.6, roughness: 0.5 });
+    const R0 = 2.6, ring = new THREE.Mesh(new THREE.TorusGeometry(R0, 0.2, 12, 96, broken ? Math.PI * 1.35 : Math.PI * 2), hull); g.add(ring);
+    const inner = new THREE.Mesh(new THREE.TorusGeometry(R0 - 0.32, 0.06, 8, 96, broken ? Math.PI * 1.1 : Math.PI * 2), new THREE.MeshBasicMaterial({ color: C(color), transparent: true, opacity: broken ? 0.15 : 0.75, blending: THREE.AdditiveBlending, depthWrite: false })); g.add(inner);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; if (broken && a > Math.PI * 1.35) continue;
+      const py = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.9), dark); py.position.set(Math.cos(a) * R0, Math.sin(a) * R0, 0); py.rotation.z = a; g.add(py); }
+    let zm: THREE.ShaderMaterial | null = null;
+    if (!broken) { zm = this.SM({ vertexShader: CORONA_VS.replace('uv * 2.0 - 1.0', 'uv'), fragmentShader: WORM_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uTime: { value: 0 } } });
+      this.timeMats.push(zm); const disc = new THREE.Mesh(new THREE.PlaneGeometry(R0 * 2.1, R0 * 2.1), zm); disc.visible = !shut; g.add(disc); }
+    // istasyon: halkanın yanında, kollarla bağlı
+    const st = new THREE.Group(); st.position.set(R0 + 2.2, -0.6, -0.4); g.add(st);
+    st.add(new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 2.2, 16), hull));
+    const hab = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.13, 10, 48), hull); hab.rotation.x = Math.PI / 2; st.add(hab);
+    for (let i = 0; i < 3; i++) { const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2, 6), dark); sp.rotation.z = Math.PI / 2; sp.rotation.y = (i * Math.PI) / 3; st.add(sp); }
+    for (const sgn of [1, -1]) { const pnl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.8, 0.7), new THREE.MeshStandardMaterial({ color: 0x1a2a4a, metalness: 0.4, roughness: 0.3, emissive: 0x0a1a3a, emissiveIntensity: 0.4 })); pnl.position.set(0, sgn * 2.1, 0); st.add(pnl); }
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.0, 8), dark); arm.rotation.z = Math.PI / 2; arm.position.set(R0 + 1.05, -0.3, -0.2); g.add(arm);
+    const lights: THREE.Sprite[] = [];
+    for (const [x, y, z, c] of [[R0 + 2.2, 0.6, -0.4, '#ff3355'], [R0 + 2.2, -1.8, -0.4, '#00ff9a'], [0, R0 + 0.45, 0, color], [0, -R0 - 0.45, 0, color]] as [number, number, number, string][]) {
+      const l = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.glow, color: C(c), transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending })); l.position.set(x, y, z); l.scale.setScalar(0.9); g.add(l); lights.push(l); }
+    const gl = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.glow, color: C(color), transparent: true, opacity: broken ? 0.05 : shut ? 0.12 : 0.3, depthWrite: false, blending: THREE.AdditiveBlending })); gl.scale.setScalar(10); g.add(gl);
+    this.scene.add(g);
+    return { g, tick: (t: number) => { lights.forEach((l, i) => (l.material.opacity = broken ? 0.1 : 0.25 + 0.75 * (Math.sin(t * 2.4 + i * 1.7) > 0.6 ? 1 : 0))); st.rotation.y = t * 0.15; inner.rotation.z = -t * 0.3; } };
+  }
+  private buildLaneGates(list: LaneGate[]) {
+    const edge = this.extent + 16; this.edge = edge; const first = new Map<string, O>();
+    for (const lg of list) {
+      const host = lg.host === 'B' ? this.byId.get('star-Morwen B') ?? this.star : this.star;
+      const rad = lg.au !== undefined ? (host === this.star ? this.R(lg.au) : host.r * 2 + 3 + 9 * Math.log(1 + lg.au / 0.05)) : edge;
+      const { g, tick } = this.gateStation(lg.color, lg.status); const dir = new THREE.Vector3(Math.cos(lg.ang), 0, Math.sin(lg.ang));
+      const o: O = { id: lg.id, b: null, kind: 'gate', name: lg.name, obj: g, r: 3, orbit: 0, omega: 0, phase: 0, incl: 0, parent: host, pos: new THREE.Vector3(), label: this.mkLabel(lg.name, 'gate'), spin: 0, pick: true };
+      o.extra = (t) => { o.pos.copy(host.pos).addScaledVector(dir, rad); g.position.copy(o.pos); g.lookAt(host.pos); tick(t); };
+      o.line = this.radial(host === this.star ? rad : 0, lg.ang, lg.color); this.add(o); if (lg.canon && !first.has(lg.canon)) first.set(lg.canon, o);
+    }
+    for (const { b, base } of this.canonGates) { const f = first.get(b.id); if (!f) continue;
+      const o: O = { ...(base as O), kind: 'gate', obj: new THREE.Object3D(), r: 3, orbit: 0, omega: 0, parent: this.star, label: this.mkLabel(b.name, 'gate'), pick: false };
+      o.label.style.display = 'none'; o.extra = () => o.pos.copy(f.pos); this.add(o); }
+    if (list.length) this.extent = Math.max(this.extent, edge * 0.92);
+  }
+  /** Yıldızdan geçide uzanan kesik yön çizgisi (hat yönü). */
+  private radial(r: number, ang: number, color: string) {
+    const g = new THREE.BufferGeometry(); const a = Math.max(this.starDef.r * 3, r * 0.55);
+    g.setAttribute('position', new THREE.Float32BufferAttribute([Math.cos(ang) * a, 0, Math.sin(ang) * a, Math.cos(ang) * r, 0, Math.sin(ang) * r], 3));
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: C(color), transparent: true, opacity: r ? 0.22 : 0, dashSize: 1.2, gapSize: 1.6, depthWrite: false })); l.computeLineDistances(); this.scene.add(l); return l;
+  }
   private buildSingularity(b: Body, orbit: number, base: object, omega: number) {
     const g = new THREE.Group(); this.scene.add(g); const R = 1.6;
     const hole = new THREE.Mesh(new THREE.SphereGeometry(R, 48, 24), new THREE.MeshBasicMaterial({ color: 0x000000 })); hole.renderOrder = 3; g.add(hole);
-    const dm = new THREE.ShaderMaterial({ vertexShader: RING_VS, fragmentShader: DISK_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    const dm = this.SM({ vertexShader: RING_VS, fragmentShader: DISK_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
       uniforms: { uTime: { value: 0 }, uIn: { value: R * 1.6 }, uOut: { value: R * 5.2 }, uCenter: { value: new THREE.Vector3() }, uDir: { value: new THREE.Vector3(0, 0, 1) } } });
     this.timeMats.push(dm); const disk = new THREE.Mesh(new THREE.RingGeometry(R * 1.6, R * 5.2, 160, 4), dm); disk.rotation.x = -Math.PI / 2 + 0.22; g.add(disk);
-    const lm = new THREE.ShaderMaterial({ vertexShader: CORONA_VS.replace('uv * 2.0 - 1.0', 'uv'), fragmentShader: LENS_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uTime: { value: 0 }, uR: { value: 0.3 } } });
+    const lm = this.SM({ vertexShader: CORONA_VS.replace('uv * 2.0 - 1.0', 'uv'), fragmentShader: LENS_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uTime: { value: 0 }, uR: { value: 0.3 } } });
     this.timeMats.push(lm); const lens = new THREE.Mesh(new THREE.PlaneGeometry(R / 0.3 * 2, R / 0.3 * 2), lm); lens.renderOrder = 2; g.add(lens);
     const o: O = { ...(base as O), kind: 'singularity', obj: g, r: R * 2.5, orbit, omega, parent: this.star, label: this.mkLabel(b.name, 'planet') };
     o.extra = (t) => { lens.quaternion.copy(this.camera.quaternion); lens.quaternion.premultiply(g.quaternion.clone().invert()); disk.updateMatrixWorld(); dm.uniforms.uCenter.value.copy(o.pos);
@@ -337,7 +416,7 @@ export class SystemScene {
       pts.push(x, (k - 2) * 0.12 * Math.sin(t * Math.PI), -bend + (k - 2) * 0.2 * (1 - t)); tt.push(t); }
     const idx: number[] = []; for (let k = 0; k < 5; k++) for (let i = 0; i < N - 1; i++) idx.push(k * N + i, k * N + i + 1);
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); g.setAttribute('aT', new THREE.Float32BufferAttribute(tt, 1)); g.setIndex(idx);
-    const fm = new THREE.ShaderMaterial({ vertexShader: FLOW_VS, fragmentShader: FLOW_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uC: { value: C('#ff8a3a') }, uTime: { value: 0 }, uSpeed: { value: 0.8 }, uOp: { value: 0.75 } } });
+    const fm = this.SM({ vertexShader: FLOW_VS, fragmentShader: FLOW_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uC: { value: C('#ff8a3a') }, uTime: { value: 0 }, uSpeed: { value: 0.8 }, uOp: { value: 0.75 } } });
     this.timeMats.push(fm); pivot.add(new THREE.LineSegments(g, fm));
     const o: O = { ...(base as O), kind: 'stream', obj: pivot, r: 2, orbit: 0, omega: 0, parent: this.star, label: this.mkLabel(b.name, 'belt') };
     o.extra = () => { const a = Math.atan2(s.pos.z, s.pos.x); pivot.rotation.y = -a; o.pos.set(Math.cos(a) * s.orbit * 0.5, 0, Math.sin(a) * s.orbit * 0.5).addScaledVector(new THREE.Vector3(Math.sin(a), 0, -Math.cos(a)), -s.orbit * 0.18); };
@@ -359,7 +438,8 @@ export class SystemScene {
       if (o.kind === 'star') { o.pos.set(0, 0, 0); }
       else if (o.orbit && (o.kind === 'planet' || o.kind === 'moon' || o.kind === 'star2' || o.kind === 'station' || o.kind === 'singularity' || o.kind === 'wormhole') && !(o.kind === 'station' && o.extra && o.omega === 0 && o.parent !== this.star)) {
         const a = o.phase + t * o.omega, p = o.parent!.pos;
-        o.pos.set(p.x + Math.cos(-a) * o.orbit, p.y + Math.sin(-a) * o.orbit * Math.sin(o.incl), p.z + Math.sin(-a) * o.orbit * Math.cos(o.incl));
+        if (o.oq) { this.v.set(Math.cos(-a) * o.orbit, 0, Math.sin(-a) * o.orbit).applyQuaternion(o.oq); o.pos.copy(p).add(this.v); }
+        else o.pos.set(p.x + Math.cos(-a) * o.orbit, p.y + Math.sin(-a) * o.orbit * Math.sin(o.incl), p.z + Math.sin(-a) * o.orbit * Math.cos(o.incl));
         o.obj.position.copy(o.pos);
         if (o.line && o.parent!.kind !== 'star') o.line.position.copy(p);
       }
@@ -388,10 +468,12 @@ export class SystemScene {
   }
   focus(id: string) {
     const o = this.byId.get(id); if (!o) return; this.selected = id;
-    const dist = o.kind === 'star' || o.kind === 'star2' ? Math.max(o.r * 6, 14) : o.kind === 'belt' ? Math.max(30, o.orbit * 0.6) : o.kind === 'swarm' ? o.r * 3 : o.kind === 'singularity' ? 22 : Math.max(o.r * 5.5, 4);
+    const dist = o.kind === 'star' || o.kind === 'star2' ? Math.max(o.r * 6, 14) : o.kind === 'belt' ? Math.max(30, o.orbit * 0.6) : o.kind === 'swarm' ? o.r * 3 : o.kind === 'singularity' ? 22 : o.id.startsWith('lg-') ? 14 : Math.max(o.r * 5.5, 4);
     const dir = this.camera.position.clone().sub(this.controls.target).normalize(); if (dir.y < 0.2) { dir.y = 0.3; dir.normalize(); }
     // aydınlık tarafı göster: yıldız-cisim yönüne biraz yaklaştır
     if (o.kind === 'planet' || o.kind === 'moon') { const sun = o.pos.clone().negate().normalize(); dir.lerp(sun, 0.3).normalize(); dir.y = Math.max(dir.y, 0.22); dir.normalize(); }
+    // hat geçidi: halkanın yüzü ve yanındaki istasyon görünsün diye yıldız tarafından, üç çeyrek açıyla
+    if (o.id.startsWith('lg-')) { const inw = o.parent!.pos.clone().sub(o.pos).normalize(), side = inw.clone().cross(new THREE.Vector3(0, 1, 0)).normalize(); dir.copy(inw.multiplyScalar(0.8).addScaledVector(side, -0.5).add(new THREE.Vector3(0, 0.32, 0))).normalize(); }
     const toT = o.kind === 'belt' ? o.pos.clone() : o.pos.clone(); this.follow = o.kind === 'belt' ? null : o;
     this.flyPose(toT, toT.clone().addScaledVector(dir, dist), 1500, o.kind === 'belt' ? null : o);
     this.hooks.select(id);
@@ -399,6 +481,8 @@ export class SystemScene {
   overview() { this.follow = null; this.selected = null; const ov = this.overviewPose(); this.flyPose(ov.t, ov.p, 1400, null); }
   exit(): Promise<void> { return new Promise((res) => { this.follow = null; this.flyPose(new THREE.Vector3(), new THREE.Vector3(0, this.starDef.r * 1.2, this.starDef.r * 2.2), 1000, null, res); }); }
   select(id: string | null) { this.selected = id; if (!id) this.follow = null; }
+  getPose() { return { p: this.camera.position.clone(), t: this.controls.target.clone() }; }
+  setPose(x: { p: THREE.Vector3; t: THREE.Vector3 }) { this.fly = null; this.camera.position.copy(x.p); this.controls.target.copy(x.t); this.controls.update(); }
   // ---------- seçim ----------
   private pick(cx: number, cy: number) {
     const rc = this.renderer.domElement.getBoundingClientRect(); let best: string | null = null, bd = 1e9; const fov = Math.tan((this.camera.fov * Math.PI) / 360);

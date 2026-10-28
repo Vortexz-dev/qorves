@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { ambient } from '../lib/sfx';
   import { kb, loadKb, searchKb, allEntries } from '../lib/kb.svelte';
   import { TYPES, TYPE_ORDER, tmeta } from '../lib/types';
   import { openTag } from '../lib/tags.svelte';
@@ -15,7 +16,7 @@
   const counts = $derived(kb.ready ? TYPE_ORDER.map((t) => [t, allEntries().filter((e) => e.type === t).length] as const).filter(([, n]) => n) : []);
   const list = $derived(kb.ready ? allEntries().filter((e) => e.type === cat && (!filter || e.name.toLocaleLowerCase('tr').includes(filter.toLocaleLowerCase('tr'))))
     .sort((a, b) => (cat === 'event' || cat === 'era' ? (a.ys ?? a.ord ?? 0) - (b.ys ?? b.ord ?? 0) : a.name.localeCompare(b.name, 'tr'))) : []);
-  onMount(() => { loadKb(session.user!); setTimeout(() => inp?.focus(), 700); });
+  onMount(() => { loadKb(session.user!); setTimeout(() => inp?.focus(), 700); const stop = ambient('codex'); return stop; });
   const hl = (s: string, n = 150) => (s.length > n ? s.slice(0, n) + '…' : s);
   function pick(id: string) { sfx.click(); if (classic) art = id; else if (getEntry(id)?.type === 'event') showOnTimeline(id); else openTag(id); }
   function toggle() { classic = !classic; sfx.glitch(); if (classic && !art) art = list[0]?.id ?? ''; }

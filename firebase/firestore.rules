@@ -26,6 +26,15 @@ service cloud.firestore {
         allow read: if isMe(uid) || isDM();
         allow write: if isMe(uid) && (request.resource == null || request.resource.data.size() < 40);
       }
+      // Masaüstü klasörleri ve kaydedilmiş görseller: yalnız ad + adres (veri yok).
+      match /items/{itemId} {
+        allow read: if isMe(uid) || isDM();
+        allow delete: if isMe(uid);
+        allow create, update: if isMe(uid) && request.resource.data.size() < 12
+          && request.resource.data.kind in ['folder', 'image']
+          && request.resource.data.name is string && request.resource.data.name.size() <= 80
+          && (!('src' in request.resource.data) || (request.resource.data.src is string && request.resource.data.src.size() < 600));
+      }
       match /files/{fileId} {
         allow read: if isMe(uid) || isDM();
         allow write: if isMe(uid);

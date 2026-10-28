@@ -136,7 +136,7 @@
             <div class="node"></div>
             <div class="date mono">{e.date ?? ''}</div>
             <article class="card" use:measure={r.i}>
-              <div class="im"><img src={img(e)} alt="" loading="lazy" decoding="async" /></div>
+              <div class="im"><img src={img(e)} alt={e.name} loading="lazy" decoding="async" /></div>
               <div class="tx">
                 <div class="meta mono"><b>{rc.n}</b>{#if eraName(e)}<span>{eraName(e)}</span>{/if}</div>
                 <h3>{e.name}</h3>

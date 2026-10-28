@@ -9,6 +9,7 @@
   import Desktop from './desktop/Desktop.svelte';
   import TagPopup from './ui/TagPopup.svelte';
   import ConfirmHost from './ui/ConfirmHost.svelte';
+  import Lightbox from './ui/Lightbox.svelte';
   onMount(async () => { session.remembered = await backend.restore(); });
   $effect(() => { document.documentElement.classList.toggle('rm', settings.reduceMotion); });
 </script>
@@ -23,6 +24,7 @@
     <Desktop />
     <TagPopup />
   {/if}
+  <Lightbox />
   <ConfirmHost />
 </div>
 <style>.root{position:fixed;inset:0}</style>

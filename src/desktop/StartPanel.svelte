@@ -18,7 +18,7 @@
   </div>
   <div class="sec mono">UYGULAMALAR</div>
   <div class="apps">
-    {#each APPS as a}
+    {#each APPS.filter((a) => !a.hidden) as a}
       <button class="app" class:core={a.core} onclick={() => openApp(a.id)} onmouseenter={() => sfx.hover()}>
         <span class="ic">{@html ICONS[a.icon]}</span>{a.title}{#if a.core}<i class="mono">ÇEKİRDEK</i>{/if}
       </button>

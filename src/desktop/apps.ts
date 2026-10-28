@@ -1,6 +1,6 @@
 import type { Component } from 'svelte';
 export interface AppDef {
-  id: string; title: string; icon: string; core?: boolean; w?: number; h?: number; optional?: boolean;
+  id: string; title: string; icon: string; core?: boolean; w?: number; h?: number; optional?: boolean; hidden?: boolean;
   load: () => Promise<{ default: Component<any> }>;
 }
 // Uygulamalar ayrı parçalar halinde, açıldıklarında yüklenir.
@@ -11,6 +11,7 @@ export const APPS: AppDef[] = [
   { id: 'computer', title: 'Bilgisayarım', icon: 'computer', w: 780, h: 640, load: () => import('../apps/MyComputer.svelte') },
   { id: 'profile', title: 'Profil', icon: 'profile', w: 720, h: 560, load: () => import('../apps/Profile.svelte') },
   { id: 'notepad', title: 'Not Defteri', icon: 'notepad', w: 560, h: 500, optional: true, load: () => import('../apps/Notepad.svelte') },
+  { id: 'explorer', title: 'Klasör', icon: 'explorer', w: 700, h: 470, hidden: true, load: () => import('../apps/Explorer.svelte') },
   { id: 'store', title: 'Q-Mağaza', icon: 'store', w: 760, h: 520, load: () => import('../apps/AppStore.svelte') },
 ];
 export const appById = (id: string) => APPS.find((a) => a.id === id)!;

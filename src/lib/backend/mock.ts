@@ -4,7 +4,7 @@
  * DİKKAT: Bu dosyada hiçbir şifre yoktur. DungeonMaster kaydı şifresiz tohumlanır;
  * bir tarayıcıda ilk DM girişi, girilen şifreyi yalnız o tarayıcıda (tuzlu SHA-256) kaydeder.
  */
-import type { Backend, Character, UserProfile, World , Note } from './types';
+import type { Backend, Character, UserProfile, World , Note, DeskItem } from './types';
 import { AuthError } from './types';
 
 const K_USERS = 'qv.users.v1', K_SESSION = 'qv.session.v1';
@@ -95,6 +95,16 @@ export const mockBackend: Backend = {
     localStorage.setItem('qv.notes.' + uid, JSON.stringify(a.filter((x) => x.id !== id)));
   },
   async deleteAllNotes(uid) { localStorage.removeItem('qv.notes.' + uid); },
+  async listItems(uid) { return JSON.parse(localStorage.getItem('qv.items.' + uid) || '[]'); },
+  async saveItem(uid, it) {
+    const a: DeskItem[] = JSON.parse(localStorage.getItem('qv.items.' + uid) || '[]');
+    const i = a.findIndex((x) => x.id === it.id); if (i >= 0) a[i] = it; else a.push(it);
+    localStorage.setItem('qv.items.' + uid, JSON.stringify(a));
+  },
+  async deleteItem(uid, id) {
+    const a: DeskItem[] = JSON.parse(localStorage.getItem('qv.items.' + uid) || '[]');
+    localStorage.setItem('qv.items.' + uid, JSON.stringify(a.filter((x) => x.id !== id)));
+  },
   async vaultKeys() { return []; },
   async worldEvents() { try { return JSON.parse(localStorage.getItem('qv.worldEvents') || 'null'); } catch { return null; } },
 };

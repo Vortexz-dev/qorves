@@ -1,6 +1,9 @@
 // Neon çizgi simgeler (SVG). Windows logosu yok.
 const s = (p: string) => `<svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 export const ICONS: Record<string, string> = {
+  folder: s(`<path d="M5 12h14l4 4h20v24H5z" stroke="#00f0ff" stroke-width="2"/><path d="M5 20h38" stroke="#00f0ff" stroke-width="1.4" opacity=".55"/><path d="M11 32h12" stroke="#fcee0a" stroke-width="2"/><circle cx="37" cy="32" r="1.6" fill="#ff2a55" stroke="none"/>`),
+  explorer: s(`<path d="M5 12h14l4 4h20v24H5z" stroke="#00f0ff" stroke-width="2"/><circle cx="27" cy="29" r="6" stroke="#fcee0a" stroke-width="2"/><path d="m31.5 33.5 5 5" stroke="#fcee0a" stroke-width="2"/>`),
+  image: s(`<rect x="7" y="9" width="34" height="30" stroke="#00f0ff" stroke-width="2"/><circle cx="17" cy="19" r="3.5" stroke="#fcee0a" stroke-width="2"/><path d="m9 35 10-10 7 7 5-5 9 9" stroke="#00f0ff" stroke-width="2"/>`),
   notepad: s(`<rect x="10" y="6" width="28" height="36" stroke="#00f0ff" stroke-width="2"/><path d="M16 15h16M16 21h16M16 27h10" stroke="#fcee0a" stroke-width="2"/><path d="M30 34l6-6 3 3-6 6h-3z" stroke="#ff2a55" stroke-width="1.6"/>`),
   note: s(`<path d="M10 6h20l8 8v28H10z" stroke="#fcee0a" stroke-width="2"/><path d="M30 6v8h8" stroke="#fcee0a" stroke-width="2"/><path d="M16 22h16M16 28h16M16 34h9" stroke="#00f0ff" stroke-width="1.8"/>`),
   computer: s(`<rect x="6" y="8" width="36" height="24" rx="1" stroke="#00f0ff" stroke-width="2"/><path d="M18 40h12M24 32v8" stroke="#00f0ff" stroke-width="2"/><path d="M11 14h10M11 19h16M11 24h7" stroke="#fcee0a" stroke-width="2"/><circle cx="36" cy="26" r="1.6" fill="#ff2a55" stroke="none"/>`),

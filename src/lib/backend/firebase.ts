@@ -5,7 +5,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc } from 'firebase/firestore';
-import type { Backend, UserProfile, World, Note, VaultKey, WorldEvents } from './types';
+import type { Backend, UserProfile, World, Note, VaultKey, WorldEvents, DeskItem } from './types';
 import { AuthError } from './types';
 
 export const firebaseConfig = {
@@ -99,6 +99,12 @@ export const firebaseBackend: Backend = {
     const s = await getDocs(collection(db, 'users', uid, 'notes'));
     const b = writeBatch(db); s.docs.forEach((d) => b.delete(d.ref)); await b.commit();
   },
+  async listItems(uid) {
+    const s = await getDocs(collection(db, 'users', uid, 'items'));
+    return s.docs.map((d) => ({ ...(d.data() as DeskItem), id: d.id }));
+  },
+  async saveItem(uid, it) { await setDoc(doc(db, 'users', uid, 'items', it.id), it); },
+  async deleteItem(uid, id) { await deleteDoc(doc(db, 'users', uid, 'items', id)); },
   async vaultKeys(user) {
     if (user.role === 'dm') {
       const s = await getDocs(collection(db, 'vault'));

@@ -16,7 +16,12 @@ export type Quality = 'low' | 'med' | 'high';
 export const STAR_COLOR: Record<string, string> = { A: '#bcd0ff', F: '#f8f7ff', G: '#fff0b0', K: '#ffc98a', M: '#ff8f62', redgiant: '#ff6a3a', whitedwarf: '#e6f2ff',
   pulsar: '#9fd4ff', magnetar: '#c48dff', blackhole: '#ff9a3c', triple: '#ffb070', binary: '#fff4dc', unknown: '#6c7484' };
 export const LANE_COLOR: Record<string, string> = { 'Rün': '#6ff7ff', Astar: '#ffd36b', Karma: '#c78bff' };
-const Q = { low: { dpr: 1, bg: 5000, disk: 6000, neb: 6, bloom: false }, med: { dpr: 1.5, bg: 12000, disk: 15000, neb: 10, bloom: true }, high: { dpr: 2, bg: 22000, disk: 32000, neb: 14, bloom: true } };
+// Kalite: piksel oranı, kenar yumuşatma, bloom, nokta sayıları, bulutsu sayısı, hat parçalılığı. Değişince sahne baştan kurulur (CoreStarmap).
+export const CQ = { low: { dpr: 0.8, aa: false, bg: 2500, disk: 3500, neb: 4, bloom: 0, bloomR: 0, seg: 8 }, med: { dpr: 1.25, aa: true, bg: 10000, disk: 14000, neb: 9, bloom: 0.45, bloomR: 0.5, seg: 24 }, high: { dpr: 2, aa: true, bg: 26000, disk: 42000, neb: 16, bloom: 0.55, bloomR: 1, seg: 48 } };
+const Q = CQ;
+/** Lore'daki başkentler (sistem id → ipucu). */
+export const CAPITALS: Record<string, string> = { 'sys-aerendis': 'Elf İmparatorluğu başkenti', 'sys-concordia': 'İnsan Cumhuriyeti başkenti', 'sys-astarion': 'Birleşik İnsanlık başkenti',
+  'sys-ondrum': 'Ondrûm Krallığı başkenti', 'sys-harrow': 'Ostrav Loncası başkenti (Ostrav · Kotlina)', 'sys-meridian': 'Velmor Cemiyeti başkenti (Velmor · Aldane)', 'sys-imperion': 'Eski imparatorluk başkenti' };
 
 interface SysObj { d: SysData; pos: THREE.Vector3; group: THREE.Group; core: THREE.Sprite; halo: THREE.Sprite; haloOp: number; coreOp: number; extra: THREE.Object3D[]; terr: THREE.Mesh; label: HTMLDivElement; known: boolean; dim: number }
 export interface Hooks { hover: (id: string | null) => void; select: (id: string | null) => void }
@@ -54,9 +59,9 @@ export class ClusterScene {
   hovered: string | null = null; selected: string | null = null; showLabels = true; showLanes = true; showTerr = true; quality: Quality;
   private down = { x: 0, y: 0 }; private v = new THREE.Vector3();
   constructor(private host: HTMLElement, private overlay: HTMLElement, private data: MapData, private known: (id: string) => boolean, private hooks: Hooks, quality: Quality) {
-    this.quality = quality;
-    this.renderer = new THREE.WebGLRenderer({ antialias: quality !== 'low', powerPreference: 'high-performance' });
-    this.renderer.setClearColor(0x020309, 1); this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.05;
+    this.quality = quality; if (location.search.includes('qc=1')) (globalThis as any).__qcC = this; // QC_HOOK
+    this.renderer = new THREE.WebGLRenderer({ antialias: Q[quality].aa, powerPreference: 'high-performance' });
+    this.renderer.setClearColor(0x020309, 1); this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 0.92;
     host.appendChild(this.renderer.domElement);
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.5, 6000); this.camera.position.set(0, 250, 330);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -96,14 +101,14 @@ export class ClusterScene {
         if (r > 175 && x > 110 && Math.random() < 0.8) continue;
         if (r > 260 && Math.random() < 0.6) continue;
         const y = this.gauss() * (6 + r * 0.06);
-        p.set([x, y, z], i * 3); const c = temp(Math.random()); const b = 0.25 + Math.random() * 0.6; col.set([c.r * b, c.g * b, c.b * b], i * 3);
+        p.set([x, y, z], i * 3); const c = temp(Math.random()); const b = 0.14 + Math.random() * 0.42; col.set([c.r * b, c.g * b, c.b * b], i * 3);
         s[i] = 0.6 + Math.random() ** 4 * 3.2; tw[i] = Math.random(); i++; }
       this.addPoints(p, col, s, tw); }
     // bulutsular
     const cols = ['#5b2cff', '#00b8c4', '#ff2a8a', '#2a5bff', '#8a2cff', '#00e0a0'];
     for (let k = 0; k < q.neb; k++) {
       const t = nebulaTex(1 + k * 7919); this.tex['neb' + k] = t;
-      const m = new THREE.SpriteMaterial({ map: t, color: new THREE.Color(cols[k % cols.length]), transparent: true, opacity: 0.1 + Math.random() * 0.12, depthWrite: false, blending: THREE.AdditiveBlending });
+      const m = new THREE.SpriteMaterial({ map: t, color: new THREE.Color(cols[k % cols.length]), transparent: true, opacity: 0.06 + Math.random() * 0.08, depthWrite: false, blending: THREE.AdditiveBlending });
       const sp = new THREE.Sprite(m); const a = Math.random() * 6.283, r = 60 + Math.random() * 380;
       sp.position.set(Math.cos(a) * r, -30 - Math.random() * 120, Math.sin(a) * r); sp.scale.setScalar(260 + Math.random() * 520); m.rotation = Math.random() * 6;
       this.scene.add(sp); this.nebulae.push(sp);
@@ -133,9 +138,9 @@ export class ClusterScene {
     for (const d of this.data.systems) {
       const known = this.known(d.id), pos = new THREE.Vector3(d.x, d.y, d.z), group = new THREE.Group(); group.position.copy(pos);
       const col = known ? STAR_COLOR[d.stype] ?? '#ffffff' : '#6c7484', s = d.size, extra: THREE.Object3D[] = [];
-      const core = this.sprite('glow', col, 1); const halo = this.sprite('glow', col, 0.35);
-      let cs = 7 * s, hs = 26 * s;
-      if (d.stype === 'redgiant') { cs = 11 * s; hs = 46 * s; } if (d.stype === 'whitedwarf') { cs = 4.5 * s; hs = 16 * s; } if (d.stype === 'unknown' || d.owner === 'dm') { cs = 4; hs = 10; halo.material.opacity = 0.12; }
+      const core = this.sprite('glow', col, 0.9); const halo = this.sprite('glow', col, 0.16);
+      let cs = 4.2 * s, hs = 13 * s;
+      if (d.stype === 'redgiant') { cs = 6.5 * s; hs = 22 * s; } if (d.stype === 'whitedwarf') { cs = 3 * s; hs = 9 * s; } if (d.stype === 'unknown' || d.owner === 'dm') { cs = 4; hs = 10; halo.material.opacity = 0.12; }
       core.scale.setScalar(cs); halo.scale.setScalar(hs); group.add(halo, core);
       if (d.stype === 'blackhole') {
         core.material.color.set('#ffb070'); core.scale.setScalar(1.6);
@@ -143,10 +148,10 @@ export class ClusterScene {
         const comp = this.sprite('glow', STAR_COLOR.K, 0.9); comp.scale.setScalar(5); comp.position.set(7, 1, -5);
         halo.material.color.set('#7a3010'); halo.scale.setScalar(16 * s); group.add(ring, disk, comp); extra.push(ring);
       }
-      if (d.stype === 'pulsar') { for (const r of [0, Math.PI / 2]) { const b = this.sprite('beam', '#bfe6ff', 0.55); b.scale.set(70, 70, 1); b.material.rotation = r; group.add(b); extra.push(b); } }
-      if (d.stype === 'magnetar') { const b = this.sprite('glow', '#7a4dff', 0.4); b.scale.setScalar(40); group.add(b); extra.push(b); }
+      if (d.stype === 'pulsar') { for (const r of [0, Math.PI / 2]) { const b = this.sprite('beam', '#bfe6ff', 0.3); b.scale.set(48, 48, 1); b.material.rotation = r; group.add(b); extra.push(b); } }
+      if (d.stype === 'magnetar') { const b = this.sprite('glow', '#7a4dff', 0.25); b.scale.setScalar(24); group.add(b); extra.push(b); }
       if (d.stype === 'triple') { for (const [c, o] of [['#ff6a4a', [5, 0.5, 3]], ['#eaf4ff', [-4, -0.5, 4]]] as [string, [number, number, number]][]) { const x = this.sprite('glow', c, 0.95); x.scale.setScalar(3.6); x.position.set(o[0], o[1], o[2]); group.add(x); }
-        const neb = this.sprite('soft', '#59ff9a', 0.12); neb.scale.setScalar(55); const neb2 = this.sprite('soft', '#ff4a5a', 0.08); neb2.scale.setScalar(40); neb2.position.set(8, 0, 6); group.add(neb, neb2); }
+        const neb = this.sprite('soft', '#59ff9a', 0.08); neb.scale.setScalar(45); const neb2 = this.sprite('soft', '#ff4a5a', 0.05); neb2.scale.setScalar(40); neb2.position.set(8, 0, 6); group.add(neb, neb2); }
       if (d.stype === 'binary') { const x = this.sprite('glow', '#ff6a4a', 0.95); x.scale.setScalar(3.4); x.position.set(5.5, 0.6, -3); group.add(x); extra.push(x); }
       if (d.name === 'Ozgrund') { const dust = this.sprite('soft', '#8a5a3a', 0.25); dust.scale.setScalar(36); group.add(dust); }
       this.scene.add(group);
@@ -156,9 +161,10 @@ export class ClusterScene {
       stalkV.push(d.x, d.y, d.z, d.x, 0, d.z);
       for (let i = 0; i < 24; i++) { const a = (i / 24) * 6.283, b = ((i + 1) / 24) * 6.283; ringV.push(d.x + Math.cos(a) * 2.2, 0, d.z + Math.sin(a) * 2.2, d.x + Math.cos(b) * 2.2, 0, d.z + Math.sin(b) * 2.2); }
       const label = document.createElement('div'); label.className = 'sm-lbl' + (known ? '' : ' unk') + (d.owner === 'dm' ? ' dm' : '');
-      label.innerHTML = `<b>${known ? d.name : 'Bilinmeyen sinyal'}</b><i class="ev"></i>`; label.style.setProperty('--fc', fc);
+      const cap = known && CAPITALS[d.id] ? `<s class="cap${d.id === 'sys-imperion' ? ' old' : ''}" data-tip="${d.name + ' · ' + CAPITALS[d.id]}"><svg viewBox="0 0 16 16"><path d="M2 12h12l1-7-4 3-3-5-3 5-4-3z"/><path d="M2 14h12"/></svg></s>` : '';
+      label.innerHTML = `${cap}<b>${known ? d.name : 'Bilinmeyen sinyal'}</b><i class="ev"></i>`; label.style.setProperty('--fc', fc);
       this.overlay.appendChild(label);
-      const haloOp = d.stype === 'blackhole' ? 0.1 : d.owner === 'dm' || d.stype === 'unknown' ? 0.12 : 0.35, coreOp = d.stype === 'blackhole' ? 0.45 : 1;
+      const haloOp = d.stype === 'blackhole' ? 0.08 : d.owner === 'dm' || d.stype === 'unknown' ? 0.1 : 0.16, coreOp = d.stype === 'blackhole' ? 0.4 : 0.9;
       this.sys.set(d.id, { d, pos, group, core, halo, haloOp, coreOp, extra, terr, label, known, dim: 1 });
     }
     const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(stalkV, 3));
@@ -170,7 +176,7 @@ export class ClusterScene {
     const MODE: Record<string, number> = { open: 0, closed: 1, danger: 2, collapsed: 3, rumor: 4 };
     for (const d of this.data.lanes) {
       const A = this.sys.get(d.a)!.pos, B = this.sys.get(d.b)!.pos, dir = B.clone().sub(A), len = dir.length(); dir.normalize();
-      const w = d.status === 'open' ? 2.4 : 1.8, N = 24;
+      const w = d.status === 'open' ? 2.4 : 1.8, N = Q[this.quality].seg;
       const pos: number[] = [], u: number[] = [], vv: number[] = [], dd: number[] = [], idx: number[] = [];
       for (let i = 0; i <= N; i++) { const t = i / N, c = A.clone().lerp(B, t);
         for (const side of [-1, 1]) { pos.push(c.x, c.y, c.z); dd.push(dir.x, dir.y, dir.z); u.push(t * len); vv.push(side); } }
@@ -188,10 +194,10 @@ export class ClusterScene {
     this.quality = q; const c = Q[q];
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, c.dpr));
     this.composer?.dispose(); this.bloom?.dispose(); this.composer = null; this.bloom = null;
-    if (c.bloom) {
+    if (c.bloom) { // eşik yüksek: yalnız yıldız çekirdekleri parlar, etiketler ve hatlar okunur kalır
       this.composer = new EffectComposer(this.renderer); this.composer.addPass(new RenderPass(this.scene, this.camera));
       const sz = new THREE.Vector2(this.host.clientWidth, this.host.clientHeight);
-      this.bloom = new UnrealBloomPass(q === 'high' ? sz : sz.clone().multiplyScalar(0.5), 0.85, 0.55, 0.12); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
+      this.bloom = new UnrealBloomPass(sz.clone().multiplyScalar(c.bloomR), c.bloom, 0.4, 0.5); this.composer.addPass(this.bloom); this.composer.addPass(new OutputPass());
     }
     this.resize();
   }
@@ -222,6 +228,8 @@ export class ClusterScene {
   placeNear(id: string, dist = 10) { const o = this.sys.get(id); if (!o) return; const dir = new THREE.Vector3(0, 0.45, 0.9).normalize(); this.controls.target.copy(o.pos); this.camera.position.copy(o.pos).addScaledVector(dir, dist); this.fly = null; }
   overview() { this.fly = { t0: performance.now(), dur: 1400, fromT: this.controls.target.clone(), toT: new THREE.Vector3(0, 0, 20), fromP: this.camera.position.clone(), toP: new THREE.Vector3(0, 250, 330) }; }
   select(id: string | null) { this.selected = id; this.hooks.select(id); }
+  getPose() { return { p: this.camera.position.clone(), t: this.controls.target.clone() }; }
+  setPose(x: { p: THREE.Vector3; t: THREE.Vector3 }) { this.camera.position.copy(x.p); this.controls.target.copy(x.t); this.fly = null; this.controls.update(); }
   private pick(cx: number, cy: number) {
     const r = this.renderer.domElement.getBoundingClientRect(); let best: string | null = null, bd = 24;
     for (const o of this.sys.values()) { if (o.dim < 0.5) continue; this.v.copy(o.pos).project(this.camera); if (this.v.z > 1) continue;

@@ -11,7 +11,9 @@ export interface UserProfile {
   desktop: { icons: Record<string, { x: number; y: number }> };
   apps: string[];
 }
-export interface Note { id: string; title: string; body: string; x: number; y: number; updatedAt: number }
+export interface Note { id: string; title: string; body: string; x: number; y: number; updatedAt: number; parent?: string }
+/** Masaüstü öğesi: klasör ya da kaydedilmiş görsel (yalnız adres/başvuru, veri değil). parent '' = masaüstü. */
+export interface DeskItem { id: string; kind: 'folder' | 'image'; name: string; src?: string; parent: string; x: number; y: number; updatedAt: number }
 export interface VaultKey { id: string; k: string; f: string }
 export interface EventOverride { tpl: string; sys: string; lane?: string; start: number; end: number }
 export interface WorldEvents { overrides?: EventOverride[]; cleared?: string[]; disabled?: string[]; paused?: boolean; seed?: string }
@@ -29,6 +31,9 @@ export interface Backend {
   saveNote(uid: string, note: Note): Promise<void>;
   deleteNote(uid: string, id: string): Promise<void>;
   deleteAllNotes(uid: string): Promise<void>;
+  listItems(uid: string): Promise<DeskItem[]>;
+  saveItem(uid: string, it: DeskItem): Promise<void>;
+  deleteItem(uid: string, id: string): Promise<void>;
   /** Bu kullanıcının açabildiği içerik anahtarları (DM: hepsi). */
   vaultKeys(user: UserProfile): Promise<VaultKey[]>;
   /** DM olay kancaları: world/events {overrides, cleared, disabled, paused} */
