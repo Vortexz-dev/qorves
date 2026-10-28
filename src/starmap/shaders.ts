@@ -62,7 +62,7 @@ float cityLights(vec3 p, float land, float ndl, float coast){
     float d = acos(clamp(dot(p, normalize(uCityDir)), -1.0, 1.0)); float m = smoothstep(0.03 + uCity * 0.5, 0.0, d);
     float sp = smoothstep(0.55, 0.85, noise(s * 140.0) * 0.5 + 0.5); return m * (0.25 + sp) * 0.8; }
   float reg = noise(s * 4.2) * 0.5 + 0.5 + (noise(s * 11.0) * 0.12);
-  float thr = mix(0.86, 0.42, uCity); if (uCityMode > 3.5) thr = 0.18;
+  float thr = mix(0.86, 0.42, uCity); if (uCityMode > 3.5) thr = 0.34;
   float r = smoothstep(thr, thr + 0.1, reg);
   if (uCityMode > 0.5 && uCityMode < 1.5) r *= 0.25 + 1.6 * coast;                         // kıyılar, nehir ağızları
   else if (uCityMode > 1.5 && uCityMode < 2.5) r *= smoothstep(0.72, 0.9, ridged(s * 3.4)) * 1.6; // kanyon vadileri
@@ -71,7 +71,10 @@ float cityLights(vec3 p, float land, float ndl, float coast){
   float sp = smoothstep(0.6, 0.9, noise(s * 95.0) * 0.5 + 0.5);                              // dağınık ışık noktaları
   float rd = (1.0 - smoothstep(0.0, 0.012, abs(noise(s * 18.0)))) * smoothstep(thr - 0.12, thr, reg) * 0.35; // ulaşım ağları
   float l = r * (sp * 0.75 + core * 0.45) + rd;
-  if (uCityMode > 3.5) l = r * (0.18 + sp * 0.35 + core * 0.25) + (1.0 - smoothstep(0.0, 0.03, abs(fract(s.x * 40.0 + noise(s * 6.0)) - 0.5))) * 0.08 * r;
+  if (uCityMode > 3.5) { // ekümenopolis: kesintisiz parıltı değil; bölgeler, ana arterler ve aralarında karanlık parklar/sanayi boşlukları
+    float grid = (1.0 - smoothstep(0.0, 0.025, abs(fract(s.x * 34.0 + noise(s * 6.0) * 2.0) - 0.5))) + (1.0 - smoothstep(0.0, 0.025, abs(fract(s.z * 34.0 + noise(s * 5.0) * 2.0) - 0.5)));
+    float sp2 = smoothstep(0.62, 0.92, noise(s * 160.0) * 0.5 + 0.5);
+    l = r * (0.008 + sp * 0.13 + sp2 * 0.16 + core * 0.06) + grid * 0.035 * r; }
   return l * land; }
 void main(){
   vec3 p = normalize(vP); vec3 q = p * 2.0 * uP.x + uSeed;
@@ -164,7 +167,7 @@ void main(){
   vec3 H = normalize(L + V); lit += uStarCol * pow(max(dot(N, H), 0.0), 60.0) * spec * 0.35 * day;
   float cl = cityLights(p, land, ndl, coast);
   vec3 warm = uCityMode > 3.5 ? vec3(1.0, 0.74, 0.46) : vec3(1.0, 0.64, 0.32);
-  lit += warm * cl * (1.0 - day) * (1.0 - clamp(clouds, 0.0, 1.0) * 0.7) * (uCityMode > 3.5 ? 0.42 : 0.55);
+  lit += warm * cl * (1.0 - day) * (1.0 - clamp(clouds, 0.0, 1.0) * 0.85) * (uCityMode > 3.5 ? 0.34 : 0.55);
   lit += ecol * emis * 1.4;
   float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
   lit += uAtm * fr * uAtmS * (0.15 + smoothstep(-0.3, 0.5, ndl));
