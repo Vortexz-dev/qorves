@@ -79,7 +79,8 @@ export const markRead = (cid: string, who: string) => updateDoc(doc(db, 'convs',
 export const unreadFor = (c: Conv, who: string) => !!c.last && c.last.from !== who && (c.read?.[who.replace(/\./g, '_')] ?? 0) < c.last.at;
 
 // ---------- cüzdan ----------
-export const CURRENCIES = [{ id: 'BK', name: 'Birleşik Kredisi', sym: 'BK', note: 'dijital, enflasyonlu' }, { id: 'Mark', name: 'Cumhuriyet Markı', sym: 'M', note: 'İnsan Cumhuriyeti' }, { id: 'Kantar', name: 'Kantar', sym: 'K', note: 'altın karşılıklı; cüce + Ostrav' }];
+/** Tek para birimi: Birleşik Kredisi (Phoenix'in kararı). */
+export const CURRENCIES = [{ id: 'BK', name: 'Birleşik Kredisi', sym: 'BK', note: 'dijital, enflasyonlu' }];
 export interface Wallet { bal: Record<string, number>; at: number }
 export interface Tx { id: string; cur: string; amt: number; reason: string; at: number; bal: number }
 export function watchWallet(uid: string, cb: (w: Wallet | null, tx: Tx[]) => void) {
@@ -94,7 +95,7 @@ export async function adjustWallet(uid: string, cur: string, amt: number, reason
   const ref = doc(db, 'wallet', uid); const s = await getDoc(ref); const old = (s.exists() ? (s.data() as Wallet).bal?.[cur] : 0) ?? 0;
   const nb = set ? amt : old + amt; const delta = nb - old;
   const b = writeBatch(db);
-  b.set(ref, { bal: { ...(s.exists() ? (s.data() as Wallet).bal : {}), [cur]: nb }, at: now() });
+  b.set(ref, { bal: { BK: cur === 'BK' ? nb : ((s.exists() ? (s.data() as Wallet).bal?.BK : 0) ?? 0) }, at: now() });
   b.set(doc(db, 'wallet', uid, 'tx', nid()), { cur, amt: delta, reason: reason.slice(0, 200) || (set ? 'Bakiye belirlendi' : 'Düzeltme'), at: now(), bal: nb });
   await b.commit(); return nb;
 }

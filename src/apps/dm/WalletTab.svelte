@@ -24,11 +24,11 @@
       <label class="field"><span>Gerekçe (oyuncu görür)</span><input class="inp" bind:value={reason} maxlength="200" placeholder="ör. Görev ödülü: Kayıp kargo" /></label>
       <button class="btn" disabled={busy || !reason.trim() || (mode !== 'set' && !(Number(amt) > 0))} onclick={apply}>Uygula</button>
       {#if msg}<p class="msg mono">{msg}</p>{/if}
-      <p class="nt">Para birimleri bilgi bankasındaki kayıtlardan: Birleşik Kredisi (BK), Cumhuriyet Markı, Kantar. Oyuncular arası aktarım kapalı (güvenli kural yazılamadı).</p>
+      <p class="nt">Tek para birimi: Birleşik Kredisi (BK). Oyuncular arası aktarım kapalı (güvenli kural yazılamadı).</p>
     </div>
     <div class="ls">
       <h4 class="mono">İŞLEMLER</h4>
-      {#each tx as t (t.id)}<div class="t"><span class="mono a" class:p={t.amt > 0} class:n={t.amt < 0}>{t.amt > 0 ? '+' : ''}{fmt(t.amt)} {t.cur}</span><span>{t.reason}</span><span class="mono d">{when(t.at)}</span><span class="mono d">= {fmt(t.bal)}</span></div>{:else}<div class="none mono">İşlem yok.</div>{/each}
+      {#each tx.filter((t) => (t.cur ?? 'BK') === 'BK') as t (t.id)}<div class="t"><span class="mono a" class:p={t.amt > 0} class:n={t.amt < 0}>{t.amt > 0 ? '+' : ''}{fmt(t.amt)} BK</span><span>{t.reason}</span><span class="mono d">{when(t.at)}</span><span class="mono d">= {fmt(t.bal)}</span></div>{:else}<div class="none mono">İşlem yok.</div>{/each}
     </div>
   </div>
 </div>
@@ -36,7 +36,7 @@
   .wt{display:flex;flex-direction:column;height:100%;min-height:0;padding:12px 16px;gap:10px}
   .cols{flex:1;display:grid;grid-template-columns:420px 1fr;gap:16px;min-height:0}
   .fm{display:flex;flex-direction:column;gap:8px;overflow:auto}.ls{overflow:auto;border:1px solid var(--line)}
-  .bals{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.bals button{display:flex;flex-direction:column;align-items:flex-start;background:rgba(0,0,0,.25);border:1px solid var(--line);color:var(--tx);padding:7px 9px}.bals button.on{border-color:var(--ye)}
+  .bals{display:grid;grid-template-columns:1fr;gap:6px}.bals button{display:flex;flex-direction:column;align-items:flex-start;background:rgba(0,0,0,.25);border:1px solid var(--line);color:var(--tx);padding:7px 9px}.bals button.on{border-color:var(--ye)}
   .bals small{font-size:9.5px;color:var(--cy);letter-spacing:.1em}.bals b{font-family:var(--f-disp);font-size:17px;color:#fff}.bals i{font-style:normal;font-size:11px;color:var(--ye)}
   .md{display:flex;gap:6px}.md button{flex:1;background:none;border:1px solid var(--line);color:var(--mut);padding:6px;font:inherit}.md button.on{border-color:var(--cy);color:var(--cy);background:rgba(0,240,255,.08)}
   h4{font-size:10.5px;letter-spacing:.25em;color:var(--ye);margin:8px 10px}
