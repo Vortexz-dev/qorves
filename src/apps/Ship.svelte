@@ -115,7 +115,7 @@
         {/each}
         <text class="lbl" x={PX(-8) + 4} y={PY(7.5) - 4}>ÜST GÜVERTE</text><text class="lbl" x={PX(-8) + 4} y={PY(2.6) - 4}>ALT GÜVERTE</text>
       </svg>
-      {#if room}<div class="rd ph"><button class="th" title="Büyüt" onclick={() => photo(room!.id, room!.n)}><img src={roomImg(room.id)} alt={room.n} /></button><div><b>{room.n}</b> {room.d}<small class="mono">FOTOĞRAFA TIKLA · BÜYÜT</small></div></div>{:else}<div class="rd mut">Bir bölmeye tıkla: fotoğrafı ve açıklaması açılır. Hologramdaki bölme etiketleri de tıklanır.</div>{/if}
+      {#if room}<div class="rd ph"><button class="th" title="Büyüt" onclick={() => photo(room!.id, room!.n)}><img src={roomImg(room.id)} alt={(ship.name || 'Demir Kervan') + ' · ' + room.n} /></button><div><b>{room.n}</b> {room.d}<small class="mono">FOTOĞRAFA TIKLA · BÜYÜT</small></div></div>{:else}<div class="rd mut">Bir bölmeye tıkla: fotoğrafı ve açıklaması açılır. Hologramdaki bölme etiketleri de tıklanır.</div>{/if}
     </section>
   {/if}
   {#if err}<div class="err mono">{err}</div>{/if}

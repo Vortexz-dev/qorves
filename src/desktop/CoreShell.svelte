@@ -6,16 +6,20 @@
   let { id }: { id: string } = $props();
   const app = $derived(appById(id));
   const mod = $derived(app.load());
+  // giriş animasyonu bitene kadar ağır uygulama kurulmaz; böylece giriş takılmadan oynar
+  const intro = $derived(id === 'timeline' || id === 'codex' || id === 'starmap');
+  let go = $state(false);
   onMount(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') closeCore(); };
-    addEventListener('keydown', k); return () => removeEventListener('keydown', k);
+    const t = setTimeout(() => (go = true), 1500);
+    addEventListener('keydown', k); return () => { clearTimeout(t); removeEventListener('keydown', k); };
   });
 </script>
 
 <div class={'core ' + id} class:closing={wm.coreClosing}>
-  {#if id === 'timeline' || id === 'codex' || id === 'starmap'}<CoreIntro {id} />{:else}<div class="fx"></div>{/if}
+  {#if id === 'timeline' || id === 'codex' || id === 'starmap'}{#key id}<CoreIntro {id} ondone={() => (go = true)} />{/key}{:else}<div class="fx"></div>{/if}
   <div class="stage">
-    {#await mod then m}<m.default />{/await}
+    {#if !intro || go}{#await mod then m}<m.default />{/await}{/if}
   </div>
   <div class="top">
     <span class="t">{app.title}</span><span class="mono k">ESC · ÇIKIŞ</span>

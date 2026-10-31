@@ -2,7 +2,7 @@
   // Timeline / Codex / Starmap açılış girişi (~1,3 sn). Tıkla ya da bir tuşa bas: atlanır.
   import { onMount } from 'svelte';
   import { sfx } from '../lib/sfx';
-  let { id }: { id: 'timeline' | 'codex' | 'starmap' } = $props();
+  let { id, ondone }: { id: 'timeline' | 'codex' | 'starmap'; ondone?: () => void } = $props();
   const C = {
     timeline: { t: 'QORVES TIMELINE', k: 'KRONOLOJİ ÇEKİRDEĞİ', l: ['ZAMAN EKSENİ HİZALANIYOR', 'ÇAĞLAR İNDEKSLENDİ', 'SS 224 · ŞİMDİ'] },
     codex: { t: 'QORVES CODEX', k: 'KÜME BİLGİ BANKASI', l: ['ARŞİV ŞİFRESİ ÇÖZÜLÜYOR', 'KAYITLAR EŞLENİYOR', 'ERİŞİM İZNİ DOĞRULANDI'] },
@@ -14,7 +14,7 @@
   const stars = Array.from({ length: 36 }, () => ({ x: Math.random() * 100, y: Math.random() * 100, d: Math.random() * 0.6, s: 1 + Math.random() * 2 }));
   const hex = () => Array.from({ length: 6 }, () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')).join(' ').toUpperCase();
   let hx = $state(hex());
-  function skip() { if (!out) { out = true; setTimeout(() => (on = false), 260); } }
+  function skip() { if (!out) { out = true; ondone?.(); setTimeout(() => (on = false), 260); } }
   onMount(() => {
     sfx.glitch(); id === 'starmap' ? sfx.ping() : sfx.open();
     const ts = [setTimeout(() => { n = 1; sfx.key(); }, 220), setTimeout(() => { n = 2; sfx.key(); }, 470), setTimeout(() => { n = 3; sfx.key(); id === 'codex' ? sfx.granted() : sfx.ping(); }, 720), setTimeout(skip, 1080)];
