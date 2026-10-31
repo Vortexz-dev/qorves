@@ -12,6 +12,7 @@
   import type { WorldEvents } from '../lib/backend';
   import { sfx, ambient } from '../lib/sfx';
   import RichText from '../ui/RichText.svelte';
+  import Route from '../starmap/Route.svelte';
   import { tmeta } from '../lib/types';
 
   const STYPE: Record<string, string> = { A: 'A tipi · mavi-beyaz', F: 'F tipi · sarı-beyaz', G: 'G tipi · sarı', K: 'K tipi · turuncu', M: 'M tipi · kızıl cüce', redgiant: 'Kızıl dev',
@@ -27,6 +28,8 @@
   let hov = $state<string | null>(null), sel = $state<string | null>(null);
   let q = $state<Quality>((localStorage.getItem('qv.mapq') as Quality) || 'med');
   let labels = $state(true), lanesOn = $state(true), terr = $state(true), search = $state(''), hidden = $state<string[]>([]), legend = $state(true);
+  let routeOpen = $state(false), rFrom = $state(''), routeIds: string[] | null = null;
+  const setRoute = (ids: string[] | null) => { routeIds = ids; sc?.highlightRoute(ids); };
   let ev = $state<ActiveEvent[]>([]), evd = $state<EvData | null>(null), now = $state(Date.now()), warp = $state(0), err = $state('');
   const isDM = $derived(session.user?.role === 'dm');
   const base = import.meta.env.BASE_URL;
@@ -98,7 +101,7 @@
   function makeCluster(near?: string) {
     sc = new ClusterScene(host!, ov!, map!, known, { hover: (id) => (hov = id), select: (id) => (sel = id) }, q);
     if (sel) sc.selected = sel;
-    sc.setLayers(labels, lanesOn, terr); sc.setFilter(new Set(hidden)); refreshEvents(); applyMarks();
+    sc.setLayers(labels, lanesOn, terr); sc.setFilter(new Set(hidden)); refreshEvents(); applyMarks(); if (routeIds) sc.highlightRoute(routeIds);
     if (near) { sc.placeNear(near, 9); sc.select(near); sc.flyTo(near, 85, 1800); }
   }
   /** Sisteme gir: kümede yakına dalış + çizgi geçişi, küme sahnesi kapanır, sistem sahnesi uzaktan içeri süzülür. */
@@ -106,7 +109,7 @@
     if (!ss || busy || !known(ss.id) || ss.owner === 'dm' || !map) return; busy = true; sfx.glitch();
     const id = ss.id; sc?.flyTo(id, 12, 1000); setTimeout(() => (warp = 1), 450);
     setTimeout(() => {
-      sc?.dispose(); sc = null; hov = null; cur = id; bsel = null; mode = 'system';
+      sc?.dispose(); sc = null; hov = null; cur = id; routeOpen = false; routeIds = null; bsel = null; mode = 'system';
       sys2 = new SystemScene(host!, ov!, S.get(id)!, bodiesOf(id), sysHooks, q, { gates: gatesFor(id) }); sys2.setLayers(labels, orbits, moving);
       warp = 2; setTimeout(() => { warp = 0; busy = false; }, 900);
     }, 1500);
@@ -200,6 +203,7 @@
       <label><input type="checkbox" bind:checked={terr} />Bölge tonu</label>
     </div>
     <div class="qual mono">KALİTE {#each ['low', 'med', 'high'] as x}<button class:on={q === x} onclick={() => (q = x as Quality)}>{x === 'low' ? 'DÜŞÜK' : x === 'med' ? 'ORTA' : 'YÜKSEK'}</button>{/each}</div>
+    <button class="ovw mono rtb" class:on={routeOpen} onclick={() => { routeOpen = !routeOpen; if (routeOpen) { rFrom = rFrom || sel || ''; sfx.glitch(); } else setRoute(null); }}>⇄ ROTA HESAPLA</button>
     <button class="ovw mono" onclick={() => { sel = null; sc?.select(null); sc?.overview(); }}>⌂ KÜMEYE DÖN</button>
   </aside>
 
@@ -317,7 +321,8 @@
   {/snippet}
 
   <!-- sağ: sistem bilgi paneli -->
-  {#if mode === 'cluster' && ss}
+  {#if mode === 'cluster' && routeOpen && map}<Route {map} {known} {ev} bind:from={rFrom} onroute={setRoute} onclose={() => { routeOpen = false; setRoute(null); }} />{/if}
+  {#if mode === 'cluster' && ss && !routeOpen}
     {#key ss.id}
       <aside class="pan info" style:--fc={map?.factions[ss.owner]?.color}>
         <button class="x" onclick={() => { sel = null; sc?.select(null); }} aria-label="Kapat">✕</button>
@@ -343,6 +348,7 @@
           {/if}
           <div class="act">
             <button class="btn ghost" onclick={() => se && openTag(se.id)}>Kodeks</button>
+            <button class="btn ghost" onclick={() => { rFrom = ss.id; routeOpen = true; sfx.glitch(); }}>Buradan rota</button>
             <button class="btn" onclick={enter} disabled={!known(ss.id)}>Sisteme gir ›</button>
           </div>
         {/if}
@@ -489,4 +495,5 @@
   .flash{position:absolute;inset:0;background:radial-gradient(circle,#fff,rgba(0,240,255,.6) 30%,transparent 70%);opacity:0;animation:wf 1.1s forwards}
   @keyframes wf{0%,80%{opacity:0}92%{opacity:1}100%{opacity:1;background:#020309}}
   .ld{position:absolute;inset:0;display:grid;place-items:center;color:var(--cy);letter-spacing:.3em;font-size:12px}.err{color:var(--rd)}
+  .rtb{border-color:rgba(252,238,10,.45)!important;color:var(--ye)!important}.rtb.on{background:rgba(252,238,10,.15)!important}
 </style>

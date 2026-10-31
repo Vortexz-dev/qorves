@@ -42,6 +42,9 @@
   .starmap .fx{background:repeating-conic-gradient(from 0deg at 50% 50%,rgba(0,240,255,.0) 0 4deg,rgba(0,240,255,.55) 4deg 4.6deg);
     mask-image:radial-gradient(circle at center,transparent 6%,#000 40%);animation:wp .9s cubic-bezier(.6,0,.2,1) forwards}
   @keyframes wp{0%{transform:scale(.2);opacity:0}30%{opacity:1}100%{transform:scale(3.2);opacity:0}}
+  .ship .fx{background:linear-gradient(0deg,rgba(255,138,0,0) 0,rgba(255,138,0,.55) 48%,#fff 50%,rgba(255,138,0,.55) 52%,rgba(255,138,0,0) 100%);background-size:100% 30%;background-repeat:no-repeat;
+    animation:shp .95s cubic-bezier(.5,0,.2,1) forwards;mix-blend-mode:screen}
+  @keyframes shp{0%{background-position:0 120%;filter:hue-rotate(0)}15%{opacity:1}60%{background-position:0 -20%;filter:hue-rotate(-30deg)}70%{opacity:.8;transform:skewX(-6deg)}75%{transform:skewX(4deg)}100%{background-position:0 -20%;opacity:0}}
   .core{animation:cin .35s both}
   @keyframes cin{0%{clip-path:inset(49.5% 0 49.5% 0)}100%{clip-path:inset(0)}}
   .core.closing{animation:cout .42s cubic-bezier(.7,0,.3,1) forwards}

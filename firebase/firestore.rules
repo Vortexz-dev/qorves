@@ -37,6 +37,21 @@ service cloud.firestore {
           && request.resource.data.name is string && request.resource.data.name.size() <= 80
           && (!('src' in request.resource.data) || (request.resource.data.src is string && request.resource.data.src.size() < 600));
       }
+      // Seyir Defteri: oturum başlığı + sayfalar. Yalnız sahibi yazar; sahibi ve DM okur.
+      match /logs/{sid} {
+        allow read: if isMe(uid) || isDM();
+        allow delete: if isMe(uid);
+        allow create, update: if isMe(uid) && request.resource.data.keys().hasOnly(['n', 'sub', 'at', 'pages'])
+          && request.resource.data.n is int && request.resource.data.n > 0
+          && request.resource.data.sub is string && request.resource.data.sub.size() <= 80
+          && request.resource.data.pages is list && request.resource.data.pages.size() <= 500;
+        match /p/{pid} {
+          allow read: if isMe(uid) || isDM();
+          allow delete: if isMe(uid);
+          allow create, update: if isMe(uid) && request.resource.data.keys().hasOnly(['h', 'at'])
+            && request.resource.data.h is string && request.resource.data.h.size() <= 300000;
+        }
+      }
       // DM'den gelen sistem bildirimleri: oyuncu okur, yalnız "görüldü" işaretler.
       match /notify/{nid} {
         allow read: if isMe(uid) || isDM();
@@ -130,10 +145,12 @@ service cloud.firestore {
       allow read: if isMe(uid) || isDM();
       allow write: if isDM();
       allow create, update: if signedIn() && walletByTransfer(uid);
+      allow update: if isMe(uid) && walletByDuel(uid);
       match /tx/{tid} {
         allow read: if isMe(uid) || isDM();
         allow write: if isDM();
         allow create: if signedIn() && !exists(trPath(tid)) && txByTransfer(uid, tid);
+        allow create: if isMe(uid) && txByDuel(uid, tid);
       }
     }
     function txByTransfer(uid, tid) {
@@ -144,6 +161,51 @@ service cloud.firestore {
         && d.cur == t.cur && d.amt == (uid == t.from ? -t.amt : t.amt) && d.tr == tid
         && d.reason is string && d.reason.size() <= 200 && d.at == t.at
         && (uid == t.from ? d.bal == getAfter(wPath(uid)).data.bal[t.cur] : !('bal' in d));
+    }
+    // Zar Düellosu: oyuncu bota karşı BK ile oynar. Oyun kaydı + cüzdan + tx tek işlemde; kurallar hepsini birbirine bağlar.
+    // Sonuç zarlardan hesaplanır: yüksek toplam kazanır; eşitlikte iade, ikisi de 7 ise bot kazanır. Bahis 10–500 BK.
+    function gPath(g) { return /databases/$(db)/documents/games/$(g); }
+    function die(v) { return v is int && v >= 1 && v <= 6; }
+    function walletByDuel(uid) {
+      let gid = request.resource.data.get('lg', '');
+      let g = getAfter(gPath(gid)).data;
+      let old = resource.data.bal.get('BK', 0);
+      return gid is string && gid.size() > 0 && !exists(gPath(gid)) && g.uid == uid && g.delta != 0
+        && request.resource.data.bal.get('BK', -1) == old + g.delta && old + g.delta >= 0 && g.bal == old + g.delta
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bal', 'at', 'lg'])
+        && request.resource.data.bal.diff(resource.data.bal).affectedKeys().hasOnly(['BK']);
+    }
+    function txByDuel(uid, tid) {
+      let g = getAfter(gPath(tid)).data;
+      let d = request.resource.data;
+      return !exists(gPath(tid)) && g.uid == uid && d.keys().hasOnly(['cur', 'amt', 'reason', 'at', 'bal', 'g'])
+        && d.cur == 'BK' && d.amt == g.delta && d.g == tid && d.at == g.at && d.bal == g.bal
+        && d.reason is string && d.reason.size() <= 200;
+    }
+    function duelOk(gid) {
+      let d = request.resource.data;
+      let ps = d.p[0] + d.p[1];
+      let bs = d.b[0] + d.b[1];
+      let w = get(wPath(request.auth.uid)).data.bal.get('BK', 0);
+      return d.keys().hasOnly(['uid', 'name', 'cur', 'bet', 'p', 'b', 'res', 'delta', 'at', 'bal'])
+        && d.uid == request.auth.uid && d.cur == 'BK' && d.name is string && d.name.size() <= 60
+        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role == 'player'
+        && d.bet is int && d.bet >= 10 && d.bet <= 500 && w >= d.bet
+        && d.p is list && d.p.size() == 2 && die(d.p[0]) && die(d.p[1])
+        && d.b is list && d.b.size() == 2 && die(d.b[0]) && die(d.b[1])
+        && ((ps > bs && d.res == 'win' && d.delta == d.bet)
+          || ((ps < bs || (ps == bs && ps == 7)) && d.res == 'lose' && d.delta == -d.bet)
+          || (ps == bs && ps != 7 && d.res == 'push' && d.delta == 0))
+        && d.at is number && d.at > request.time.toMillis() - 600000 && d.at < request.time.toMillis() + 600000
+        && (d.delta == 0
+          ? d.bal == w
+          : (getAfter(wPath(request.auth.uid)).data.get('lg', '') == gid && getAfter(wPath(request.auth.uid)).data.bal.BK == w + d.delta
+             && d.bal == w + d.delta && existsAfter(/databases/$(db)/documents/wallet/$(request.auth.uid)/tx/$(gid))));
+    }
+    match /games/{gid} {
+      allow read: if isDM() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn() && duelOk(gid);
+      allow update, delete: if isDM();
     }
     // Aktarım kayıtları: değiştirilemez; taraflar ve DM okur.
     match /transfers/{tid} {

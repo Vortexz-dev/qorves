@@ -15,9 +15,11 @@
   import Markers from './dm/Markers.svelte';
   import WalletTab from './dm/WalletTab.svelte';
   import DiceFeed from './dm/DiceFeed.svelte';
+  import ShipTab from './dm/ShipTab.svelte';
+  import DuelFeed from './dm/DuelFeed.svelte';
   let { arg }: { arg?: string } = $props();
   const ok = session.user?.role === 'dm';
-  const TABS = [['players', 'Oyuncular'], ['know', 'Bilgi izinleri'], ['events', 'Olaylar'], ['cal', 'Takvim'], ['notify', 'Bildirim'], ['npc', 'ghOS-Net'], ['markers', 'Harita işaretleri'], ['wallet', 'Cüzdan'], ['dice', 'Zar akışı']] as const;
+  const TABS = [['players', 'Oyuncular'], ['know', 'Bilgi izinleri'], ['events', 'Olaylar'], ['cal', 'Takvim'], ['notify', 'Bildirim'], ['npc', 'ghOS-Net'], ['markers', 'Harita işaretleri'], ['wallet', 'Cüzdan'], ['dice', 'Zar akışı'], ['duel', 'Zar Düellosu'], ['ship', 'Gemi']] as const;
   let tab = $state<string>(arg && TABS.some((t) => t[0] === arg) ? arg : 'players'), err = $state('');
   const go = (t: string) => { tab = t; sfx.click(); };
   onMount(() => { if (ok) loadDm().catch((e) => (err = String(e))); return stopDm; });
@@ -42,7 +44,9 @@
     {:else if tab === 'npc'}<Npc />
     {:else if tab === 'markers'}<Markers />
     {:else if tab === 'wallet'}<WalletTab />
-    {:else if tab === 'dice'}<DiceFeed />{/if}
+    {:else if tab === 'dice'}<DiceFeed />
+    {:else if tab === 'duel'}<DuelFeed />
+    {:else if tab === 'ship'}<ShipTab />{/if}
   </main>
 </div>
 {/if}

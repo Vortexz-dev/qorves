@@ -218,6 +218,19 @@ export class ClusterScene {
       if (s && !l.label) { l.label = document.createElement('div'); l.label.className = 'sm-lev'; this.overlay.appendChild(l.label); }
       if (l.label) { l.label.style.display = s ? 'block' : 'none'; if (s) l.label.style.setProperty('--sv', colors[s].color); } }
   }
+  /** Rota vurgusu: yol üzerindeki hatlar sarı ve kalın, diğerleri sönük. null → normale dön. */
+  private route: Set<string> | null = null; private laneCol = new Map<string, THREE.Color>();
+  highlightRoute(ids: string[] | null) {
+    this.route = ids && ids.length ? new Set(ids) : null;
+    for (const l of this.lanes) {
+      if (!this.laneCol.has(l.d.id)) this.laneCol.set(l.d.id, (l.mat.uniforms.uColor.value as THREE.Color).clone());
+      const on = this.route?.has(l.d.id);
+      (l.mat.uniforms.uColor.value as THREE.Color).copy(on ? new THREE.Color('#fcee0a') : this.laneCol.get(l.d.id)!);
+      l.mat.uniforms.uOp.value = this.route ? (on ? 1.6 : 0.25) : Math.min(this.sys.get(l.d.a)!.dim, this.sys.get(l.d.b)!.dim);
+      if (on) l.mesh.visible = true; else l.mesh.visible = this.showLanes;
+    }
+    this.resize();
+  }
   /** DM işaretleri: sistem → gemi konumu / görev noktası rozetleri */
   setMarkers(m: Map<string, { ship: string[]; mission: string[] }>) {
     const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -250,7 +263,7 @@ export class ClusterScene {
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h, false);
     this.composer?.setSize(w, h); this.composer?.setPixelRatio(this.renderer.getPixelRatio());
     for (const m of this.pointMats) m.uniforms.uPR.value = this.renderer.getPixelRatio();
-    const pr = this.renderer.getPixelRatio(); for (const l of this.lanes) { l.mat.uniforms.uRes.value.set(w * pr, h * pr); l.mat.uniforms.uW.value = (l.d.status === 'open' ? 2.4 : 1.8) * pr; }
+    const pr = this.renderer.getPixelRatio(); for (const l of this.lanes) { l.mat.uniforms.uRes.value.set(w * pr, h * pr); l.mat.uniforms.uW.value = (this.route?.has(l.d.id) ? 5 : l.d.status === 'open' ? 2.4 : 1.8) * pr; }
   };
   private onVis = () => { if (document.hidden) this.stop(); else this.start(); };
   start() { if (this.running) return; this.running = true; this.clock.getDelta(); this.raf = requestAnimationFrame(this.frame); }

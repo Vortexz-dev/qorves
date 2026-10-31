@@ -202,3 +202,31 @@ export async function mediaUrl(uid: string, src: string) {
   if (!src.startsWith('media:')) return src; const k = uid + '/' + src; if (mcache.has(k)) return mcache.get(k)!;
   const s = await getDoc(doc(db, 'users', uid, 'media', src.slice(6))).catch(() => null); const v = (s?.exists() ? (s.data().d as string) : '') || ''; mcache.set(k, v); return v;
 }
+
+// ---------- zar düellosu (bota karşı bahisli zar) ----------
+/** Kurallar: ikiniz de 2 zar atar, yüksek toplam kazanır. Berabere: bahis iade. İkiniz de 7 atarsanız kasa (bot) kazanır. Kazanç 2x (yatırılan + bir o kadar). */
+export const DUEL = { cur: 'BK', min: 10, max: 500 };
+export interface Duel { id?: string; uid: string; name: string; cur: string; bet: number; p: number[]; b: number[]; res: 'win' | 'lose' | 'push'; delta: number; at: number; bal: number }
+const d6 = () => { const a = new Uint32Array(1); let x = 0; do { crypto.getRandomValues(a); x = a[0]; } while (x >= 4294967292); return (x % 6) + 1; };
+export function duelOutcome(p: number[], b: number[]): Duel['res'] { const ps = p[0] + p[1], bs = b[0] + b[1]; return ps > bs ? 'win' : ps < bs || ps === 7 ? 'lose' : 'push'; }
+export async function playDuel(u: { uid: string; name: string }, bet: number): Promise<Duel> {
+  bet = Math.floor(bet); if (!(bet >= DUEL.min && bet <= DUEL.max)) throw new Error('Bahis sınır dışında');
+  const gid = nid(), at = now(), p = [d6(), d6()], b = [d6(), d6()], res = duelOutcome(p, b), delta = res === 'win' ? bet : res === 'lose' ? -bet : 0;
+  return runTransaction(db, async (t) => {
+    const wr = doc(db, 'wallet', u.uid), s = await t.get(wr);
+    const old = (s.exists() ? (s.data() as Wallet).bal?.BK : 0) ?? 0;
+    if (old < bet) throw new Error('Bakiye yetersiz');
+    const nb = old + delta, g: Duel = { uid: u.uid, name: u.name.slice(0, 60), cur: 'BK', bet, p, b, res, delta, at, bal: nb };
+    t.set(doc(db, 'games', gid), g);
+    if (delta) {
+      t.update(wr, { 'bal.BK': nb, at, lg: gid });
+      t.set(doc(db, 'wallet', u.uid, 'tx', gid), { cur: 'BK', amt: delta, reason: res === 'win' ? 'Zar Düellosu · kazanç' : 'Zar Düellosu · kayıp', at, bal: nb, g: gid });
+    }
+    return { ...g, id: gid };
+  });
+}
+export function watchGames(uid: string | null, cb: (g: Duel[]) => void, n = 150) {
+  if (!LIVE) return off;
+  const q = uid ? query(collection(db, 'games'), where('uid', '==', uid)) : query(collection(db, 'games'), orderBy('at', 'desc'), limit(n));
+  return onSnapshot(q, (s) => cb(s.docs.map((d) => ({ ...(d.data() as Duel), id: d.id })).sort((a, b) => b.at - a.at).slice(0, n)), () => cb([]));
+}

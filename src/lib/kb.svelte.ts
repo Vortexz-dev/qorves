@@ -9,7 +9,7 @@ import { revealsOf } from './live';
 export interface Section { t: string; x: string; k?: string; o: number }
 export interface Entry {
   id: string; type: string; name: string; aliases?: string[]; summary?: string; key: string; parent?: string;
-  date?: string; ys?: number; race?: string; ends?: string[]; region?: string; range?: string; ord?: number; sections: Section[]; pic?: string;
+  date?: string; ys?: number; race?: string; ends?: string[]; region?: string; range?: string; ord?: number; sections: Section[]; pic?: string; img?: string;
 }
 export interface Body {
   id: string; sys: string; name: string; pop?: string; note?: string; kind: string; cls: string; type: string; orbit?: string; au?: number; au2?: number; parent?: string; l4?: string;
