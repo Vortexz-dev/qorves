@@ -106,14 +106,67 @@ service cloud.firestore {
         allow update, delete: if isDM();
       }
     }
-    // Cüzdan: oyuncu okur, yalnız DM yazar (oyuncular arası transfer yok).
+    // Cüzdan: oyuncu okur, DM yazar. Oyuncular arası aktarım tek bir toplu yazımla olur:
+    // transfers/{tid} + gönderen cüzdanı (lt = tid, bakiye - tutar) + alıcı cüzdanı (ri = tid, bakiye + tutar)
+    // + iki tarafın tx/{tid} kaydı. Kurallar her parçayı getAfter ile birbirine bağlar; biri eksikse hepsi reddedilir.
+    function trPath(t) { return /databases/$(db)/documents/transfers/$(t); }
+    function wPath(u) { return /databases/$(db)/documents/wallet/$(u); }
+    function walletByTransfer(uid) {
+      let side = isMe(uid) ? 'lt' : 'ri';
+      let tid = request.resource.data.get(side, '');
+      let t = getAfter(trPath(tid)).data;
+      let old = resource == null ? 0 : resource.data.bal.get(t.cur, 0);
+      let nb = request.resource.data.bal.get(t.cur, -1);
+      return tid is string && tid.size() > 0 && !exists(trPath(tid))
+        && t.from == request.auth.uid
+        && ((isMe(uid) && t.from == uid && nb == old - t.amt) || (!isMe(uid) && t.to == uid && nb == old + t.amt))
+        && nb >= 0
+        && (resource == null
+          ? request.resource.data.keys().hasOnly(['bal', 'at', side]) && request.resource.data.bal.keys().hasOnly([t.cur])
+          : request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bal', 'at', side])
+            && request.resource.data.bal.diff(resource.data.bal).affectedKeys().hasOnly([t.cur]));
+    }
     match /wallet/{uid} {
       allow read: if isMe(uid) || isDM();
       allow write: if isDM();
+      allow create, update: if signedIn() && walletByTransfer(uid);
       match /tx/{tid} {
         allow read: if isMe(uid) || isDM();
         allow write: if isDM();
+        allow create: if signedIn() && !exists(trPath(tid)) && txByTransfer(uid, tid);
       }
+    }
+    function txByTransfer(uid, tid) {
+      let t = getAfter(trPath(tid)).data;
+      let d = request.resource.data;
+      return t.from == request.auth.uid && (uid == t.from || uid == t.to)
+        && d.keys().hasOnly(['cur', 'amt', 'reason', 'at', 'bal', 'tr', 'peer'])
+        && d.cur == t.cur && d.amt == (uid == t.from ? -t.amt : t.amt) && d.tr == tid
+        && d.reason is string && d.reason.size() <= 200 && d.at == t.at
+        && (uid == t.from ? d.bal == getAfter(wPath(uid)).data.bal[t.cur] : !('bal' in d));
+    }
+    // Aktarım kayıtları: değiştirilemez; taraflar ve DM okur.
+    match /transfers/{tid} {
+      allow read: if isDM() || (signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid));
+      allow update, delete: if isDM();
+      allow create: if signedIn() && transferOk(tid);
+    }
+    function transferOk(tid) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['from', 'to', 'cur', 'amt', 'at', 'note', 'fromName', 'toName'])
+        && d.keys().hasAll(['from', 'to', 'cur', 'amt', 'at'])
+        && d.from == request.auth.uid && d.to is string && d.to != d.from
+        && d.cur in ['BK', 'Mark', 'Kantar'] && d.amt is number && d.amt > 0 && d.amt <= 1000000000
+        && d.at is number && d.at > request.time.toMillis() - 600000 && d.at < request.time.toMillis() + 600000
+        && (!('note' in d) || (d.note is string && d.note.size() <= 140))
+        && (!('fromName' in d) || (d.fromName is string && d.fromName.size() <= 60))
+        && (!('toName' in d) || (d.toName is string && d.toName.size() <= 60))
+        && get(/databases/$(db)/documents/users/$(d.to)).data.role == 'player'
+        && get(/databases/$(db)/documents/users/$(d.from)).data.role == 'player'
+        && getAfter(wPath(d.from)).data.get('lt', '') == tid
+        && getAfter(wPath(d.to)).data.get('ri', '') == tid
+        && existsAfter(/databases/$(db)/documents/wallet/$(d.from)/tx/$(tid))
+        && existsAfter(/databases/$(db)/documents/wallet/$(d.to)/tx/$(tid));
     }
     // Zar atışları: oyuncu kendi atışını yazar; DM hepsini görür.
     match /rolls/{rid} {

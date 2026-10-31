@@ -2,7 +2,7 @@
  * Canlı (Firestore) katmanı: çevrimiçi durumu, bildirimler, ghOS-Net, cüzdan, zar, işaretler, DM araçları.
  * Yalnız Firebase arka ucunda çalışır (Spark, ücretsiz); ?mock=1 iken sessizce boş döner.
  */
-import { doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit, onSnapshot, writeBatch, arrayUnion, arrayRemove, increment, type Unsubscribe } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit, onSnapshot, writeBatch, runTransaction, arrayUnion, arrayRemove, increment, type Unsubscribe } from 'firebase/firestore';
 import { db } from './backend/firebase';
 import { backend, type UserProfile, type DeskItem } from './backend';
 export const LIVE = backend.kind === 'firebase';
@@ -81,7 +81,8 @@ export const unreadFor = (c: Conv, who: string) => !!c.last && c.last.from !== w
 // ---------- cüzdan ----------
 export const CURRENCIES = [{ id: 'BK', name: 'Birleşik Kredisi', sym: 'BK', note: 'dijital, enflasyonlu' }, { id: 'Mark', name: 'Cumhuriyet Markı', sym: 'M', note: 'İnsan Cumhuriyeti' }, { id: 'Kantar', name: 'Kantar', sym: 'K', note: 'altın karşılıklı; cüce + Ostrav' }];
 export interface Wallet { bal: Record<string, number>; at: number }
-export interface Tx { id: string; cur: string; amt: number; reason: string; at: number; bal: number }
+export interface Tx { id: string; cur: string; amt: number; reason: string; at: number; bal?: number; tr?: string; peer?: string }
+export interface Transfer { id: string; from: string; to: string; cur: string; amt: number; at: number; note?: string; fromName?: string; toName?: string }
 export function watchWallet(uid: string, cb: (w: Wallet | null, tx: Tx[]) => void) {
   if (!LIVE) return off;
   let w: Wallet | null = null, t: Tx[] = [];
@@ -97,6 +98,30 @@ export async function adjustWallet(uid: string, cur: string, amt: number, reason
   b.set(ref, { bal: { ...(s.exists() ? (s.data() as Wallet).bal : {}), [cur]: nb }, at: now() });
   b.set(doc(db, 'wallet', uid, 'tx', nid()), { cur, amt: delta, reason: reason.slice(0, 200) || (set ? 'Bakiye belirlendi' : 'Düzeltme'), at: now(), bal: nb });
   await b.commit(); return nb;
+}
+
+/** Oyuncudan oyuncuya aktarım: tek işlemde aktarım kaydı + iki cüzdan + iki tx (kurallar hepsini birlikte doğrular). */
+export async function sendMoney(from: { uid: string; name: string }, to: { uid: string; name: string }, cur: string, amt: number, note: string) {
+  if (!(amt > 0) || from.uid === to.uid) throw new Error('Geçersiz aktarım');
+  const tid = nid(), at = now(), n = note.trim().slice(0, 140);
+  return runTransaction(db, async (t) => {
+    const wr = doc(db, 'wallet', from.uid); const s = await t.get(wr);
+    const old = (s.exists() ? (s.data() as Wallet).bal?.[cur] : 0) ?? 0;
+    if (old < amt) throw new Error('Bakiye yetersiz');
+    const nb = old - amt;
+    t.set(doc(db, 'transfers', tid), { from: from.uid, to: to.uid, cur, amt, at, ...(n ? { note: n } : {}), fromName: from.name.slice(0, 60), toName: to.name.slice(0, 60) });
+    t.set(wr, { bal: { [cur]: nb }, at, lt: tid }, { merge: true });
+    t.set(doc(db, 'wallet', to.uid), { bal: { [cur]: increment(amt) }, at, ri: tid }, { merge: true });
+    const r = (who: string) => (`Aktarım ${who}` + (n ? ` · ${n}` : '')).slice(0, 200);
+    t.set(doc(db, 'wallet', from.uid, 'tx', tid), { cur, amt: -amt, reason: r('→ ' + to.name), at, bal: nb, tr: tid, peer: to.uid });
+    t.set(doc(db, 'wallet', to.uid, 'tx', tid), { cur, amt, reason: r('← ' + from.name), at, tr: tid, peer: from.uid });
+    return nb;
+  });
+}
+/** DM: bütün aktarımların kaydı. */
+export function watchTransfers(cb: (t: Transfer[]) => void, n = 100) {
+  if (!LIVE) return off;
+  return onSnapshot(query(collection(db, 'transfers'), orderBy('at', 'desc'), limit(n)), (s) => cb(s.docs.map((d) => ({ ...(d.data() as Transfer), id: d.id }))), () => cb([]));
 }
 
 // ---------- zar ----------
