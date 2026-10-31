@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { appById } from './apps';
   import { wm, closeCore } from './wm.svelte';
+  import CoreIntro from './CoreIntro.svelte';
   let { id }: { id: string } = $props();
   const app = $derived(appById(id));
   const mod = $derived(app.load());
@@ -12,7 +13,7 @@
 </script>
 
 <div class={'core ' + id} class:closing={wm.coreClosing}>
-  <div class="fx"></div>
+  {#if id === 'timeline' || id === 'codex' || id === 'starmap'}<CoreIntro {id} />{:else}<div class="fx"></div>{/if}
   <div class="stage">
     {#await mod then m}<m.default />{/await}
   </div>
@@ -25,6 +26,7 @@
 <style>
   .core{position:fixed;inset:0;z-index:9500;background:#04050a;overflow:hidden}
   .stage{position:absolute;inset:0;animation:st .7s .35s both}
+  .timeline .stage,.codex .stage,.starmap .stage{animation-delay:.7s}
   @keyframes st{from{opacity:0;transform:scale(1.04);filter:blur(8px)}}
   .top{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:14px;padding:0 10px 0 22px;z-index:5;
     background:linear-gradient(rgba(4,5,10,.85),transparent);animation:fd .4s .6s both}
