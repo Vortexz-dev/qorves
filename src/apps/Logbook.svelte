@@ -41,7 +41,10 @@
     if (pid === id) status = ''; await deletePage(me.uid, cur, id); cur = cur; go(cur.pages[Math.max(0, i - 1)].id); }
   async function delSess(s: LogSession) { if (!(await ask(sessName(s) + ' silinsin mi?', 'Bu oturumun bütün sayfaları kalıcı olarak silinir. Bu geri alınamaz.', 'Sil'))) return; await deleteSession(me.uid, s).catch(() => {}); refresh(); }
   async function rename() { if (!cur) return; cur.sub = sub.trim().replace(/^session\s*\d+\s*-?\s*/i, '').slice(0, 80); renaming = false; await saveMeta(me.uid, $state.snapshot(cur) as LogSession); sfx.click(); }
-  function cmd(c: string, v?: string) { if (ro) return; ed?.focus(); document.execCommand('styleWithCSS', false, 'true'); document.execCommand(c, false, v); changed(); }
+  let rng: Range | null = null;
+  function keepSel() { const sl = getSelection(); if (sl && sl.rangeCount && ed?.contains(sl.anchorNode)) rng = sl.getRangeAt(0).cloneRange(); }
+  $effect(() => { document.addEventListener('selectionchange', keepSel); return () => document.removeEventListener('selectionchange', keepSel); });
+  function cmd(c: string, v?: string) { if (ro) return; ed?.focus(); if (rng) { const sl = getSelection(); sl?.removeAllRanges(); sl?.addRange(rng); } document.execCommand('styleWithCSS', false, 'true'); document.execCommand(c, false, v); changed(); }
   function block(v: string) { cmd('formatBlock', v); }
   function paste(e: ClipboardEvent) { if (ro) return; e.preventDefault(); const h = e.clipboardData?.getData('text/html'), t = e.clipboardData?.getData('text/plain') ?? '';
     document.execCommand('insertHTML', false, h ? clean(h) : t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!).replace(/\n/g, '<br>')); changed(); }
@@ -97,7 +100,7 @@
       </aside>
       <section class="paper">
         {#if !ro}
-        <div class="tools" role="toolbar">
+        <div class="tools" role="toolbar" tabindex="-1" onmousedown={(e) => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
           <select onchange={(e) => { block((e.target as HTMLSelectElement).value); (e.target as HTMLSelectElement).value = ''; }}><option value="">Paragraf</option><option value="h1">Başlık 1</option><option value="h2">Başlık 2</option><option value="h3">Başlık 3</option><option value="p">Normal metin</option><option value="blockquote">Alıntı</option></select>
           <button title="Kalın (Ctrl+B)" onclick={() => cmd('bold')}><b>K</b></button>
           <button title="İtalik (Ctrl+I)" onclick={() => cmd('italic')}><i>İ</i></button>

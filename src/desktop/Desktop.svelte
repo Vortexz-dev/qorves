@@ -28,7 +28,11 @@
   const desk = $derived(visibleApps(user).filter((a) => a.id !== 'profile'));
   const pos = $state<Record<string, { x: number; y: number }>>({});
   const free = () => { for (let x = OX; ; x += GX) for (let y = OY; y <= innerHeight - 48 - GY; y += GY) if (!Object.values(pos).some((p) => p.x === x && p.y === y)) return { x, y }; };
-  $effect.pre(() => { desk.forEach((a, i) => { if (!pos[a.id]) pos[a.id] = user.desktop?.icons?.[a.id] ?? (i < 6 ? { x: OX, y: OY + i * GY } : free()); }); });
+  const taken = (q: { x: number; y: number }) => Object.values(pos).some((p) => p.x === q.x && p.y === q.y);
+  $effect.pre(() => {
+    desk.forEach((a) => { const sv = user.desktop?.icons?.[a.id]; if (!pos[a.id] && sv) pos[a.id] = sv; });
+    desk.forEach((a, i) => { if (pos[a.id]) return; const d = { x: OX, y: OY + i * GY }; pos[a.id] = i < 6 && !taken(d) && d.y <= innerHeight - 48 - GY ? d : free()!; });
+  });
   const dnotes = $derived(notes.list.filter((n) => !n.parent));
   const ditems = $derived(dk.items.filter((i) => i.parent === ''));
   let live = $state<{ x: number; y: number } | null>(null);

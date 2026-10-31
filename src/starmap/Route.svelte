@@ -35,7 +35,7 @@
         {#if lr.delays.length}<div class="mono h">AKTİF OLAYLAR</div>
           <ul class="dl">{#each lr.delays as d (d.ev.key)}<li><b>+{fmtDays(d.add)}</b> {d.ev.tpl.name} <small>({d.where === 'hat' ? 'hatta' : nm(d.ev.sys)})</small></li>{/each}</ul>{/if}
         <p class="nt">Yalnız hatlardaki yolculuk sayılır; geçitten gezegene sistem içi seyir dahil değil.</p>
-      {:else}<p class="none">Bilinen açık hatlarla bu iki sistem arasında yol yok{avoid ? ' (tehlikeli hatlar hariç)' : ''}.</p>{/if}
+      {:else}<p class="none">Bilinen açık hatlarla bu iki sistem arasında yol yok{avoid ? ' (tehlikeli hatlar hariç)' : ''}. Tek seçenek aşağıdaki ışık-altı doğrudan yolculuk.</p>{/if}
     </section>
     {#if dd && dr}
     <section>
@@ -48,7 +48,7 @@
         <div><span class="mono">GEMİ ZAMANI</span><b>{fmtYears(dr.tS)}</b><small>mürettebatın yaşadığı süre</small></div>
       </div>
       <div class="sub">Fark: <b>{fmtYears(Math.max(0, dr.tU - dr.tS))}</b> · γ = {dr.gamma.toFixed(2).replace('.', ',')}{#if accel && dr.peak < beta - 0.001} · yol kısa, en çok {dr.peak.toFixed(2).replace('.', ',')} c'ye çıkılır{/if}</div>
-      <p class="nt">Işıktan hızlı yolculuk yok. Hatlar dışında en iyi gemiler 0,9–0,99 c'ye çıkar. Ölçek: 1 harita birimi ≈ {LY_PER_UNIT.toLocaleString('tr-TR')} ışık yılı (kanondaki Nys–Morwen ve Aurum–Kestrel uzaklıklarından türetildi; kesin değil).</p>
+      <p class="nt">Işıktan hızlı yolculuk yok. Hatlar dışında en iyi gemiler 0,9–0,99 c'ye çıkar. Ölçek: 1 harita birimi ≈ {LY_PER_UNIT.toLocaleString('tr-TR', { maximumFractionDigits: 4 })} ışık yılı (kanondaki Nys–Morwen ve Aurum–Kestrel uzaklıklarından türetildi; kesin değil).</p>
     </section>
     {/if}
   {:else}<p class="none">Çıkış ve varış sistemini seç. Hiperhat süresi ile doğrudan ışık-altı yolculuk yan yana hesaplanır.</p>{/if}

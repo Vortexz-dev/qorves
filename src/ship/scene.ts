@@ -180,8 +180,9 @@ export class ShipScene {
     const m = id ? this.mods.find((x) => x.id === id) : null; this.controls.autoRotate = false;
     const minX = this.mods.length > 1 ? this.mods[this.mods.length - 1].center.x - TL / 2 : -21;
     const tb = m ? m.center.clone() : new THREE.Vector3((minX + 14) / 2, 6, 0);
-    const dist = m ? 52 : 60 + this.trailers.length * 30;
-    const dir = this.camera.position.clone().sub(this.controls.target).normalize(); if (dir.y < 0.25) dir.y = 0.35; dir.normalize();
+    const dist = m ? 74 : 60 + this.trailers.length * 30;
+    let dir = this.camera.position.clone().sub(this.controls.target).normalize(); if (dir.y < 0.25) dir.y = 0.35; dir.normalize();
+    if (m) dir = new THREE.Vector3(0.45, 0.42, Math.sign(dir.z || 1)).normalize();
     this.fly = { t0: performance.now(), a: this.controls.target.clone(), b: tb, ca: this.camera.position.clone(), cb: tb.clone().addScaledVector(dir, dist) };
   }
   overview() { this.focus(null); }
