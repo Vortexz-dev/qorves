@@ -7,7 +7,7 @@
   import { settings } from '../lib/settings.svelte';
   import { tlnav } from '../lib/tlnav.svelte';
   import { openTag } from '../lib/tags.svelte';
-  import { sfx } from '../lib/sfx';
+  import { sfx, ambient } from '../lib/sfx';
   import { FB } from '../lib/tlimg';
   import RichText from '../ui/RichText.svelte';
   import { watchTl, type TlEvent } from '../lib/live';
@@ -19,14 +19,26 @@
     { min: -900000, label: 'SÖ 15.000 öncesi' }, { min: -Infinity, label: 'Tarihsiz' },
   ];
   const H_EV = 230, H_BAND = 150, TOP = 140, ORB = 0.42;
-  type Row = { kind: 'band'; label: string; i: number } | { kind: 'ev'; e: Entry; side: number; i: number };
+  type Ev = Entry & { vers?: Entry[]; draft?: boolean };
+  type Row = { kind: 'band'; label: string; i: number } | { kind: 'ev'; e: Ev; side: number; i: number };
+  const multi = (e: Ev) => (e.vers?.length ?? 1) > 1;
+  const sameSum = (e: Ev) => new Set(e.vers!.map((v) => v.summary ?? '')).size === 1;
+  const hasMore = (e: Ev) => multi(e) || e.vers!.some((v) => v.sections.some((s) => s.x && s.x !== v.summary));
   // DM'nin yayımladığı yeni olaylar (taslaklar yalnız DM'ye görünür)
   let tl = $state<TlEvent[]>([]);
   const tlEntry = (t: TlEvent): Entry & { draft?: boolean } => ({ id: 'tl:' + t.id, type: 'event', name: t.name, date: t.date, ys: t.ys, race: t.race, summary: t.summary, key: 'k.tl', draft: !t.published,
     sections: t.text ? [{ t: 'Ayrıntı', x: t.text, o: 0 }] : [] });
   const rows = $derived.by(() => {
     if (!kb.ready) return [] as Row[];
-    const ev = [...allEntries().filter((e) => e.type === 'event'), ...tl.map(tlEntry)].sort((a, b) => (b.ys ?? -1e6) - (a.ys ?? -1e6) || a.id.localeCompare(b.id));
+    const raw = [...allEntries().filter((e) => e.type === 'event'), ...tl.map(tlEntry)].sort((a, b) => (b.ys ?? -1e6) - (a.ys ?? -1e6) || a.id.localeCompare(b.id));
+    // canon'da tek satır olan olayın ırk sürümleri tek kartta birleşir (yalnız görebildiğin sürümler)
+    const ev: Ev[] = [], byG = new Map<string, Ev>();
+    for (const e of raw) {
+      const g = (e as Entry & { grp?: string }).grp;
+      const m = g ? byG.get(g) : undefined;
+      if (m) { m.vers!.push(e); if (!m.img && e.img) m.img = e.img; if (e.name.length < m.name.length) m.name = e.name; continue; }
+      const c: Ev = { ...e, vers: [e] }; ev.push(c); if (g) byG.set(g, c);
+    }
     const out: Row[] = []; let band = -1, n = 0;
     for (const e of ev) {
       const bi = BANDS.findIndex((b) => (e.ys ?? -1e6) >= b.min);
@@ -107,7 +119,8 @@
     ro.observe(node); return { destroy: () => ro.disconnect() };
   }
   async function goTo(id: string) {
-    const r = rows.find((x) => x.kind === 'ev' && x.e.id === id); if (!r || !sc) return;
+    const r = rows.find((x) => x.kind === 'ev' && (x.e.id === id || !!x.e.vers?.some((v) => v.id === id))); if (!r || r.kind !== 'ev' || !sc) return;
+    id = r.e.id;
     await tick();
     sc.scrollTo({ top: Math.max(0, offs[r.i] - vh * ORB + 60), behavior: settings.reduceMotion ? 'auto' : 'smooth' });
     hl = id; sfx.granted(); setTimeout(() => { if (hl === id) hl = ''; }, 6000);
@@ -118,10 +131,11 @@
     loadKb(session.user!);
     const stopTl = watchTl(session.user!.role === 'dm', (t) => (tl = t));
     resize(); orbC = vh * ORB; kick();
+    const stopAmb = ambient('timeline');
     addEventListener('resize', resize);
     const vis = () => { cancelAnimationFrame(raf); raf = 0; if (!document.hidden) kick(); };
     document.addEventListener('visibilitychange', vis);
-    return () => { stopTl(); alive = false; cancelAnimationFrame(raf); raf = 0; removeEventListener('resize', resize); document.removeEventListener('visibilitychange', vis); };
+    return () => { stopTl(); stopAmb(); alive = false; cancelAnimationFrame(raf); raf = 0; removeEventListener('resize', resize); document.removeEventListener('visibilitychange', vis); };
   });
 </script>
 
@@ -144,17 +158,24 @@
             <article class="card" use:measure={r.i}>
               <div class="im"><img src={img(e)} alt={e.name} loading="lazy" decoding="async" /></div>
               <div class="tx">
-                <div class="meta mono"><b>{rc.n}</b>{#if eraName(e)}<span>{eraName(e)}</span>{/if}{#if e.key === 'k.tl'}<span class="new">{(e as Entry & { draft?: boolean }).draft ? 'TASLAK · YALNIZ DM' : 'YENİ KAYIT'}</span>{/if}</div>
+                <div class="meta mono">{#each e.vers ?? [e] as v (v.id)}<b style:color={(RACE[v.race ?? 'insan'] ?? RACE.insan).c}>{(RACE[v.race ?? 'insan'] ?? RACE.insan).n}</b>{/each}{#if eraName(e)}<span>{eraName(e)}</span>{/if}{#if e.key === 'k.tl'}<span class="new">{e.draft ? 'TASLAK · YALNIZ DM' : 'YENİ KAYIT'}</span>{/if}</div>
                 <h3>{e.name}</h3>
-                <p class="sum">{#if e.summary}<RichText text={e.summary} self={e.id} />{:else}<i>Ayrıntılar bilinmiyor.</i>{/if}</p>
-                {#if e.sections.some((s) => s.x && s.x !== e.summary)}
+                {#if !multi(e) || sameSum(e)}
+                  <p class="sum">{#if e.summary}<RichText text={e.summary} self={e.id} />{:else}<i>Ayrıntılar bilinmiyor.</i>{/if}</p>
+                {:else}
+                  <div class="sums">{#each e.vers! as v (v.id)}{#if v.summary}<p class="sum s2"><b class="mono" style:color={(RACE[v.race ?? 'insan'] ?? RACE.insan).c}>{(RACE[v.race ?? 'insan'] ?? RACE.insan).n}</b> <RichText text={v.summary} self={v.id} /></p>{/if}{/each}</div>
+                {/if}
+                {#if hasMore(e)}
                   <button class="more mono" onclick={() => { open[e.id] = !open[e.id]; sfx.click(); }}>{open[e.id] ? '▲ KAPAT' : '▼ DAHA FAZLA OKU'}</button>
                 {/if}
               </div>
               {#if open[e.id]}
                 <div class="full">
-                  {#each e.sections as s}{#if s.x && s.x !== e.summary}<h4 class="mono">{s.t}</h4><p><RichText text={s.x} self={e.id} /></p>{/if}{/each}
-                  {#if e.key !== 'k.tl'}<button class="tag mono" onclick={() => openTag(e.id)}>KODEKS KAYDI ›</button>{/if}
+                  {#each e.vers ?? [e] as v (v.id)}
+                    {#if multi(e)}<h5 class="mono vh" style:color={(RACE[v.race ?? 'insan'] ?? RACE.insan).c}>{(RACE[v.race ?? 'insan'] ?? RACE.insan).n} KAYITLARI · {v.name}</h5>{/if}
+                    {#each v.sections as s}{#if s.x && s.x !== v.summary}<h4 class="mono">{s.t}</h4><p><RichText text={s.x} self={v.id} /></p>{/if}{/each}
+                    {#if v.key !== 'k.tl'}<button class="tag mono" onclick={() => openTag(v.id)}>KODEKS KAYDI ›</button>{/if}
+                  {/each}
                 </div>
               {/if}
             </article>
@@ -212,6 +233,8 @@
   h3{font-family:var(--f-disp);font-size:18px;letter-spacing:.04em;color:#fff;line-height:1.2}
   .sum{font-size:14.5px;line-height:1.45;color:#c9d6e2;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .sum i{color:var(--mut)}
+  .sums{display:flex;flex-direction:column;gap:4px}.s2{-webkit-line-clamp:3;font-size:13.5px}.s2 b{font-size:10px;letter-spacing:.2em}
+  .vh{font-size:11px;letter-spacing:.25em;margin:14px 0 0;padding-top:8px;border-top:1px dashed var(--line)}.vh:first-child{border:0;margin-top:6px;padding-top:0}
   .more{align-self:flex-start;margin-top:auto;background:none;border:1px solid color-mix(in srgb,var(--rc) 55%,transparent);color:var(--rc);padding:4px 10px;font-size:10.5px;letter-spacing:.2em}
   .more:hover{background:color-mix(in srgb,var(--rc) 15%,transparent)}
   .full{grid-column:1/-1;padding:4px 18px 16px;border-top:1px solid var(--line);animation:fo .35s both;font-size:14.5px;line-height:1.55;color:#c9d6e2;user-select:text}

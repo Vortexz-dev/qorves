@@ -45,9 +45,9 @@ export const sfx = {
   boot: () => { tone(55, 1.2, 'sawtooth', 0.12, 110); noise(0.4, 0.04, 400); },
 };
 /** Ortam sesi: prosedürel, alçak uğultu. Ana ses düğmesine bağlı; açılışta yavaşça gelir, kapanışta söner. */
-export function ambient(kind: 'codex' | 'starmap'): () => void {
+export function ambient(kind: 'codex' | 'starmap' | 'timeline'): () => void {
   const c = ensure(); if (!master) return () => {};
-  const out = c.createGain(), t0 = c.currentTime; out.gain.setValueAtTime(0.0001, t0); out.gain.exponentialRampToValueAtTime(kind === 'codex' ? 0.22 : 0.26, t0 + 3);
+  const out = c.createGain(), t0 = c.currentTime; out.gain.setValueAtTime(0.0001, t0); out.gain.exponentialRampToValueAtTime(kind === 'codex' ? 0.22 : kind === 'timeline' ? 0.2 : 0.26, t0 + 3);
   out.connect(master); const nodes: AudioScheduledSourceNode[] = [];
   const osc = (f: number, type: OscillatorType, g: number, dest: AudioNode, det = 0) => { const o = c.createOscillator(), a = c.createGain(); o.type = type; o.frequency.value = f; o.detune.value = det; a.gain.value = g; o.connect(a).connect(dest); o.start(); nodes.push(o); return { o, a }; };
   const lfo = (rate: number, depth: number, param: AudioParam) => { const o = c.createOscillator(), a = c.createGain(); o.frequency.value = rate; a.gain.value = depth; o.connect(a).connect(param); o.start(); nodes.push(o); };
@@ -59,6 +59,14 @@ export function ambient(kind: 'codex' | 'starmap'): () => void {
     osc(55, 'sawtooth', 0.22, lp, -6); osc(55, 'sawtooth', 0.22, lp, 7); osc(82.4, 'triangle', 0.12, lp); osc(110, 'sine', 0.05, out);
     lfo(0.07, 90, lp.frequency);
     const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.6; bp.connect(out); noiseSrc(bp, 0.06); lfo(0.05, 300, bp.frequency);
+  } else if (kind === 'timeline') { // zaman tüneli: sıcak Re pedi, yavaş nefes alan kabarma, uzak saat tıkırtısı gibi ince ışıltı
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 340; lp.Q.value = 0.9; lp.connect(out);
+    const sw = c.createGain(); sw.gain.value = 0.75; sw.connect(lp); lfo(0.04, 0.25, sw.gain);
+    osc(73.4, 'triangle', 0.26, sw); osc(110, 'sine', 0.16, sw, 3); osc(146.8, 'triangle', 0.08, sw, -8); osc(146.8, 'triangle', 0.08, sw, 9); osc(220, 'sine', 0.03, sw, 5);
+    lfo(0.023, 120, lp.frequency);
+    const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2400; hp.connect(out); noiseSrc(hp, 0.03);
+    const sh = osc(587.3, 'sine', 0.0, out); const tr = c.createGain(); tr.gain.value = 0.01; const tl = c.createOscillator(); tl.frequency.value = 0.07; tl.connect(tr).connect(sh.a.gain); tl.start(); nodes.push(tl);
+    const sh2 = osc(880, 'sine', 0.0, out); const tr2 = c.createGain(); tr2.gain.value = 0.006; const tl2 = c.createOscillator(); tl2.frequency.value = 0.05; tl2.connect(tr2).connect(sh2.a.gain); tl2.start(); nodes.push(tl2);
   } else { // derin uzay: alçak beşli, yavaş süpürülen rüzgâr, uzak ışıltı
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180; lp.connect(out);
     osc(41.2, 'sine', 0.5, lp); osc(61.7, 'sine', 0.22, lp, 4); osc(82.4, 'triangle', 0.08, lp, -5);
