@@ -30,7 +30,7 @@
     sections: t.text ? [{ t: 'Ayrıntı', x: t.text, o: 0 }] : [] });
   const rows = $derived.by(() => {
     if (!kb.ready) return [] as Row[];
-    const raw = [...allEntries().filter((e) => e.type === 'event'), ...tl.map(tlEntry)].sort((a, b) => (b.ys ?? -1e6) - (a.ys ?? -1e6) || a.id.localeCompare(b.id));
+    const raw = [...allEntries().filter((e) => e.type === 'event' && e.ys != null), ...tl.map(tlEntry)].sort((a, b) => (b.ys ?? -1e6) - (a.ys ?? -1e6) || a.id.localeCompare(b.id));
     // canon'da tek satır olan olayın ırk sürümleri tek kartta birleşir (yalnız görebildiğin sürümler)
     const ev: Ev[] = [], byG = new Map<string, Ev>();
     for (const e of raw) {

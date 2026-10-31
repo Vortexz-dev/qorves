@@ -10,7 +10,7 @@ export const TYPES: Record<string, TypeMeta> = {
   station: { label: 'İstasyon', plural: 'İstasyonlar', color: '#7fe0c0', glyph: g('<rect x="9" y="9" width="6" height="6"/><path d="M3 12h6M15 12h6M12 3v6M12 15v6"/>') },
   place: { label: 'Yer', plural: 'Yerler', color: '#ff9f43', glyph: g('<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>') },
   state: { label: 'Devlet', plural: 'Devletler', color: '#ff2a55', glyph: g('<path d="M4 20h16M6 20V10M18 20V10M10 20v-6h4v6M3 10l9-6 9 6z"/>') },
-  org: { label: 'Örgüt', plural: 'Örgütler', color: '#ff5fa2', glyph: g('<circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 20c1-4 9-4 10 0M11 20c1-4 9-4 10 0"/>') },
+  org: { label: 'Kurum', plural: 'Kurumlar ve örgütler', color: '#ff5fa2', glyph: g('<circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 20c1-4 9-4 10 0M11 20c1-4 9-4 10 0"/>') },
   law: { label: 'Yasa', plural: 'Yasalar', color: '#e57373', glyph: g('<path d="M12 3v18M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z"/>') },
   race: { label: 'Irk', plural: 'Irklar', color: '#b388ff', glyph: g('<circle cx="12" cy="7" r="4"/><path d="M4 21c1-5 15-5 16 0"/>') },
   subrace: { label: 'Alt ırk', plural: 'Alt ırklar', color: '#9575cd', glyph: g('<circle cx="12" cy="8" r="3"/><path d="M6 20c1-4 11-4 12 0M3 13l3-2M21 13l-3-2"/>') },
