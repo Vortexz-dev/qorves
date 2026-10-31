@@ -120,14 +120,14 @@ export class ShipScene {
     for (const r of ROOMS) {
       const w = r.x1 - r.x0, h = r.y1 - r.y0, d = r.id === 'motor' ? 4.6 : 6.2;
       const m = this.add(new THREE.BoxGeometry(w - 0.15, h - 0.15, d), this.interior, ROOM_COLOR, this.mods[0].rmats, 0.55); m.position.set((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, 0);
-      this.label(new THREE.Vector3((r.x0 + r.x1) / 2, r.y1 + 0.3, 0), r.n, 'cab', 'room');
+      this.label(new THREE.Vector3((r.x0 + r.x1) / 2, r.y1 + 0.3, 0), r.n, 'cab', 'room', r.id);
     }
     const furn: [number, number, number, number, number, number][] = [[2.6, 8.3, -1.4, 1.2, 1.2, 1.2], [2.6, 8.3, 1.4, 1.2, 1.2, 1.2], [3.9, 9.4, 0, 0.4, 1.0, 5], // koltuklar + konsol
       [-5.6, 8.4, 0, 4, 0.5, 2.4], [-5.6, 10.8, 0, 4, 0.5, 2.4], [-1.4, 4.1, 0, 2, 0.15, 2.2], [-2.9, 3.6, 0, 0.8, 1.2, 5]]; // ranzalar, masa, koltuk
     for (const [x, y, z, w, h, d] of furn) { const f = this.add(new THREE.BoxGeometry(w, h, d), this.interior, new THREE.Color('#ffd28a'), this.mods[0].rmats, 0.8); f.position.set(x, y, z); }
   }
-  private label(p: THREE.Vector3, text: string, mod: string, cls = '') {
-    const el = document.createElement('div'); el.className = 'sh-lbl ' + cls; el.textContent = text; this.overlay.appendChild(el); this.labels.push({ p, el, mod });
+  private label(p: THREE.Vector3, text: string, mod: string, cls = '', img = '') {
+    const el = document.createElement('div'); el.className = 'sh-lbl ' + cls; el.textContent = text; if (img) { el.dataset.img = img; el.title = 'Fotoğrafı aç'; } this.overlay.appendChild(el); this.labels.push({ p, el, mod });
   }
   // ---------- dorseler ----------
   setTrailers(list: Trailer[]) {
@@ -167,7 +167,7 @@ export class ShipScene {
     const rooms = KINDS[k]?.rooms ?? [], ig = new THREE.Group(), R: THREE.ShaderMaterial[] = []; this.interior.add(ig);
     for (const r of rooms) { const a = x0 + 0.5 + r.a * (TL - 1), b = x0 + 0.5 + r.b * (TL - 1);
       const m = this.add(new THREE.BoxGeometry(b - a - 0.25, 6.4, 6.6), ig, ROOM_COLOR, R, 0.55); m.position.set((a + b) / 2, Y + 3.6, 0);
-      this.label(new THREE.Vector3((a + b) / 2, Y + 7.4, 0), r.n, t.id, 'room'); }
+      this.label(new THREE.Vector3((a + b) / 2, Y + 7.4, 0), r.n, t.id, 'room', r.img); }
     this.label(new THREE.Vector3(cx, Y + 12.2, 0), `${i + 1}. ${t.name || KINDS[k]?.name}`, t.id, 'tr');
     const hit = new THREE.Mesh(new THREE.BoxGeometry(TL, 11, 9.5), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(cx, Y + 4.6, 0); g.add(hit);
     this.mods.push({ id: t.id, group: g, inner: ig, hit, center: new THREE.Vector3(cx, 7, 0), mats: L, rmats: R, len: TL });

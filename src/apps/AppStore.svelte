@@ -8,9 +8,9 @@
   import { ICONS } from '../desktop/icons';
   const user = session.user!;
   import { APPS } from '../desktop/apps';
-  const store = APPS.filter((a) => a.optional);
+  const store = APPS.filter((a) => a.optional || a.storeTitle);
   let busy = $state<Record<string, number>>({}), phase = $state<Record<string, string>>({});
-  const has = (id: string) => (user.apps ?? []).includes(id);
+  const has = (id: string) => (user.apps ?? []).includes(id) || !!APPS.find((a) => a.id === id && !a.optional);
   async function setApps(a: string[]) { user.apps = a; await backend.patchProfile(user.uid, { apps: a }).catch(() => {}); }
   async function install(id: string) {
     phase[id] = 'KURULUYOR'; sfx.click();
@@ -32,9 +32,9 @@
   {#each store as a (a.id)}
   <div class="card" class:on={has(a.id)} class:ghos={a.id === 'ghos'}>
     <div class="ic">{@html ICONS[a.icon]}</div>
-    <div class="tx"><b>{a.title}{#if a.id === 'ghos'}<em class="mono">KAYIT DIŞI</em>{/if}</b><span>{a.desc}</span>
+    <div class="tx"><b>{a.storeTitle ?? a.title}{#if a.id === 'ghos'}<em class="mono">KAYIT DIŞI</em>{/if}</b><span>{a.desc}</span>
       {#if busy[a.id]}<div class="pb"><i style:width="{busy[a.id]}%"></i></div><small class="mono">{phase[a.id]}… {busy[a.id]}%</small>{/if}</div>
-    {#if has(a.id)}<button class="btn red" disabled={!!busy[a.id]} onclick={() => uninstall(a.id)}>Kaldır</button>{:else}<button class="btn" disabled={!!busy[a.id]} onclick={() => install(a.id)}>Kur</button>{/if}
+    {#if !a.optional}<span class="mono sys">YÜKLÜ · SİSTEM</span>{:else if has(a.id)}<button class="btn red" disabled={!!busy[a.id]} onclick={() => uninstall(a.id)}>Kaldır</button>{:else}<button class="btn" disabled={!!busy[a.id]} onclick={() => install(a.id)}>Kur</button>{/if}
   </div>
   {/each}
   <div class="mono soon">Yeni uygulamalar ileride eklenecek.</div>
@@ -50,4 +50,5 @@
   .card.ghos{border-color:rgba(57,255,138,.35);background:linear-gradient(90deg,rgba(57,255,138,.07),transparent);font-family:var(--f-mono)}
   .tx em{font-style:normal;font-size:9.5px;letter-spacing:.25em;color:#000;background:#39ff8a;padding:2px 6px;margin-left:8px;vertical-align:middle}
   .soon{font-size:12px;color:var(--mut)}
+  .sys{font-size:10px;letter-spacing:.2em;color:#39ff8a;border:1px solid rgba(57,255,138,.4);padding:6px 10px;white-space:nowrap}
 </style>

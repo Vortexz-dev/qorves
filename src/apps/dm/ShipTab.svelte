@@ -26,7 +26,7 @@
 <div class="sh" oninput={() => (dirty = true)}>
   <div class="col">
     <h4 class="mono">GEMİ</h4>
-    <label class="field"><span>Gemi adı</span><input class="inp" bind:value={s.name} maxlength="60" placeholder="Boş bırakılırsa “Adı henüz konmadı”" /></label>
+    <label class="field"><span>Gemi adı</span><input class="inp" bind:value={s.name} maxlength="60" placeholder="Boş bırakılırsa “Demir Kervan”" /></label>
     <div class="grid">{#each F as [k, l] (k)}<label class="field"><span>{l}</span><input class="inp" type="number" min="0" step="1" value={(s as unknown as Record<string, number>)[k]} oninput={(e) => ((s as unknown as Record<string, number>)[k] = Number(e.currentTarget.value))} /></label>{/each}</div>
     <label class="field"><span>Yakıt türü</span><input class="inp" bind:value={s.fuelType} maxlength="120" /></label>
     <label class="field"><span>Azami hız (metin)</span><input class="inp" bind:value={s.speed} maxlength="60" /></label>

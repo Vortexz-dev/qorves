@@ -1,8 +1,9 @@
 <script lang="ts">
-  // Demir Kervan: partinin tek gemisi (Avgridt'in özel yapım uzay çekicisi). Hologram + iç plan + dorse modülleri. Değerleri DM yazar (world/ship).
+  // Docked & Loaded: gemi özelleştirme uygulaması. Şimdilik tek kayıtlı gemi (Demir Kervan). Hologram + iç plan + bölme fotoğrafları + dorse modülleri. Değerleri DM yazar (world/ship).
   import { onMount } from 'svelte';
   import { ShipScene } from '../ship/scene';
-  import { DEFAULT_SHIP, KINDS, ROOMS, MAX_TRAILERS, type ShipState, type Room } from '../ship/data';
+  import { DEFAULT_SHIP, KINDS, ROOMS, MAX_TRAILERS, roomImg, type ShipState, type Room } from '../ship/data';
+  import { openImage } from '../lib/lightbox.svelte';
   import { watchDoc } from '../lib/live';
   import { session } from '../lib/session.svelte';
   import { sfx, ambient } from '../lib/sfx';
@@ -15,7 +16,9 @@
   const totCap = $derived(ship.cargoMax + ship.trailers.reduce((a, t) => a + (t.cargoMax || 0), 0));
   const pct = (a: number, b: number) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
   const fmt = (n: number) => (Number(n) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 1 });
-  const BOOT = ['RÜN BAĞLANTISI KURULUYOR…', 'HROTHMAR İMZASI DOĞRULANDI · A. V. GARDABATKİN', 'SKARN ÇEKİRDEĞİ ISINIYOR', 'GÖVDE TARAMASI', 'HOLOGRAM HAZIR'];
+  const BOOT = ['LİMAN BAĞLANTISI KURULUYOR…', 'GEMİ SİCİLİ SORGULANIYOR', '1 KAYITLI GEMİ BULUNDU', 'SEÇİLİ GEMİ YÜKLENİYOR · DEMİR KERVAN', 'HOLOGRAM HAZIR'];
+  const photo = (k: string | undefined, n: string) => { if (!k) return; sfx.click(); openImage(roomImg(k), (ship.name || 'Demir Kervan') + ' · ' + n); };
+  function ovClick(e: MouseEvent) { const el = (e.target as HTMLElement).closest('.sh-lbl.room') as HTMLElement | null; if (el?.dataset.img) photo(el.dataset.img, el.textContent || ''); }
   onMount(() => {
     let alive = true; const stopAmb = ambient('ship'); sfx.ignite();
     BOOT.forEach((l, i) => setTimeout(() => { if (alive) { lines = [...lines, l]; sfx.key(); } }, 180 + i * 330));
@@ -39,21 +42,21 @@
 
 <div class="sp" class:ready={boot === 2}>
   <div class="gl" bind:this={host}></div>
-  <div class="ov" bind:this={ov}></div>
+  <div class="ov" bind:this={ov} onclick={ovClick} role="presentation"></div>
   <div class="vig"></div><div class="scan"></div>
 
   {#if boot < 2}
     <div class="boot" class:out={boot === 1}>
-      <div class="bt mono"><span class="g" data-t="DEMİR KERVAN">DEMİR KERVAN</span></div>
+      <div class="bt mono"><span class="g" data-t="DOCKED &amp; LOADED">DOCKED &amp; LOADED</span></div>
       <div class="bl mono">{#each lines as l, i (i)}<div>&gt; {l}</div>{/each}</div>
       <div class="bar"><i></i></div>
     </div>
   {/if}
 
   <header class="hd">
-    <div class="ttl"><span class="g" data-t="DEMİR KERVAN">DEMİR KERVAN</span><em class="mono">TEK ÖRNEK · ÖZEL YAPIM UZAY ÇEKİCİSİ</em></div>
-    <div class="nm">{ship.name || 'Adı henüz konmadı'}</div>
-    <div class="own mono">SAHİBİ · AVGRİDT VEDARRİM GARDABATKİN · HROTHMAR KLANI · RÜN USTASI</div>
+    <div class="ttl"><span class="g" data-t="DOCKED &amp; LOADED">DOCKED &amp; LOADED</span><em class="mono">GEMİ ÖZELLEŞTİRME · SEÇİLİ GEMİ</em></div>
+    <div class="nm">{ship.name || 'Demir Kervan'}</div>
+    <div class="own mono">TEK ÖRNEK · ÖZEL YAPIM UZAY ÇEKİCİSİ · SAHİBİ AVGRİDT VEDARRİM GARDABATKİN · HROTHMAR KLANI</div>
   </header>
 
   <aside class="pan left">
@@ -77,7 +80,7 @@
       <p class="d">{KINDS[tr.kind]?.desc}</p>
       {@render bar('Gövde', tr.hp, tr.hpMax, 'hp')}
       {@render bar('Yük', tr.cargo, tr.cargoMax, 'cg', ' t')}
-      <div class="rooms"><div class="h mono">BÖLMELER</div>{#each KINDS[tr.kind]?.rooms ?? [] as r (r.n)}<span>{r.n}</span>{/each}</div>
+      <div class="rooms"><div class="h mono">BÖLMELER</div>{#each KINDS[tr.kind]?.rooms ?? [] as r (r.n)}<button class="rp" title="Fotoğrafı aç" onclick={() => photo(r.img, r.n)}>{r.n} <i>▣</i></button>{/each}</div>
       {#if tr.note}<p class="note">{tr.note}</p>{/if}
     {:else}
       <div class="k mono">GEMİ DURUMU</div>
@@ -112,7 +115,7 @@
         {/each}
         <text class="lbl" x={PX(-8) + 4} y={PY(7.5) - 4}>ÜST GÜVERTE</text><text class="lbl" x={PX(-8) + 4} y={PY(2.6) - 4}>ALT GÜVERTE</text>
       </svg>
-      {#if room}<div class="rd"><b>{room.n}</b> {room.d}</div>{:else}<div class="rd mut">Ön kaputta motor bölmesi; arkada iki katlı yaşam alanı. Dorseleri seçince bölmeleri hologramda görünür.</div>{/if}
+      {#if room}<div class="rd ph"><button class="th" title="Büyüt" onclick={() => photo(room!.id, room!.n)}><img src={roomImg(room.id)} alt={room.n} /></button><div><b>{room.n}</b> {room.d}<small class="mono">FOTOĞRAFA TIKLA · BÜYÜT</small></div></div>{:else}<div class="rd mut">Bir bölmeye tıkla: fotoğrafı ve açıklaması açılır. Hologramdaki bölme etiketleri de tıklanır.</div>{/if}
     </section>
   {/if}
   {#if err}<div class="err mono">{err}</div>{/if}
@@ -182,4 +185,8 @@
   .lbl{fill:#6fc9dc;font-size:7.5px;letter-spacing:.15em;font-family:var(--f-mono)}
   .rd{font-size:13.5px;color:#e4e8f0;margin-top:6px;line-height:1.45}.rd b{color:#ffcf7a;margin-right:6px}.rd.mut{color:var(--mut)}
   .err{position:absolute;inset:auto 0 40% 0;text-align:center;color:#ff6b81;letter-spacing:.2em}
+  .ov :global(.sh-lbl.room[data-img]){pointer-events:auto;cursor:pointer}.ov :global(.sh-lbl.room[data-img]:hover){color:#fff;border-color:#ffcf7a;box-shadow:0 0 10px rgba(255,181,71,.5)}
+  .rp{background:rgba(255,181,71,.08);border:1px solid rgba(255,181,71,.35);color:#ffcf7a;padding:3px 8px;margin:0 6px 6px 0;font:inherit;font-size:12px;cursor:pointer}.rp:hover{background:rgba(255,181,71,.2);color:#fff}.rp i{font-style:normal;opacity:.7}
+  .rd.ph{display:flex;gap:12px;align-items:flex-start}.rd .th{flex:0 0 150px;height:84px;padding:0;border:1px solid rgba(255,181,71,.45);background:#000;cursor:zoom-in;overflow:hidden}
+  .rd .th img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}.rd .th:hover img{transform:scale(1.06)}.rd small{display:block;margin-top:4px;font-size:9.5px;letter-spacing:.18em;color:var(--mut)}
 </style>

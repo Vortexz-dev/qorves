@@ -1,6 +1,6 @@
 import type { Component } from 'svelte';
 export interface AppDef {
-  id: string; title: string; icon: string; core?: boolean; w?: number; h?: number; optional?: boolean; hidden?: boolean; dmOnly?: boolean; desc?: string;
+  id: string; title: string; icon: string; core?: boolean; w?: number; h?: number; optional?: boolean; hidden?: boolean; dmOnly?: boolean; desc?: string; storeTitle?: string;
   load: () => Promise<{ default: Component<any> }>;
 }
 // Uygulamalar ayrı parçalar halinde, açıldıklarında yüklenir.
@@ -8,7 +8,7 @@ export const APPS: AppDef[] = [
   { id: 'timeline', title: 'Qorves Timeline', icon: 'timeline', core: true, load: () => import('../apps/CoreTimeline.svelte') },
   { id: 'codex', title: 'Qorves Codex', icon: 'codex', core: true, load: () => import('../apps/CoreCodex.svelte') },
   { id: 'starmap', title: 'Qorves Starmap', icon: 'starmap', core: true, load: () => import('../apps/CoreStarmap.svelte') },
-  { id: 'ship', title: 'Demir Kervan', icon: 'ship', core: true, load: () => import('../apps/Ship.svelte') },
+  { id: 'ship', title: 'Docked & Loaded', storeTitle: 'Docked & Loaded - Ship Customization', desc: 'Gemini incele ve özelleştir: hologram, iç plan, bölme fotoğrafları, dorseler ve gemi durumu. Şimdilik kayıtlı gemi: Demir Kervan.', icon: 'ship', core: true, load: () => import('../apps/Ship.svelte') },
   { id: 'computer', title: 'Bilgisayarım', icon: 'computer', w: 780, h: 640, load: () => import('../apps/MyComputer.svelte') },
   { id: 'profile', title: 'Profil', icon: 'profile', w: 720, h: 560, load: () => import('../apps/Profile.svelte') },
   { id: 'logbook', title: 'Seyir Defteri', icon: 'logbook', w: 1020, h: 700, load: () => import('../apps/Logbook.svelte') },
