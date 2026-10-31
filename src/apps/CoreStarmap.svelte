@@ -274,7 +274,7 @@
           <div class="own"><span class="chip" role="button" tabindex="0" onclick={() => map?.factions[cs.owner].state && getEntry(map.factions[cs.owner].state!) && openTag(map.factions[cs.owner].state!)} onkeydown={() => {}}>{map?.factions[cs.owner]?.name}</span></div>
           {#if bsel === 'star'}<table class="ph"><tbody><tr><td>Yıldız</td><td>{cs.star || STYPE[cs.stype]}</td></tr>{#if starEnt?.summary && !generic(starEnt.summary) && !cs.star.includes(starEnt.summary.replace(/\.$/, ''))}<tr><td>Not</td><td>{starEnt.summary}</td></tr>{/if}</tbody></table>
           {:else}<p class="sum">{bsel === 'star-Gwathren' ? 'Isilwen B, kızıl cüce, patlama yıldızı; A\'dan ortalama 38 AB.' : bsel === 'star-Morwen B' ? 'M2 V kızıl cüce, A\'dan 38 AB; ara sıra patlama.' : 'Genç, sıcak beyaz cüce; A\'dan ~900 AB. Hithlin bulutsusunu parlatır.'}</p>{/if}
-          {@render gallery(bsel, null, bsel === 'star' ? cs.name : bsel.slice(5))}
+          {@render gallery(bsel, [], bsel === 'star' ? cs.name : bsel.slice(5))}
           <div class="act"><button class="btn ghost" onclick={() => openTag(cur!)}>Sistem kodeksi</button></div>
         {:else if gs}
           <div class="mono k">Hat geçidi + istasyon · {gs.lane.kind}</div>
@@ -286,7 +286,7 @@
           </tbody></table>
           {#if gcanon}<p class="sum"><b>{gcanon.name}</b> · {gcanon.type}{#if gcanon.orbit} · {gcanon.orbit} AB{/if}</p>{#if gcanon.desc}<p class="desc"><RichText text={gcanon.desc} self={gcanon.ent} /></p>{/if}{#if gcanon.dm}<div class="dmnote"><span class="mono">DM · GİZLİ</span><RichText text={gcanon.dm} self={gcanon.ent} /></div>{/if}{/if}
           {#each ev.filter((e) => e.lane === gs.lane.id) as e (e.key)}<div class="gev" style:--sv={evd?.sev[e.tpl.sev].color}><b class="mono">{evd?.sev[e.tpl.sev].label}</b> {e.tpl.name} · kalan {left(e)} dk</div>{/each}
-          {@render gallery(gs.id, null, gs.name)}
+          {@render gallery(gs.id, [], gs.name)}
           <div class="act">{#if getEntry(gs.lane.id)}<button class="btn ghost" onclick={() => openTag(gs.lane.id)}>Hat kodeksi</button>{/if}<button class="btn" disabled={!known(gs.to) || gs.status === 'collapsed' || gs.status === 'closed'} onclick={() => jump(gs.to)}>Hedefe geç ›</button></div>
         {:else if bs}
           <div class="mono k">{KIND[bs.kind]} · {bs.type}{#if bs.note} · {bs.note}{/if}</div>
@@ -297,7 +297,7 @@
           {#if be?.summary && !generic(be.summary) && be.type !== 'system'}<p class="sum"><RichText text={be.summary} self={be.id} /></p>{/if}
           {#if bs.desc}<p class="desc"><RichText text={bs.desc} self={bs.ent} /></p>{/if}
           {#if bs.dm}<div class="dmnote"><span class="mono">DM · GİZLİ</span><RichText text={bs.dm} self={bs.ent} /></div>{/if}
-          {@render gallery(bs.id, bs.img ?? null, bs.name)}
+          {@render gallery(bs.id, bs.imgs?.length ? bs.imgs.map((x) => ({ u: base + 'img/bo/' + x.f, t: x.t })) : bs.img ? [{ u: base + 'img/bd/' + bs.img, t: 'orbit' }] : [], bs.name)}
           {#if be && childrenOf(be.id).length}
             <div class="mono h">ETİKETLER</div>
             <div class="tags">{#each childrenOf(be.id) as c (c.id)}<button class="tg" style:--c={tmeta(c.type).color} onclick={() => openTag(c.id)}>{c.name}</button>{/each}</div>
@@ -307,10 +307,10 @@
       </aside>
     {/key}
   {/if}
-  {#snippet gallery(id: string, img: string | null, name: string)}
+  {#snippet gallery(id: string, imgs: { u: string; t: string }[], name: string)}
     <div class="mono h">GÖRÜNTÜLER</div>
     <div class="gal">
-      {#if img}<button onclick={() => openImage(base + 'img/bd/' + img, name)}><img src={base + 'img/bd/' + img} alt={name} loading="lazy" /></button>{/if}
+      {#each imgs as g (g.u)}{@const lb = g.t === 'surface' ? 'YÜZEY' : 'YÖRÜNGE'}<button onclick={() => openImage(g.u, name + ' · ' + lb.toLocaleLowerCase('tr'))}><img src={g.u} alt={name + ' · ' + lb} loading="lazy" decoding="async" /><em class="mono">{lb}</em></button>{/each}
       {#each snaps[id] ?? [] as u, i (i)}<button onclick={() => openImage(u, name + ' · simülasyon')}><img src={u} alt={name + ' · simülasyon'} /><em class="mono">SİMÜLASYON</em></button>{/each}
       {#if !snaps[id]}<div class="snapld mono">GÖRÜNTÜ İŞLENİYOR…</div>{/if}
     </div>

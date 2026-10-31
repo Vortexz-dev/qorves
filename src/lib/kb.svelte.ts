@@ -9,11 +9,11 @@ import { revealsOf } from './live';
 export interface Section { t: string; x: string; k?: string; o: number }
 export interface Entry {
   id: string; type: string; name: string; aliases?: string[]; summary?: string; key: string; parent?: string;
-  date?: string; ys?: number; race?: string; ends?: string[]; region?: string; range?: string; ord?: number; sections: Section[];
+  date?: string; ys?: number; race?: string; ends?: string[]; region?: string; range?: string; ord?: number; sections: Section[]; pic?: string;
 }
 export interface Body {
   id: string; sys: string; name: string; pop?: string; note?: string; kind: string; cls: string; type: string; orbit?: string; au?: number; au2?: number; parent?: string; l4?: string;
-  star?: string; grav?: string; atm?: string; temp?: string; life?: string; count?: number; ring?: boolean; city?: boolean; key: string; ent?: string; desc?: string; img?: string; dm?: string; o: number;
+  star?: string; grav?: string; atm?: string; temp?: string; life?: string; count?: number; ring?: boolean; city?: boolean; key: string; ent?: string; desc?: string; img?: string; imgs?: { f: string; t: string }[]; dm?: string; o: number;
 }
 interface Bundle { e: Omit<Entry, 'sections'>[]; s: { id: string; o: number; t: string; x: string }[]; b?: Body[]; bx?: { id: string; x: string }[] }
 export const kb = $state({ ready: false, loading: false, count: 0, keys: [] as string[] });
@@ -90,6 +90,7 @@ export function resetKb() { bodies.clear(); map.clear(); nameId.clear(); back.cl
 export const getEntry = (id: string) => map.get(id);
 /** Bir sistemin, kullanıcının anahtarlarıyla görebildiği gök cisimleri (Kodeks sırasıyla). */
 export const bodiesOf = (sys: string) => [...bodies.values()].filter((b) => b.sys === sys).sort((a, b) => a.o - b.o);
+export const bodiesOfEnt = (id: string) => [...bodies.values()].filter((b) => b.ent === id && b.imgs?.length).sort((a, b) => a.o - b.o);
 export const allEntries = () => [...map.values()];
 export const childrenOf = (id: string) => (kids.get(id) ?? []).map((k) => map.get(k)!).filter(Boolean);
 export const backlinksOf = (id: string) => [...(back.get(id) ?? [])].map((k) => map.get(k)!).filter(Boolean);

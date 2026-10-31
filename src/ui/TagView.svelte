@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { getEntry, childrenOf, backlinksOf, idByName } from '../lib/kb.svelte';
+  import { getEntry, childrenOf, backlinksOf, idByName, bodiesOfEnt } from '../lib/kb.svelte';
+  import { openImage } from '../lib/lightbox.svelte';
   import { tmeta } from '../lib/types';
   import { KEY_LABEL } from '../lib/knowledge';
   import { session } from '../lib/session.svelte';
@@ -12,6 +13,14 @@
   const isDM = $derived(session.user?.role === 'dm');
   const kids = $derived(e ? childrenOf(e.id) : []);
   const back = $derived(e ? backlinksOf(e.id).filter((b) => b.id !== e.parent && !kids.includes(b)).slice(0, 60) : []);
+  const base = import.meta.env.BASE_URL;
+  const pics = $derived.by(() => {
+    if (!e) return [] as { u: string; n: string }[];
+    const out: { u: string; n: string }[] = [];
+    if (e.pic) out.push({ u: base + 'img/' + (e.pic.includes('/') ? e.pic : 'tg/' + e.pic), n: e.name });
+    for (const b of bodiesOfEnt(e.id)) for (const x of [...(b.imgs ?? [])].sort((p, q) => (p.t === 'surface' ? 0 : 1) - (q.t === 'surface' ? 0 : 1))) { const u = base + 'img/bo/' + x.f; if (!out.some((o) => o.u === u)) out.push({ u, n: b.name + ' · ' + (x.t === 'surface' ? 'yüzey' : 'yörünge') }); }
+    return out;
+  });
   const ends = $derived((e?.ends ?? []).map((n) => idByName(n)).filter((x): x is string => !!x));
 </script>
 {#if e}
@@ -25,6 +34,11 @@
       </div>
       {#if isDM}<span class="key mono" class:pub={e.key === 'k.public'}>{KEY_LABEL[e.key] ?? e.key}</span>{/if}
     </header>
+    {#if pics.length}
+      <div class="pics" class:one={pics.length === 1}>
+        {#each pics as p, i (p.u)}<button class:hero={i === 0} onclick={() => openImage(p.u, p.n)} title={p.n}><img src={p.u} alt={p.n} loading="lazy" decoding="async" /></button>{/each}
+      </div>
+    {/if}
     {#if e.summary}<p class="sum"><RichText text={e.summary} self={e.id} {nav} /></p>{/if}
     {#each e.sections as s}
       {#if s.x && s.x !== e.summary}
@@ -57,6 +71,10 @@
   section p{color:#c9d6e2}
   .tlb{align-self:flex-start;background:rgba(255,209,128,.08);border:1px solid rgba(255,209,128,.5);color:#ffd180;padding:7px 14px;font-size:11px;letter-spacing:.2em}
   .tlb:hover{background:rgba(255,209,128,.2)}
+  .pics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .pics button{padding:0;border:1px solid var(--line);background:#000;overflow:hidden;aspect-ratio:4/3;cursor:zoom-in}
+  .pics button.hero{grid-column:1/-1;aspect-ratio:16/9}
+  .pics img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}.pics button:hover img{transform:scale(1.04)}
   .none{color:var(--mut);font-style:italic}
   footer{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px;font-size:14px}
   .rel{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}.rel>span{font-size:10px;letter-spacing:.2em;color:var(--mut);margin-right:6px}
