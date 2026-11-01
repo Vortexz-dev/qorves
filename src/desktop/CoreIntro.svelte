@@ -1,11 +1,12 @@
 <script lang="ts">
-  // Timeline / Codex / Starmap açılış girişi (~1,6 sn). Tıkla ya da bir tuşa bas: atlanır.
+  // Timeline / Codex / Starmap / God's Eye açılış girişi (~1,6 sn). Tıkla ya da bir tuşa bas: atlanır.
   import { onMount } from 'svelte';
   import { sfx } from '../lib/sfx';
-  let { id, ondone }: { id: 'timeline' | 'codex' | 'starmap'; ondone?: () => void } = $props();
+  let { id, ondone }: { id: 'timeline' | 'codex' | 'starmap' | 'gods'; ondone?: () => void } = $props();
   const C = {
     timeline: { t: 'QORVES TIMELINE', k: 'KRONOLOJİ ÇEKİRDEĞİ', l: ['ZAMAN EKSENİ HİZALANIYOR', 'ÇAĞLAR İNDEKSLENDİ', 'SS 224 · ŞİMDİ'] },
     codex: { t: 'QORVES CODEX', k: 'KÜME BİLGİ BANKASI', l: ['ARŞİV ŞİFRESİ ÇÖZÜLÜYOR', 'KAYITLAR EŞLENİYOR', 'ERİŞİM İZNİ DOĞRULANDI'] },
+    gods: { t: "GOD'S EYE", k: 'CANLI SAHNE AĞI', l: ['GÖZETİM DÜĞÜMÜ UYANIYOR', 'SAHNE KANALI ARANIYOR', 'GÖRÜŞ ALANI KİLİTLENDİ'] },
     starmap: { t: 'QORVES STARMAP', k: 'NAVİGASYON AĞI', l: ['SENSÖR DİZİSİ AÇILIYOR', 'HİPERHATLAR TARANIYOR', 'KÜME KONUMU KİLİTLENDİ'] },
   }[id];
   let on = $state(true), out = $state(false), n = $state(0);
@@ -32,6 +33,8 @@
     <div class="axis"><i></i>{#each YEARS as y, i (y)}<span style:left="{6 + i * 11}%" style:animation-delay="{0.14 + i * 0.06}s"><b></b>{y}</span>{/each}</div>
   {:else if id === 'codex'}
     <div class="cells">{#each cells as c (c.i)}<i class:w={c.w} style:animation-delay="{c.d}s"></i>{/each}</div>
+  {:else if id === 'gods'}
+    <div class="eye"><i class="lid"></i><i class="ir i1"></i><i class="ir i2"></i><i class="pu"></i><i class="hz"></i><i class="vt"></i>{#each Array(12) as _, i (i)}<b style:transform="rotate({i * 30}deg)" style:animation-delay="{0.1 + i * 0.03}s"></b>{/each}</div>
   {:else}
     <div class="radar"><i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="sw"></i>{#each stars as s, i (i)}<b style:left="{s.x}%" style:top="{s.y}%" style:width="{s.s}px" style:height="{s.s}px" style:animation-delay="{s.d}s"></b>{/each}</div>
   {/if}
@@ -50,7 +53,7 @@
 
 <style>
   .ci{position:absolute;inset:0;z-index:7;display:grid;place-items:center;cursor:pointer;--c:#00f0ff;--c2:#fcee0a;overflow:hidden}
-  .ci.codex{--c:#fcee0a;--c2:#00f0ff}.ci.starmap{--c:#7df9ff;--c2:#ff2a55}
+  .ci.codex{--c:#fcee0a;--c2:#00f0ff}.ci.gods{--c:#ff2a55;--c2:#00f0ff}.ci.starmap{--c:#7df9ff;--c2:#ff2a55}
   .ci.out{animation:co .3s cubic-bezier(.7,0,.3,1) forwards}
   @keyframes co{0%{opacity:1;filter:none}40%{filter:hue-rotate(70deg) brightness(1.8);transform:skewX(-4deg)}100%{opacity:0;clip-path:inset(48% 0 48% 0);transform:none}}
   .bg{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(4,10,18,.88),rgba(2,3,8,.97) 70%)}
@@ -98,4 +101,19 @@
   @keyframes sw{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(400deg)}}
   .radar b{position:absolute;background:#fff;border-radius:50%;box-shadow:0 0 6px #7df9ff;opacity:0;animation:st .36s forwards}
   @keyframes st{to{opacity:.9}}
+  .eye{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+  .eye>i,.eye>b{position:absolute;left:50%;top:50%}
+  .eye .lid{width:78vmin;height:34vmin;margin:-17vmin 0 0 -39vmin;border:1px solid rgba(255,42,85,.45);border-radius:50%;animation:lid .7s cubic-bezier(.2,.9,.3,1) both;box-shadow:0 0 40px rgba(255,42,85,.15) inset}
+  .eye .ir{border-radius:50%;border:1px solid rgba(0,240,255,.5);transform:translate(-50%,-50%) scale(.2);animation:irs 1s cubic-bezier(.2,.8,.3,1) forwards}
+  .eye .i1{width:30vmin;height:30vmin;border-style:dashed;animation:irs 1s cubic-bezier(.2,.8,.3,1) forwards,spin 6s linear infinite}
+  .eye .i2{width:20vmin;height:20vmin;border-color:rgba(255,42,85,.7);animation-delay:.12s}
+  .eye .pu{width:7vmin;height:7vmin;margin:-3.5vmin 0 0 -3.5vmin;border-radius:50%;background:radial-gradient(#ff2a55,rgba(255,42,85,.1) 70%);opacity:0;animation:fi .36s .42s forwards}
+  .eye .hz{width:100vw;height:1px;margin-left:-50vw;background:linear-gradient(90deg,transparent,rgba(0,240,255,.6),transparent);animation:hz 1.3s ease-in-out forwards}
+  .eye .vt{width:1px;height:100vh;margin-top:-50vh;background:linear-gradient(transparent,rgba(255,42,85,.5),transparent);animation:vt 1.3s ease-in-out forwards}
+  .eye b{width:2px;height:3vmin;margin:-19vmin 0 0 -1px;transform-origin:1px 19vmin;background:var(--c2);opacity:0;animation:fi .25s forwards}
+  @keyframes lid{from{transform:scaleY(.02);opacity:0}}
+  @keyframes irs{to{transform:translate(-50%,-50%) scale(1)}}
+  @keyframes spin{to{rotate:360deg}}
+  @keyframes hz{0%{transform:translateY(-30vh);opacity:0}20%{opacity:1}100%{transform:translateY(30vh);opacity:0}}
+  @keyframes vt{0%{transform:translateX(-40vw);opacity:0}25%{opacity:1}100%{transform:translateX(40vw);opacity:0}}
 </style>

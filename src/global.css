@@ -39,6 +39,7 @@ select.inp option,select.inp optgroup{background:#0b0e17;color:var(--tx)}
 .mono{font-family:var(--f-mono)}
 .scan::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;
   background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px);mix-blend-mode:multiply}
+.scan:has(.core.gods:not(.min))::after{display:none} /* God's Eye sahnesi saf kalır */
 .glitch{position:relative}
 .glitch::before,.glitch::after{content:attr(data-text);position:absolute;inset:0;pointer-events:none}
 .glitch::before{color:var(--rd);transform:translate(-2px,0);clip-path:inset(0 0 55% 0);animation:gl1 3.2s infinite steps(1)}

@@ -1,13 +1,13 @@
 import { appById } from './apps';
 import { sfx } from '../lib/sfx';
 export interface Win { id: number; app: string; x: number; y: number; w: number; h: number; z: number; min: boolean; max: boolean; closing?: boolean; arg?: string; title?: string }
-export const wm = $state<{ wins: Win[]; core: string | null; coreClosing: boolean; z: number; focus: number; start: boolean }>(
-  { wins: [], core: null, coreClosing: false, z: 10, focus: -1, start: false });
+export const wm = $state<{ wins: Win[]; core: string | null; coreClosing: boolean; coreMin: boolean; z: number; focus: number; start: boolean }>(
+  { wins: [], core: null, coreClosing: false, coreMin: false, z: 10, focus: -1, start: false });
 let seq = 1;
 export function openApp(id: string, arg?: string) {
   wm.start = false;
   const a = appById(id);
-  if (a.core) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; sfx.open(); } return; } // çekirdek uygulamalar birbirinin yerine geçer
+  if (a.core) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; wm.coreMin = false; sfx.open(); } else if (wm.coreMin) { wm.coreMin = false; sfx.open(); } return; } // çekirdek uygulamalar birbirinin yerine geçer
   // tek pencereli uygulamalar (ghOS-Net, DM Paneli): var olan pencere yeni hedefe geçer
   const one = id === 'ghos' || id === 'dm';
   const ex = wm.wins.find((w) => w.app === id && (one || w.arg === arg));
@@ -32,7 +32,8 @@ export function toggleTask(id: number) {
 export function closeCore() {
   if (!wm.core || wm.coreClosing) return;
   wm.coreClosing = true; sfx.close();
-  setTimeout(() => { wm.core = null; wm.coreClosing = false; }, 420);
+  setTimeout(() => { wm.core = null; wm.coreClosing = false; wm.coreMin = false; }, 420);
 }
-export function resetWM() { wm.wins = []; wm.core = null; wm.start = false; }
+export function minCore() { if (wm.core) { wm.coreMin = true; sfx.close(); } }
+export function resetWM() { wm.wins = []; wm.core = null; wm.coreMin = false; wm.start = false; }
 export function closeAppWins(app: string, arg?: string) { wm.wins.filter((w) => w.app === app && (arg === undefined || w.arg === arg)).forEach((w) => closeWin(w.id)); }

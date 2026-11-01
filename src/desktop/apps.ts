@@ -9,6 +9,7 @@ export const APPS: AppDef[] = [
   { id: 'codex', title: 'Qorves Codex', icon: 'codex', core: true, load: () => import('../apps/CoreCodex.svelte') },
   { id: 'starmap', title: 'Qorves Starmap', icon: 'starmap', core: true, load: () => import('../apps/CoreStarmap.svelte') },
   { id: 'ship', title: 'Docked & Loaded', storeTitle: 'Docked & Loaded - Ship Customization', desc: 'Gemini incele ve özelleştir: hologram, iç plan, bölme fotoğrafları, dorseler ve gemi durumu. Şimdilik kayıtlı gemi: Demir Kervan.', icon: 'ship', core: true, load: () => import('../apps/Ship.svelte') },
+  { id: 'gods', title: "God's Eye", storeTitle: "God's Eye - Canlı Sahne", desc: 'Oyun masası: DM\'in kurduğu sahneyi canlı izle, jetonunu taşı, işaret bırak, ekran görüntüsü al ve not tut.', icon: 'gods', core: true, load: () => import('../apps/gods/GodsEye.svelte') },
   { id: 'computer', title: 'Bilgisayarım', icon: 'computer', w: 780, h: 640, load: () => import('../apps/MyComputer.svelte') },
   { id: 'profile', title: 'Profil', icon: 'profile', w: 720, h: 560, load: () => import('../apps/Profile.svelte') },
   { id: 'logbook', title: 'Seyir Defteri', icon: 'logbook', w: 1020, h: 700, load: () => import('../apps/Logbook.svelte') },

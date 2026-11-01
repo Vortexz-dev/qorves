@@ -1,42 +1,49 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { appById } from './apps';
-  import { wm, closeCore } from './wm.svelte';
+  import { wm, closeCore, minCore } from './wm.svelte';
+  import { ask } from '../lib/confirm.svelte';
   import CoreIntro from './CoreIntro.svelte';
   let { id }: { id: string } = $props();
   const app = $derived(appById(id));
   const mod = $derived(app.load());
   // giriş animasyonu bitene kadar ağır uygulama kurulmaz; böylece giriş takılmadan oynar
-  const intro = $derived(id === 'timeline' || id === 'codex' || id === 'starmap');
+  const intro = $derived(id === 'timeline' || id === 'codex' || id === 'starmap' || id === 'gods');
+  const gods = $derived(id === 'gods');
+  async function close() { if (gods) { if (await ask('Emin misin?', "God's Eye kapanacak. Sahne kaybolmaz; yeniden açınca kaldığın yerden devam eder. Yalnızca gizlemek için küçült düğmesini kullanabilirsin.", 'Kapat', false)) closeCore(); } else closeCore(); }
   let go = $state(false);
   onMount(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') closeCore(); };
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !gods && !wm.coreMin) closeCore(); };
     const t = setTimeout(() => (go = true), 1800);
     addEventListener('keydown', k); return () => { clearTimeout(t); removeEventListener('keydown', k); };
   });
 </script>
 
-<div class={'core ' + id} class:closing={wm.coreClosing}>
-  {#if id === 'timeline' || id === 'codex' || id === 'starmap'}{#key id}<CoreIntro {id} ondone={() => (go = true)} />{/key}{:else}<div class="fx"></div>{/if}
+<div class={'core ' + id} class:closing={wm.coreClosing} class:min={wm.coreMin}>
+  {#if intro}{#key id}<CoreIntro id={id as 'gods'} ondone={() => (go = true)} />{/key}{:else}<div class="fx"></div>{/if}
   <div class="stage">
     {#if !intro || go}{#await mod then m}<m.default />{/await}{/if}
   </div>
   <div class="top">
-    <span class="t">{app.title}</span><span class="mono k">ESC · ÇIKIŞ</span>
-    <button class="x" onclick={closeCore} aria-label="Kapat"><svg viewBox="0 0 12 12"><path d="m2.5 2.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="1.6"/></svg></button>
+    <span class="t">{app.title}</span><span class="mono k">{gods ? 'CANLI · OTOMATİK KAYIT' : 'ESC · ÇIKIŞ'}</span>
+    {#if gods}<button class="m" onclick={minCore} aria-label="Küçült" title="Küçült (görev çubuğuna)"><svg viewBox="0 0 12 12"><path d="M2.5 9h7" stroke="currentColor" stroke-width="1.6"/></svg></button>{/if}
+    <button class="x" onclick={close} aria-label="Kapat"><svg viewBox="0 0 12 12"><path d="m2.5 2.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="1.6"/></svg></button>
   </div>
 </div>
 
 <style>
   .core{position:fixed;inset:0;z-index:9500;background:#04050a;overflow:hidden}
   .stage{position:absolute;inset:0;animation:st .7s .35s both}
-  .timeline .stage,.codex .stage,.starmap .stage{animation-delay:.85s}
+  .timeline .stage,.codex .stage,.starmap .stage,.gods .stage{animation-delay:.85s}
   @keyframes st{from{opacity:0;transform:scale(1.04);filter:blur(8px)}}
   .top{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:14px;padding:0 10px 0 22px;z-index:5;
     background:linear-gradient(rgba(4,5,10,.85),transparent);animation:fd .4s .6s both}
   .t{font-family:var(--f-disp);font-weight:700;letter-spacing:.3em;font-size:13px;color:var(--cy)}
   .k{font-size:10.5px;color:var(--mut);letter-spacing:.2em;margin-left:auto}
   .x{width:40px;height:32px;display:grid;place-items:center;background:rgba(255,42,85,.1);border:1px solid rgba(255,42,85,.5);color:var(--rd)}
+  .m{width:40px;height:32px;display:grid;place-items:center;background:rgba(0,240,255,.08);border:1px solid rgba(0,240,255,.45);color:var(--cy)}.m svg{width:13px;height:13px}.m:hover{background:var(--cy);color:#04050a}
+  .core.min{visibility:hidden;pointer-events:none;animation:none}
+  .gods .k{color:#39ff8a}
   .x svg{width:13px;height:13px}.x:hover{background:var(--rd);color:#fff}
   @keyframes fd{from{opacity:0;transform:translateY(-10px)}}
   .fx{position:absolute;inset:0;pointer-events:none;z-index:6}

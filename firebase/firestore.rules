@@ -67,6 +67,9 @@ service cloud.firestore {
       match /media/{mid} {
         allow read: if isMe(uid) || isDM();
         allow write: if isDM() && (request.resource == null || (request.resource.data.d is string && request.resource.data.d.size() < 950000));
+        // God's Eye ekran görüntüsü: oyuncu kendi görselini oluşturur (yalnız d + at)
+        allow create: if isMe(uid) && request.resource.data.keys().hasOnly(['d', 'at']) && request.resource.data.d is string && request.resource.data.d.size() < 950000;
+        allow delete: if isMe(uid);
       }
       match /files/{fileId} {
         allow read: if isMe(uid) || isDM();
@@ -247,6 +250,36 @@ service cloud.firestore {
       allow write: if isDM();
     }
     // Site ayarları (ör. zar kanalı adresi): giriş yapan okur, DM yazar.
+    // ---------- God's Eye ----------
+    // DM her şeyi yazar. Oyuncu yalnız atandığı sahneyi okur; yalnız kendi jetonunu/işaretini (o sahnede) ve kendi kayıtlarını yazar.
+    function geSid() { return get(/databases/$(db)/documents/ge_asg/main).data.map.get(request.auth.uid, ''); }
+    function geMine(id) { return signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.sid is string
+      && request.resource.data.sid != '' && request.resource.data.sid == geSid() && id == request.resource.data.sid + '_' + request.auth.uid; }
+    match /ge_asg/{id} { allow read: if signedIn(); allow write: if isDM(); }
+    match /ge_dep/{id} { allow read, write: if isDM(); }
+    match /ge_scn/{sid} { allow read: if isDM() || (signedIn() && geSid() == sid); allow write: if isDM(); }
+    match /ge_ink/{lid} { allow read: if isDM() || (signedIn() && resource.data.sid == geSid()); allow write: if isDM(); }
+    match /ge_blob/{bid} {
+      allow read: if isDM() || (signedIn() && geSid() != '' && resource.data.img in get(/databases/$(db)/documents/ge_scn/$(geSid())).data.imgs);
+      allow write: if isDM();
+    }
+    match /ge_tok/{id} {
+      allow read: if isDM() || (signedIn() && resource.data.sid == geSid());
+      allow create, update: if isDM() || (geMine(id) && request.resource.data.keys().hasOnly(['sid', 'uid', 'name', 'img', 'col', 'x', 'y', 'at'])
+        && request.resource.data.img is string && request.resource.data.img.size() < 60000 && request.resource.data.x is number && request.resource.data.y is number);
+      allow delete: if isDM() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+    match /ge_ping/{id} {
+      allow read: if isDM() || (signedIn() && resource.data.sid == geSid());
+      allow create, update: if isDM() || (geMine(id) && request.resource.data.keys().hasOnly(['sid', 'uid', 'name', 'col', 'x', 'y', 'at']));
+      allow delete: if isDM();
+    }
+    match /ge_log/{id} {
+      allow read, delete: if isDM();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.id == id
+        && request.resource.data.kind in ['note', 'shot', 'ping'] && request.resource.data.keys().hasOnly(['id', 'uid', 'name', 'kind', 'title', 'body', 'sid', 'scene', 'src', 'thumb', 'at'])
+        && (!('body' in request.resource.data) || request.resource.data.body.size() <= 20000) && (!('thumb' in request.resource.data) || request.resource.data.thumb.size() < 120000);
+    }
     match /config/{id} {
       allow read: if signedIn();
       allow write: if isDM();
