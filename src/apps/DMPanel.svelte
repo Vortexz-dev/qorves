@@ -10,6 +10,7 @@
   import Know from './dm/Know.svelte';
   import Events from './dm/Events.svelte';
   import Calendar from './dm/Calendar.svelte';
+  import SessionTab from './dm/Session.svelte';
   import Notify from './dm/Notify.svelte';
   import Npc from './dm/Npc.svelte';
   import Markers from './dm/Markers.svelte';
@@ -19,7 +20,7 @@
   import DuelFeed from './dm/DuelFeed.svelte';
   let { arg }: { arg?: string } = $props();
   const ok = session.user?.role === 'dm';
-  const TABS = [['players', 'Oyuncular'], ['know', 'Bilgi izinleri'], ['events', 'Olaylar'], ['cal', 'Takvim'], ['notify', 'Bildirim'], ['npc', 'ghOS-Net'], ['markers', 'Harita işaretleri'], ['wallet', 'Cüzdan'], ['dice', 'Zar akışı'], ['duel', 'Zar Düellosu'], ['ship', 'Gemi']] as const;
+  const TABS = [['players', 'Oyuncular'], ['know', 'Bilgi izinleri'], ['events', 'Olaylar'], ['sess', 'Oturum'], ['cal', 'Takvim'], ['notify', 'Bildirim'], ['npc', 'ghOS-Net'], ['markers', 'Harita işaretleri'], ['wallet', 'Cüzdan'], ['dice', 'Zar akışı'], ['duel', 'Zar Düellosu'], ['ship', 'Gemi']] as const;
   let tab = $state<string>(arg && TABS.some((t) => t[0] === arg) ? arg : 'players'), err = $state('');
   const go = (t: string) => { tab = t; sfx.click(); };
   onMount(() => { if (ok) loadDm().catch((e) => (err = String(e))); return stopDm; });
@@ -39,6 +40,7 @@
     {:else if tab === 'players'}<Players {go} />
     {:else if tab === 'know'}<Know />
     {:else if tab === 'events'}<Events />
+    {:else if tab === 'sess'}<SessionTab />
     {:else if tab === 'cal'}<Calendar />
     {:else if tab === 'notify'}<Notify />
     {:else if tab === 'npc'}<Npc />

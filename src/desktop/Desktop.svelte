@@ -20,6 +20,8 @@
   import { openImage } from '../lib/lightbox.svelte';
   import CtxMenu, { type MI } from '../ui/CtxMenu.svelte';
   import SysNotify, { pushToast } from '../ui/SysNotify.svelte';
+  import SessionToast from './SessionToast.svelte';
+  import { watchSess } from '../lib/sess.svelte';
   import { startPresence, watchDoc, watchKnowledge, watchDrops } from '../lib/live';
   import { ghos, startGhos, stopGhos } from '../lib/ghos.svelte';
 
@@ -124,6 +126,7 @@
     resetWM();
     loadNotes(); loadItems();
     const stopP = startPresence(user);
+    const stopS = watchSess();
     const stopW = watchDoc<{ era: 'SS'; year: number; day: number }>(['world', 'state'], (w) => { if (w) session.world = { era: w.era ?? 'SS', year: w.year, day: w.day }; });
 
     const idle = (window as any).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 1500));
@@ -139,7 +142,7 @@
     const t = setTimeout(() => (entered = true), 30);
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (menu) menu = null; else if (wm.start) wm.start = false; } };
     addEventListener('keydown', esc);
-    return () => { clearTimeout(t); removeEventListener('keydown', esc); stopP(); stopW(); stopK(); stopD(); stopGhos(); };
+    return () => { clearTimeout(t); removeEventListener('keydown', esc); stopP(); stopS(); stopW(); stopK(); stopD(); stopGhos(); };
   });
 </script>
 
@@ -177,6 +180,7 @@
   {#if wm.start}<StartPanel />{/if}
   <Taskbar />
   <SysNotify uid={user.uid} />
+  {#if user.role !== 'dm'}<SessionToast uid={user.uid} />{/if}
 </div>
 {#if wm.core}<CoreShell id={wm.core} />{/if}
 

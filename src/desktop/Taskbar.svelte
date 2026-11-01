@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sess, fmtIst } from '../lib/sess.svelte';
   import { onMount } from 'svelte';
   import { session } from '../lib/session.svelte';
   import { audio, sfx } from '../lib/sfx';
@@ -45,6 +46,7 @@
         </div>
       {/if}
     </div>
+    {#if sess.n > 0}<div class="ses mono" title={sess.at && sess.at > Date.now() - 3 * 3600e3 ? 'Sıradaki oturum: ' + fmtIst(sess.at) : 'Oturum sayacı'}><i></i>OTURUM <b>{sess.n}</b></div>{/if}
     <div class="clock"><b>{hh}</b><span class="mono">{dd}</span></div>
   </div>
 </div>
@@ -79,6 +81,8 @@
   .volp input[type=range]{accent-color:var(--ye);width:100%}
   .volp label{display:flex;gap:8px;align-items:center}.volp input[type=checkbox]{accent-color:var(--ye)}
   @keyframes up{from{opacity:0;transform:translateY(8px)}}
+  .ses{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.2em;color:var(--mut);padding:3px 8px;border:1px solid rgba(0,240,255,.25)}.ses b{color:var(--cy);font-size:13px;letter-spacing:.05em}
+  .ses i{width:5px;height:5px;background:var(--cy);box-shadow:0 0 6px var(--cy)}
   .clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05;padding-right:6px}
   .clock b{font-family:var(--f-disp);font-size:15px;color:var(--tx);letter-spacing:.08em}
   .clock span{font-size:10.5px;color:var(--mut)}

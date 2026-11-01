@@ -21,8 +21,8 @@
   function ovClick(e: MouseEvent) { const el = (e.target as HTMLElement).closest('.sh-lbl.room') as HTMLElement | null; if (el?.dataset.img) photo(el.dataset.img, el.textContent || ''); }
   onMount(() => {
     let alive = true; const stopAmb = ambient('ship'); sfx.ignite();
-    BOOT.forEach((l, i) => setTimeout(() => { if (alive) { lines = [...lines, l]; sfx.key(); } }, 180 + i * 330));
-    setTimeout(() => { if (alive) boot = 1; }, 1900); setTimeout(() => { if (alive) boot = 2; }, 2500);
+    BOOT.forEach((l, i) => setTimeout(() => { if (alive) { lines = [...lines, l]; sfx.key(); } }, 215 + i * 395));
+    setTimeout(() => { if (alive) boot = 1; }, 2280); setTimeout(() => { if (alive) boot = 2; }, 3000);
     try { sc = new ShipScene(host!, ov!, { hover: (id) => { if (id !== hov && id) sfx.hover(); hov = id; }, select: (id) => pick(id) }); }
     catch (e) { err = 'Hologram başlatılamadı (WebGL).'; }
     let prevN = -1;
@@ -142,7 +142,7 @@
   .g::after{color:#fcee0a;clip-path:inset(60% 0 0 0);animation:g2 4.1s steps(1) infinite}
   @keyframes g1{0%,90%,100%{opacity:0;transform:none}91%{opacity:.85;transform:translate(-3px,-1px)}94%{opacity:.6;transform:translate(3px,1px)}}
   @keyframes g2{0%,85%,100%{opacity:0;transform:none}86%{opacity:.8;transform:translate(3px,0)}89%{opacity:.5;transform:translate(-2px,1px)}}
-  .boot{position:absolute;inset:0;z-index:20;background:#02040a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .6s,filter .6s}
+  .boot{position:absolute;inset:0;z-index:20;background:#02040a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .7s,filter .7s}
   .boot.out{opacity:0;filter:blur(6px) hue-rotate(60deg)}
   .bt{font-family:var(--f-disp);font-size:44px;font-weight:700;letter-spacing:.4em;color:var(--cy);text-shadow:0 0 22px rgba(0,240,255,.6);animation:bz .5s steps(4) 3}
   @keyframes bz{50%{transform:skewX(-8deg) translateX(6px);filter:hue-rotate(90deg)}}

@@ -169,6 +169,7 @@ export async function fileOf(uid: string, id: string): Promise<{ name: string; t
 
 // ---------- dünya: takvim, olaylar, timeline ----------
 export function watchDoc<T>(path: [string, string], cb: (v: T | null) => void) { if (!LIVE) return off; return onSnapshot(doc(db, path[0], path[1]), (s) => cb(s.exists() ? (s.data() as T) : null), () => cb(null)); }
+export const setDocAt = (path: [string, string], patch: Record<string, unknown>) => setDoc(doc(db, path[0], path[1]), patch, { merge: true });
 export const setWorld = (patch: Record<string, unknown>) => setDoc(doc(db, 'world', 'state'), patch, { merge: true });
 export const setEvents = (patch: Record<string, unknown>) => setDoc(doc(db, 'world', 'events'), patch, { merge: true });
 export interface TlEvent { id: string; name: string; date: string; ys: number; summary: string; text: string; race: string; published: boolean; at: number }

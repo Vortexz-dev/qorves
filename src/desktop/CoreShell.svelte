@@ -11,7 +11,7 @@
   let go = $state(false);
   onMount(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') closeCore(); };
-    const t = setTimeout(() => (go = true), 1500);
+    const t = setTimeout(() => (go = true), 1800);
     addEventListener('keydown', k); return () => { clearTimeout(t); removeEventListener('keydown', k); };
   });
 </script>
@@ -30,7 +30,7 @@
 <style>
   .core{position:fixed;inset:0;z-index:9500;background:#04050a;overflow:hidden}
   .stage{position:absolute;inset:0;animation:st .7s .35s both}
-  .timeline .stage,.codex .stage,.starmap .stage{animation-delay:.7s}
+  .timeline .stage,.codex .stage,.starmap .stage{animation-delay:.85s}
   @keyframes st{from{opacity:0;transform:scale(1.04);filter:blur(8px)}}
   .top{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:14px;padding:0 10px 0 22px;z-index:5;
     background:linear-gradient(rgba(4,5,10,.85),transparent);animation:fd .4s .6s both}
