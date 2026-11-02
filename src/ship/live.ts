@@ -1,5 +1,5 @@
 // Gemi: tek ortak doküman (ship/main) + işlem kaydı (ship_log). Her düzenleme işlem (transaction) içinde doğrulanır.
-import { doc, onSnapshot, runTransaction, setDoc, collection, query, orderBy, limit, addDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, runTransaction, setDoc, collection, query, orderBy, limit, addDoc, deleteDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/backend/firebase';
 import { apply, startDoc, part, nameOf, slots, type ShipDoc, type Op, type Res } from './sys';
 const REF = () => doc(db, 'ship', 'main');
@@ -46,3 +46,10 @@ export async function dmGrant(id: string, n: number, who: { uid: string; name: s
 export const dmReset = (who: { uid: string; name: string }) => setDoc(REF(), { ...startDoc(), by: who.uid }).then(() => addDoc(collection(db, 'ship_log'), { uid: who.uid, name: who.name, op: 'dm', text: 'Gemi başlangıç durumuna sıfırlandı', at: Date.now() }));
 export function watchShipLog(cb: (l: ShipLog[]) => void) { return onSnapshot(query(collection(db, 'ship_log'), orderBy('at', 'desc'), limit(200)), (s) => cb(s.docs.map((d) => ({ ...(d.data() as ShipLog), id: d.id }))), () => cb([])); }
 export async function clearShipLog() { for (const d of (await getDocs(collection(db, 'ship_log'))).docs) await deleteDoc(d.ref); }
+
+// ---------- iç plan jetonları: her oyuncunun bir jetonu (ship_tok/{uid}) ----------
+export interface ShipTok { uid: string; name: string; img: string; col: string; x: number; y: number; f: number; at: number }
+export function watchToks(cb: (l: ShipTok[]) => void) { return onSnapshot(collection(db, 'ship_tok'), (s) => cb(s.docs.map((d) => d.data() as ShipTok)), () => cb([])); }
+export const saveTok = (t: ShipTok) => setDoc(doc(db, 'ship_tok', t.uid), t);
+export const moveTok = (uid: string, x: number, y: number, f: number) => updateDoc(doc(db, 'ship_tok', uid), { x, y, f, at: Date.now() });
+export const dropTok = (uid: string) => deleteDoc(doc(db, 'ship_tok', uid));

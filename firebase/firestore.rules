@@ -294,6 +294,13 @@ service cloud.firestore {
       allow read, delete: if isDM();
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.keys().hasOnly(['uid', 'name', 'op', 'text', 'at']) && request.resource.data.text is string && request.resource.data.text.size() <= 300;
     }
+    match /ship_tok/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isDM() || (signedIn() && uid == request.auth.uid && request.resource.data.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'img', 'col', 'x', 'y', 'f', 'at']) && request.resource.data.img is string && request.resource.data.img.size() < 60000
+        && request.resource.data.x is number && request.resource.data.y is number && request.resource.data.f is number);
+      allow delete: if isDM() || (signedIn() && uid == request.auth.uid);
+    }
     match /config/{id} {
       allow read: if signedIn();
       allow write: if isDM();

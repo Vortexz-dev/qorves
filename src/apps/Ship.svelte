@@ -8,6 +8,7 @@
   import { sfx, ambient } from '../lib/sfx';
   import Stats from './ship/Stats.svelte';
   import Info from './ship/Info.svelte';
+  import Plan from './ship/Plan.svelte';
   const me = session.user!, who = { uid: me.uid, name: me.character?.name || me.username };
   let host: HTMLDivElement, ov: HTMLDivElement, holo: ShipHolo | null = null;
   let doc = $state<ShipDoc>(startDoc()), loaded = $state(false), sel = $state<string | null>(null), hov = $state<string | null>(null), prevId = $state<string | null>(null);
@@ -40,7 +41,7 @@
     holo = new ShipHolo(host, ov, { hover: (k) => (hov = k), select: (k) => pick(k) });
     ensureShip(me.uid).catch(() => {});
     const stop = watchShip((s) => { if (s) { doc = s; loaded = true; holo?.setShip(s); } });
-    holo.setShip(doc); if (location.search.includes('qc=1')) (window as unknown as Record<string, unknown>).__holo = holo;
+    holo.setShip(doc); if (location.search.includes('qc=1')) Object.assign(window, { __holo: holo, __setDoc: (d: ShipDoc) => { doc = d; holo?.setShip(d); }, __doc: () => $state.snapshot(doc) });
     const amb = ambient('ship'); const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && (sel || info)) { e.stopImmediatePropagation(); if (info) info = false; else pick(null); } };
     addEventListener('keydown', esc, true);
     return () => { alive = false; stop(); holo?.dispose(); holo = null; removeEventListener('keydown', esc, true); amb(); };
@@ -77,14 +78,18 @@
   const desc = (p: Part) => (p.k === 'addon' ? (p as Addon).effect : p.k === 'trailer' ? `${(p as TrailerDef).type} · ${(p as TrailerDef).special} · Odalar: ${(p as TrailerDef).rooms.join(', ')}` : (p as Engine).note ?? '');
   const icon = (p: Part) => CAT_ICON[p.k === 'addon' ? (p as Addon).cat : p.k] ?? '◇';
   const CATS = [['', 'Tümü'], ['Silah', 'Silah'], ['İtici', 'İtici'], ['Zırh', 'Zırh'], ['Kalkan', 'Kalkan'], ['Sensör', 'Sensör'], ['EW', 'EW'], ['Yardımcı', 'Yardımcı'], ['engine', 'Motor'], ['core', 'Çekirdek'], ['trailer', 'Dorse']];
+  let mode = $state<'3d' | '2d'>('3d'), xf = $state(0);
+  function setMode(m: '3d' | '2d') { if (m === mode || xf) return; xf = 1; sfx.glitch(); setTimeout(() => { mode = m; if (holo) holo.paused = m === '2d'; xf = 2; }, 230); setTimeout(() => (xf = 0), 560); }
   let tip = $state<{ m: string; x: number; y: number } | null>(null), root = $state<HTMLElement>();
   function showTip(e: MouseEvent, m: string) { const a = (e.currentTarget as HTMLElement).getBoundingClientRect(), b = root!.getBoundingClientRect(); tip = { m, x: a.right - b.left + 4, y: a.top - b.top - 8 }; }
 </script>
 
 <div class="sp" class:ready={boot === 2} bind:this={root}>
   {#if tip}<div class="tip" style:left="{tip.x}px" style:top="{tip.y}px">{tip.m}</div>{/if}
-  <div class="gl" bind:this={host}></div>
-  <div class="ov" bind:this={ov}></div>
+  <div class="gl" class:off={mode === '2d'} bind:this={host}></div>
+  <div class="ov" class:off={mode === '2d'} bind:this={ov}></div>
+  {#if boot >= 1}<div class="pl2" class:off={mode !== '2d'}><Plan {doc} {sel} onpick={(k) => pick(k)} active={mode === '2d'} /></div>{/if}
+  {#if xf}<div class="xf" class:b={xf === 2}><i></i></div>{/if}
   <div class="vig"></div><div class="scan"></div>
 
   {#if boot < 2}
@@ -100,6 +105,7 @@
     <div class="nm">{doc.name}</div>
     <div class="own mono">{chassisOf(doc).id} {chassisOf(doc).name.toLocaleUpperCase('tr')} · {nameOf(doc.engine)} · {nameOf(doc.core)}{#if !loaded} · <span class="sync">EŞLENİYOR…</span>{/if}</div>
   </header>
+  <div class="sw mono" role="tablist"><button class:on={mode === '3d'} onclick={() => setMode('3d')} role="tab" aria-selected={mode === '3d'}><b>3D</b> HOLOGRAM</button><button class:on={mode === '2d'} onclick={() => setMode('2d')} role="tab" aria-selected={mode === '2d'}><b>2D</b> İÇ PLAN</button><i class="sl" class:r={mode === '2d'}></i></div>
 
   <aside class="pan left">
     {#each groups as g (g.t)}
@@ -122,7 +128,7 @@
   <div class="stats"><Stats s={st} p={preview} /></div>
 
   <!-- seçim kartı + tersane deposu -->
-  <section class="dock">
+  <section class="dock" class:hide2d={mode === '2d' && !(selSlot || selTrailer || sel === 'hitch')}>
     {#if selSlot || selTrailer || sel === 'hitch'}
       <div class="card">
         {#if selTrailer}
@@ -170,6 +176,24 @@
 </div>
 
 <style>
+  .gl,.ov{transition:opacity .25s}.gl.off,.ov.off{opacity:0;pointer-events:none;visibility:hidden}
+  .pl2{position:absolute;inset:0;transition:opacity .25s}.pl2.off{opacity:0;pointer-events:none;visibility:hidden}
+  .sp .dock.hide2d,.sp.ready .dock.hide2d{opacity:0;pointer-events:none;transform:translateY(30px)}.dock{transition:opacity .25s,transform .35s}
+  .sw{position:absolute;left:50%;top:46px;transform:translateX(-50%);display:flex;padding:3px;background:rgba(3,8,14,.82);border:1px solid rgba(0,240,255,.3);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);z-index:6}
+  .sw button{position:relative;z-index:1;width:150px;padding:8px 0;background:none;border:0;color:#7fb6c9;font:inherit;font-size:10.5px;letter-spacing:.22em;cursor:pointer;transition:color .25s,text-shadow .25s}
+  .sw button b{color:inherit;font-weight:700;margin-right:4px}.sw button.on{color:#04080f}.sw button:not(.on):hover{color:#e9fbff;text-shadow:0 0 8px rgba(95,240,255,.6)}
+  .sw .sl{position:absolute;top:3px;bottom:3px;left:3px;width:150px;background:linear-gradient(90deg,#5ff0ff,#9ff7ff);box-shadow:0 0 14px rgba(95,240,255,.45);transition:transform .38s cubic-bezier(.7,0,.2,1);clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
+  .sw .sl.r{transform:translateX(150px)}
+  .sw .sl::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);transform:translateX(-100%);animation:swsh 2.8s ease-in-out infinite 1s}
+  @keyframes swsh{0%,70%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+  .xf{position:absolute;inset:0;z-index:5;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(95,240,255,.05) 0 2px,transparent 2px 5px);animation:xfa .23s ease-in forwards}
+  .xf.b{animation:xfb .33s ease-out forwards}
+  .xf i{position:absolute;left:0;right:0;height:2px;background:#5ff0ff;box-shadow:0 0 18px 4px rgba(95,240,255,.55);top:0;animation:xfl .56s linear forwards}
+  .xf::before{content:'';position:absolute;inset:0;background:#03060c;clip-path:inset(0 0 100% 0);animation:xfc .23s ease-in forwards}
+  .xf.b::before{clip-path:inset(0 0 0 0);animation:xfd .33s ease-out forwards}
+  @keyframes xfa{from{opacity:.4}to{opacity:1}}@keyframes xfb{from{opacity:1}to{opacity:0}}
+  @keyframes xfc{to{clip-path:inset(0 0 0 0)}}@keyframes xfd{to{clip-path:inset(100% 0 0 0)}}
+  @keyframes xfl{from{top:0}to{top:100%}}
   .sp{position:absolute;inset:0;overflow:hidden;background:#03060c;color:var(--tx)}
   .gl{position:absolute;inset:0}.ov{position:absolute;inset:0;pointer-events:none;overflow:hidden}
   .vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.65))}
