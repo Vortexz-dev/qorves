@@ -3,14 +3,18 @@
  * Yalnız T1 Outrider uygulanır; T2–T4 şasi/parça eklenince aynı kurallarla çalışır.
  */
 import CAT from './t1.json' with { type: 'json' };
+import { XENGINES, XCORES, XPRICE, sized, truckSlots, CAB, MAX_PART } from './tiers';
 export const cat = CAT;
 export type Mount = 'Dış' | 'İç' | 'Her ikisi' | 'Motor' | 'Çekirdek';
 export interface Engine { id: string; brand: string; model: string; size: string; mass: number; thrust: number; power_draw: number; efficiency: number; legality: string; rarity?: string; note?: string }
 export interface Core { id: string; brand: string; model: string; size: string; mass: number; power_output: number; skarnit_per_day?: number; fuel?: string; tech: string; legality: string; rarity?: string; note?: string }
 export interface TrailerDef { id: string; type: string; brand: string; model: string; size: string; mass: number; capacity: number; hidden: number; power_draw: number; armor: number; slots: { size: string; mount: string }[]; rooms: string[]; legality: string; special: string; mobility_penalty: number }
 export interface Addon { id: string; cat: string; brand: string; model: string; size: string; mount: string; mass: number; power: number; effect: string; req: string; legality: string; thrust: number; mobility: number; capacity: number }
-export interface Chassis { id: string; name: string; chassis_mass: number; base_mobility: number; max_trailers: number; trailer_sizes: string[]; engine_rule: string; core_rule: string; max_slot_size: string; cab_armor: number; implemented: boolean }
-export const ENGINES = CAT.engines as Engine[], CORES = CAT.cores as Core[], TRAILERS = CAT.trailers as TrailerDef[], ADDONS = CAT.addons as Addon[], CHASSIS = CAT.chassis as Chassis[];
+export interface Chassis { id: string; name: string; chassis_mass: number; base_mobility: number; max_trailers: number; trailer_sizes: string[]; engine_rule: string; core_rule: string; max_slot_size: string; slots: string; cab_armor: number; implemented: boolean }
+const T1TR = CAT.trailers as TrailerDef[];
+export const ENGINES = [...(CAT.engines as Engine[]), ...XENGINES.map((x) => ({ ...x, price: XPRICE[x.id] }))], CORES = [...(CAT.cores as Core[]), ...XCORES.map((x) => ({ ...x, price: XPRICE[x.id] }))];
+export const TRAILERS: TrailerDef[] = [...T1TR, ...(['T2', 'T3', 'T4'] as const).flatMap((z) => T1TR.map((t) => sized(t, z)))];
+export const ADDONS = CAT.addons as Addon[], CHASSIS = (CAT.chassis as Chassis[]).map((c) => ({ ...c, implemented: true }));
 export const BRAND: Record<string, string> = Object.fromEntries(CAT.brands.map((b) => [b.id, b.name]));
 export const START = CAT.starting_ship;
 export type Kind = 'engine' | 'core' | 'trailer' | 'addon';
@@ -38,7 +42,8 @@ export const chassisOf = (s: ShipDoc) => CHASSIS.find((c) => c.id === s.chassis)
 export interface Slot { key: string; owner: string; size: string; mount: Mount; label: string; idx: number }
 /** Bütün yuvalar: tır (başlangıç gemisinden) + takılı dorselerinkiler. */
 export function slots(s: ShipDoc): Slot[] {
-  const out: Slot[] = START.slots.map((x, i) => ({ key: x.id, owner: 'truck', size: x.size, mount: x.mount as Mount, label: x.label, idx: i }));
+  const ch = chassisOf(s), base = ch.id === 'T1' ? START.slots : truckSlots(ch.slots, MAX_PART[ch.id]);
+  const out: Slot[] = base.map((x, i) => ({ key: x.id, owner: 'truck', size: x.size, mount: x.mount as Mount, label: x.label, idx: i }));
   for (const t of s.trailers) { const d = part(t.id) as TrailerDef | null; d?.slots.forEach((x, i) => out.push({ key: `${t.k}#${i}`, owner: t.k, size: x.size, mount: x.mount as Mount, label: `${x.mount} yuva ${i + 1}`, idx: i })); }
   return out;
 }
@@ -61,7 +66,8 @@ export function stats(s: ShipDoc): Stats {
   const cargoMass = s.cargo.reduce((a, c) => a + c.mass, 0);
   const mass = ch.chassis_mass + (eng?.mass ?? 0) + (core?.mass ?? 0) + trs.reduce((a, t) => a + t.d.mass, 0) + adds.reduce((a, x) => a + x.a.mass, 0) + cargoMass + s.skarnit;
   const thrust = (eng?.thrust ?? 0) + adds.reduce((a, x) => a + x.a.thrust, 0), maxMass = thrust, load = maxMass ? mass / maxMass : Infinity;
-  const powerDraw = START.cab_power_draw + (eng?.power_draw ?? 0) + adds.reduce((a, x) => a + x.a.power, 0) + trs.reduce((a, t) => a + t.d.power_draw, 0);
+  const cab = CAB[ch.id] ?? CAB.T1;
+  const powerDraw = cab.draw + (eng?.power_draw ?? 0) + adds.reduce((a, x) => a + x.a.power, 0) + trs.reduce((a, t) => a + t.d.power_draw, 0);
   const powerOutput = core?.power_output ?? 0;
   const pen = trs.reduce((a, t) => a + (t.d.mobility_penalty ?? C.trailer_mobility_penalty), 0);
   const mobilityRaw = ch.base_mobility * (1 - Math.min(load, 10) ** 2) + adds.reduce((a, x) => a + x.a.mobility, 0) - pen;
@@ -74,7 +80,7 @@ export function stats(s: ShipDoc): Stats {
   const shield = adds.reduce((a, x) => a + num(/Shield (\d+)/, x.a.effect), 0), regen = adds.reduce((a, x) => a + num(/Regen (\d+)/, x.a.effect), 0);
   const traits: Record<string, number> = {};
   for (const m of all.matchAll(/\b(EW|Scan|Accuracy|Comms|Healing|Mining|Salvage|Analysis|Broadcast|Diplomacy) \+(\d+)/g)) traits[m[1]] = (traits[m[1]] ?? 0) + +m[2];
-  const holds = [{ loc: 'cab', name: 'Kabin ambarı', cap: START.cab_hold_capacity + adds.filter((x) => !x.k.includes('#')).reduce((a, x) => a + x.a.capacity, 0), used: 0, hidden: 0, hiddenUsed: 0 },
+  const holds = [{ loc: 'cab', name: 'Kabin ambarı', cap: cab.hold + adds.filter((x) => !x.k.includes('#')).reduce((a, x) => a + x.a.capacity, 0), used: 0, hidden: 0, hiddenUsed: 0 },
     ...trs.map((t) => ({ loc: t.k, name: t.d.model, cap: t.d.capacity + adds.filter((x) => x.k.startsWith(t.k + '#')).reduce((a, x) => a + x.a.capacity, 0), used: 0, hidden: t.d.hidden, hiddenUsed: 0 }))];
   for (const c of s.cargo) { const h = holds.find((x) => x.loc === c.loc) ?? holds[0]; if (c.hidden && h.hidden) h.hiddenUsed += c.mass; else h.used += c.mass; }
   const sl = slots(s).filter((x) => x.mount !== 'Motor' && x.mount !== 'Çekirdek'), filled = (o: (x: Slot) => boolean) => [sl.filter((x) => o(x) && s.fit[x.key]).length, sl.filter(o).length] as [number, number];
@@ -83,7 +89,7 @@ export function stats(s: ShipDoc): Stats {
   if (powerOutput && powerDraw / powerOutput > C.warn_power) warnings.push(`Power %${Math.round((powerDraw / powerOutput) * 100)}: sınıra yakın.`);
   if (mobility <= C.warn_mobility) warnings.push(`Mobility ${mobility}: ${band}.`);
   return { mass, maxMass, load, thrust, powerDraw, powerOutput, mobility, mobilityRaw, band, deltaV, endurance, pilot: Math.floor((mobility - 50) / 10), armor, shield, regen,
-    skarnit: s.skarnit, skarnitMax: START.skarnit_tank, holds, cargoUsed: holds.reduce((a, h) => a + h.used, 0), cargoCap: holds.reduce((a, h) => a + h.cap, 0),
+    skarnit: s.skarnit, skarnitMax: cab.tank, holds, cargoUsed: holds.reduce((a, h) => a + h.used, 0), cargoCap: holds.reduce((a, h) => a + h.cap, 0),
     slotsTruck: filled((x) => x.owner === 'truck'), slotsTrailer: filled((x) => x.owner !== 'truck'), traits, warnings };
 }
 
@@ -92,7 +98,7 @@ export type Op =
   | { t: 'fit'; slot: string; id: string } | { t: 'unfit'; slot: string }
   | { t: 'engine'; id: string } | { t: 'core'; id: string }
   | { t: 'attach'; id: string } | { t: 'detach'; k: string }
-  | { t: 'cargo'; c: Cargo } | { t: 'uncargo'; id: string };
+  | { t: 'cargo'; c: Cargo } | { t: 'uncargo'; id: string } | { t: 'chassis'; id: string };
 export interface Res { ok: boolean; code?: string; msg?: string; next?: ShipDoc }
 const SZ = (x: string) => +x.slice(1);
 const nextChassis = (s: ShipDoc) => CHASSIS[CHASSIS.findIndex((c) => c.id === s.chassis) + 1]?.name ?? 'daha büyük';
@@ -118,9 +124,12 @@ function reqMet(s: ShipDoc, a: Addon) {
 /** Son durum limitleri: kütle ve güç. */
 function limits(prev: Stats, n: ShipDoc, removing: boolean, what: string, power = true): Res | null {
   const st = stats(n);
-  if (st.mass > st.maxMass) return removing ? fail('THRUST_TOO_LOW', `Bu ${what} sökülürse Max Mass aşılır (${st.mass} / ${st.maxMass} t). Önce yük boşaltın.`)
+  // Zaten aşım varsa (ör. şasi büyütüldü) aşımı azaltan değişikliklere izin ver; yalnızca kötüleştiren reddedilir.
+  const mEx = st.mass - st.maxMass, mEx0 = Math.max(0, prev.mass - prev.maxMass), pEx = st.powerDraw - st.powerOutput, pEx0 = Math.max(0, prev.powerDraw - prev.powerOutput);
+  const swap = what === 'motor' || what === 'çekirdek'; // aşırı yüklü gemide motor/çekirdek değişimi serbest (çıkış yolu)
+  if (mEx > 0 && mEx > mEx0 && !(swap && mEx0 > 0)) return removing ? fail('THRUST_TOO_LOW', `Bu ${what} sökülürse Max Mass aşılır (${st.mass} / ${st.maxMass} t). Önce yük boşaltın.`)
     : fail('MASS_LIMIT', `Takılamaz: Max Mass ${st.mass - st.maxMass} t aşılıyor (${st.mass} / ${st.maxMass} t).`);
-  void prev; if (power && st.powerDraw > st.powerOutput) return fail('POWER_LIMIT', `Takılamaz: Power ${st.powerDraw - st.powerOutput} aşılıyor (${st.powerDraw} / ${st.powerOutput}).`);
+  if (power && pEx > 0 && pEx > pEx0) return fail('POWER_LIMIT', `Takılamaz: Power ${st.powerDraw - st.powerOutput} aşılıyor (${st.powerDraw} / ${st.powerOutput}).`);
   return null;
 }
 export function apply(s0: ShipDoc, op: Op): Res {
@@ -142,7 +151,7 @@ export function apply(s0: ShipDoc, op: Op): Res {
   }
   if (op.t === 'engine' || op.t === 'core') {
     const d = part(op.id); if (!d || d.k !== op.t) return fail('NOT_FOUND', 'Parça bulunamadı.'); if (!have(op.id)) return fail('NOT_OWNED', 'Bu parça depoda yok.');
-    const max = SZ(ch.max_slot_size) >= 1 ? 1 : 1; // T1: 1 × S1 motor, 1 × S1 çekirdek
+    const max = SZ(MAX_PART[ch.id] ?? 'S1'); // Tablo 4: T1 S1 · T2 S2 · T3 S3 · T4 S4 (tek parça)
     if (SZ(d.size) > max) return op.t === 'engine' ? fail('ENGINE_LIMIT', `${d.size} motor için en az ${nextChassis(s)} şasi gerekir.`) : fail('CORE_LIMIT', `${d.size} çekirdek için en az ${nextChassis(s)} şasi gerekir.`);
     if (op.t === 'core') { const mixed = false; if (mixed) return fail('MIXED_POWER', 'Skarn Çekirdeği ve insan reaktörü birlikte takılamaz (yalnız DM istisnası).'); }
     const old = op.t === 'engine' ? s.engine : s.core; take(s, op.id); if (old) give(s, old); if (op.t === 'engine') s.engine = op.id; else s.core = op.id;
@@ -173,6 +182,17 @@ export function apply(s0: ShipDoc, op: Op): Res {
     if (used > cap) return fail('CAPACITY_FULL', `${h.name}${hid ? ' gizli bölmesi' : ''} dolu (${used} / ${cap} t).`);
     s.cargo.push(op.c); return limits(prev, s, false, 'yük') ?? { ok: true, next: s };
   }
+  if (op.t === 'chassis') {
+    // Yalnız DM: şasi değişimi. Artık olmayan yuvalardaki parçalar depoya döner; uymayan dorse/motor varsa reddedilir.
+    const nc = CHASSIS.find((c) => c.id === op.id); if (!nc) return fail('NOT_FOUND', 'Şasi bulunamadı.');
+    if (s.trailers.length > nc.max_trailers) return fail('TRAILER_LIMIT', `${nc.name} en fazla ${nc.max_trailers} dorse çeker. Önce dorse ayırın.`);
+    const bad = s.trailers.map((t) => part(t.id) as TrailerDef).find((d) => d && !nc.trailer_sizes.includes(d.size)); if (bad) return fail('TIER_MISMATCH', `${bad.model} (${bad.size}) ${nc.name} şasiye bağlanamaz. Önce ayırın.`);
+    for (const id of [s.engine, s.core]) { const p = part(id); if (p && SZ(p.size) > SZ(MAX_PART[nc.id])) return fail('ENGINE_LIMIT', `${p.model} (${p.size}) ${nc.name} şasiye sığmaz. Önce değiştirin.`); }
+    s.chassis = nc.id; const keys = new Map(slots(s).map((x) => [x.key, x]));
+    for (const [k, id] of Object.entries(s.fit)) { const sl = keys.get(k), a = part(id) as Addon | null; if (!sl || !a || SZ(a.size) > SZ(sl.size) || !mountOk(a, sl)) { give(s, id); delete s.fit[k]; } }
+    s.skarnit = Math.min(s.skarnit, (CAB[nc.id] ?? CAB.T1).tank);
+    return { ok: true, next: s };
+  }
   if (op.t === 'uncargo') { s.cargo = s.cargo.filter((c) => c.id !== op.id); return { ok: true, next: s }; }
   return fail('BAD_OP', 'Bilinmeyen işlem.');
 }
@@ -190,5 +210,5 @@ export function fitInfo(s: ShipDoc, id: string, slot?: string): { ok: boolean; s
   if (!ok.length && !slot && fitOnly) { const a = p as Addon; first = { ok: false, code: 'NO_FREE_SLOT', msg: `Uygun boş yuva yok. ${a.model} ${a.size} ya da daha büyük${a.mount === 'Her ikisi' ? ' bir' : ' bir ' + a.mount} yuva ister.` }; }
   return { ok: ok.length > 0, slots: ok, msg: first?.msg, code: first?.code };
 }
-export const nameOf = (id: string) => { const p = part(id); return p ? p.model : id; };
+export const nameOf = (id: string) => { const p = part(id); return p ? (p.k === 'trailer' && p.size !== 'T1' ? `${p.model} · ${p.size}` : p.model) : id; };
 export const CAT_ICON: Record<string, string> = { Silah: '⌖', İtici: '⇶', Zırh: '▣', Sensör: '◎', Kalkan: '◠', EW: '⌁', Yardımcı: '✚', engine: '⚙', core: '◈', trailer: '▭' };

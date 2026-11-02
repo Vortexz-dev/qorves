@@ -20,6 +20,7 @@ export function describe(s: ShipDoc, op: Op) {
     case 'detach': return `Dorse ayrıldı: ${nameOf(s.trailers.find((t) => t.k === op.k)?.id ?? '')}`;
     case 'cargo': return `Yük eklendi: ${op.c.name} (${op.c.mass} t)`;
     case 'uncargo': return `Yük çıkarıldı: ${s.cargo.find((c) => c.id === op.id)?.name ?? ''}`;
+    case 'chassis': return `Şasi: ${s.chassis} → ${op.id}`;
   }
 }
 /** Düzenleme: güncel dokümanı okur, kuralları uygular, yazar. Aynı anda iki düzenleme olursa Firestore biri bitene kadar diğerini yeniden dener. */

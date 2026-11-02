@@ -19,12 +19,12 @@
     if (!box) return; const BW = box.clientWidth, BH = box.clientHeight, b = P.bounds, bw = b.x1 - b.x0 + 3, bh = b.y1 - b.y0 + 3.4;
     // iki yerleşim dene: paneller arası (tam boy) ya da istatistik panelinin altı (tam en); büyük olanı seç
     const A = { l: 320, r: 370, t: 120, b: 70 }, B = { l: 320, r: 40, t: Math.min(BH * 0.52, 470), b: 70 };
-    const sc = (q: typeof A) => Math.min((BW - q.l - q.r) / bw, (BH - q.t - q.b) / bh), q = sc(B) > sc(A) ? B : A, s = Math.max(14, Math.min(64, sc(q)));
+    const sc = (q: typeof A) => Math.min((BW - q.l - q.r) / bw, (BH - q.t - q.b) / bh), q = sc(B) > sc(A) ? B : A, s = Math.max(4, Math.min(64, sc(q)));
     const W = BW - q.l - q.r, H = BH - q.t - q.b;
     view = { s, x: q.l + W / 2 - ((b.x0 + b.x1) / 2) * s, y: q.t + H / 2 - ((b.y0 + b.y1) / 2) * s };
   }
   let lastBounds = '';
-  $effect(() => { const k = `${P.bounds.x0}`; if (k !== lastBounds && box) { lastBounds = k; fit(); } });
+  $effect(() => { const k = `${P.bounds.x0}|${P.bounds.x1}|${P.bounds.y1}`; if (k !== lastBounds && box) { lastBounds = k; fit(); } });
   $effect(() => { if (active) requestAnimationFrame(fit); });
   // ---- pan / zoom
   let pan: { x: number; y: number; vx: number; vy: number; moved: boolean } | null = null;

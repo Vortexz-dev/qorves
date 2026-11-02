@@ -140,7 +140,7 @@
           <p>{t.special} · Odalar: {t.rooms.join(', ')}</p>
           <button class="btn ghost small cy" disabled={busy} onclick={() => run({ t: 'detach', k: selTrailer.k }, `${t.model} ayrıldı, depoya döndü`).then(() => pick(null))}>Dorseyi ayır</button>
         {:else if sel === 'hitch'}
-          <div class="ck mono">DORSE BAĞLANTISI · {chassisOf(doc).trailer_sizes.join('/')}</div><h3>Boş</h3><p>Depodaki uygun dorseler aşağıda. Outrider en fazla {chassisOf(doc).max_trailers} dorse çeker.</p>
+          <div class="ck mono">DORSE BAĞLANTISI · {chassisOf(doc).trailer_sizes.join('/')}</div><h3>Boş</h3><p>Depodaki uygun dorseler aşağıda. {chassisOf(doc).name} en fazla {chassisOf(doc).max_trailers} dorse çeker.</p>
         {:else if selSlot}
           {@const id = fittedId(selSlot)}
           <div class="ck mono">{selSlot.owner === 'truck' ? 'TIR' : 'DORSE'} · {selSlot.size} · {selSlot.mount.toLocaleUpperCase('tr')}</div>
