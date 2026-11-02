@@ -15,7 +15,7 @@
   import FloatWin from './FloatWin.svelte';
   import Dice from '../Dice.svelte';
   import { RulerCtl, postRoll } from './tools';
-  import { watchRulers, type Ruler } from '../../lib/gods';
+  import { watchRulers, DEF_PPM, ppmOf, type Ruler } from '../../lib/gods';
   import { drawRulers, RUL_STALE } from './render';
   const DMPanel = import('../DMPanel.svelte');
   const me = session.user!;
@@ -63,7 +63,7 @@
     if (!sid) return; localStorage.setItem('qv.ge.sid', sid); inks = {}; toks = []; pings = [];
     const a = watchInks(sid, (m) => { if (!busy) inks = m; mark(); });
     const b = watchTokens(sid, (l) => { if (!tokDrag) toks = l; mark(); });
-    const c = watchPings(sid, (l) => { if (l.some((p) => now() - p.at < 1500 && !pings.some((q) => q.uid === p.uid && q.at === p.at))) sfx.ping(); pings = l; mark(); });
+    const c = watchPings(sid, (l) => { if (l.some((p) => now() - (p.lt ?? p.at) < 1500 && !pings.some((q) => q.uid === p.uid && q.at === p.at))) sfx.ping(); pings = l; mark(); });
     const e = watchRulers(sid, (l) => { rulers = l; mark(); });
     return () => { a(); b(); c(); e(); rul.dispose(); };
   });
@@ -74,7 +74,7 @@
     let raf = 0;
     const loop = () => {
       raf = requestAnimationFrame(loop); if (wm.coreMin || !cv) return;
-      const t = now(), lp = pings.some((p) => t - p.at < PING_MS); if (!dirty && !lp) return; dirty = false;
+      const t = now(), lp = pings.some((p) => t - (p.lt ?? p.at) < PING_MS); if (!dirty && !lp) return; dirty = false;
       const W = box.clientWidth, H = box.clientHeight, d = devicePixelRatio || 1;
       if (cv.width !== Math.round(W * d) || cv.height !== Math.round(H * d)) { cv.width = Math.round(W * d); cv.height = Math.round(H * d); }
       const g = cv.getContext('2d')!; g.setTransform(d, 0, 0, d, 0, 0); g.fillStyle = '#07090e'; g.fillRect(0, 0, W, H);
@@ -87,7 +87,7 @@
       drawScene(g, sc, inks);
       if (live && extra) { const l = sc.layers.find((x) => x.id === live!.lid); if (l) { g.save(); g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = brush.c; g.lineWidth = brush.w; g.beginPath(); const p = live.pts; g.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); if (p.length === 2) g.lineTo(p[0] + .01, p[1]); g.stroke(); g.restore(); } }
       drawTokens(g, toks, tokDrag?.uid); drawPings(g, pings, t, view.z);
-      drawRulers(g, [...rulers.filter((r) => r.uid !== me.uid && t - r.at < RUL_STALE), ...(rul.mine ? [rul.mine] : [])], view.z);
+      drawRulers(g, [...rulers.filter((r) => r.uid !== me.uid && t - (r.lt ?? r.at) < RUL_STALE), ...(rul.mine ? [rul.mine] : [])], view.z);
       // sahne dışı perde + sınır (yalnız DM)
       g.setTransform(d, 0, 0, d, 0, 0); const sx = view.x, sy = view.y, sw = sc.w * view.z, sh = sc.h * view.z;
       g.fillStyle = 'rgba(4,6,10,.55)'; g.beginPath(); g.rect(0, 0, W, H); g.rect(sx, sy, sw, sh); g.fill('evenodd');
@@ -198,6 +198,7 @@
   const assign = (uid: string, v: string) => { setAsg(uid, v || null).then(() => { sfx.granted(); flash(v ? `${pls.find((p) => p.uid === uid)?.name} → ${scenes.find((s) => s.id === v)?.name}` : 'Bağlantı kesildi'); }); };
   // seçim kutusu (ekran koordinatı)
   const selBox = $derived(cur && !cur.hid ? { l: view.x + cur.x * view.z, t: view.y + cur.y * view.z, w: cur.w * view.z, h: cur.h * view.z } : null);
+  function setPpm(v: number) { setOpt('upx', v > 0 ? 1 / v : 0); }
   function setOpt(k: 'upx' | 'unit' | 'grid', v: number | string) { if (!sc) return; const o = sc as unknown as Record<string, unknown>; if (v) o[k] = v; else delete o[k]; persist(true); mark(); }
   let ldrag = '';
   const KIND = { img: 'Görsel', text: 'Metin', draw: 'Çizim' } as const;
@@ -232,10 +233,9 @@
         {:else}<small class="mut">Oyuncu bulunamadı.</small>{/each}
         {#if sc}
           <span class="mono">CETVEL ÖLÇEĞİ · {sc.name.toLocaleUpperCase('tr')}</span>
-          <label class="pr"><span>1 piksel =</span><input class="inp" type="number" min="0" step="0.01" placeholder="1" value={sc.upx ?? ''} onchange={(e) => { const v = +(e.target as HTMLInputElement).value; setOpt('upx', v > 0 ? v : 0); }} /></label>
-          <label class="pr"><span>Birim adı</span><input class="inp" maxlength="16" placeholder="metre" value={sc.unit ?? ''} onchange={(e) => { setOpt('unit', (e.target as HTMLInputElement).value.trim().slice(0, 16)); }} /></label>
+          <label class="pr"><span>1 metre = ? piksel</span><input class="inp" type="number" min="1" max="2000" step="1" placeholder={String(DEF_PPM)} value={sc.upx ? Math.round(ppmOf(sc) * 100) / 100 : ''} onchange={(e) => setPpm(+(e.target as HTMLInputElement).value)} /></label>
           <label class="pr"><span>Izgara (px, 0 = yok)</span><input class="inp" type="number" min="0" max="500" placeholder="0" value={sc.grid ?? ''} onchange={(e) => { const v = Math.round(+(e.target as HTMLInputElement).value); setOpt('grid', v > 0 ? Math.min(500, v) : 0); }} /></label>
-          <small class="mut">Örnek: 1 piksel = 0.05 metre → 1920 px genişlik 96 metre. Izgara açıksa cetvel uçları ızgaraya oturur (Alt: serbest).</small>
+          <small class="mut">Boş bırakılırsa 1 m = {DEF_PPM} px (1920 px genişlik ≈ 48 m). Şu an: 1920 px = {Math.round(1920 / ppmOf(sc))} m. Izgara açıksa cetvel uçları ızgaraya oturur (Alt: serbest).</small>
         {/if}
       </div>
     </div>
@@ -286,6 +286,7 @@
     <button onclick={doUndo} title="Geri al (Ctrl+Z)" aria-label="Geri al"><svg viewBox="0 0 24 24"><path d="M9 7H4V2M4 7a9 9 0 1 1-1 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <button onclick={doRedo} title="Yinele (Ctrl+Y)" aria-label="Yinele"><svg viewBox="0 0 24 24"><path d="M15 7h5V2M20 7a9 9 0 1 0 1 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <button onclick={fitView} title="Sahneye sığdır (F)" aria-label="Sığdır"><svg viewBox="0 0 24 24"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+    {#if tool === 'ruler' && sc}<label class="ppm mono" title="Bu sahnenin ölçeği (SAHNELER panelinde de var)">1 m =<input type="number" min="1" max="2000" placeholder={String(DEF_PPM)} value={sc.upx ? Math.round(ppmOf(sc) * 100) / 100 : ''} onchange={(e) => setPpm(+(e.target as HTMLInputElement).value)} onkeydown={(e) => e.stopPropagation()} />px</label>{/if}
     <small class="mono zm">{Math.round(view.z * 100)}%</small>
     <span class="sep"></span>
     <button class:on={dice} onclick={() => { dice = !dice; sfx.click(); }} title="Zar at (Discord'a ve sohbete düşer)" aria-label="Zar"><svg viewBox="0 0 24 24"><path d="M12 2 21 7v10l-9 5-9-5V7zM12 12 21 7M12 12 3 7M12 12v10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
@@ -299,7 +300,7 @@
 <style>
   .dm{position:absolute;inset:46px 0 0 0;overflow:hidden;background:#07090e}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-  canvas.pan,canvas.ping{cursor:grab}canvas.brush{cursor:crosshair}canvas.text{cursor:text}canvas.ruler{cursor:crosshair}canvas.ping{cursor:crosshair}
+  canvas.pan,canvas.ping{cursor:grab}canvas.brush{cursor:crosshair}canvas.text{cursor:text}canvas.ruler{cursor:crosshair}.ppm{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--cy);padding:0 4px}.ppm input{width:54px;background:rgba(0,240,255,.06);border:1px solid rgba(0,240,255,.4);color:var(--tx,#e8f1f7);font:inherit;padding:2px 4px}canvas.ping{cursor:crosshair}
   .sb{position:absolute;border:1px solid var(--cy);pointer-events:none;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
   .h{position:absolute;width:11px;height:11px;margin:-6px;background:#04050a;border:1.5px solid var(--cy);pointer-events:auto}
   .nw{left:0;top:0;cursor:nwse-resize}.n{left:50%;top:0;cursor:ns-resize}.ne{left:100%;top:0;cursor:nesw-resize}.e{left:100%;top:50%;cursor:ew-resize}

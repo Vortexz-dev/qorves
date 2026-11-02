@@ -90,7 +90,7 @@
   {#if tip}<div class="tip" style:left="{tip.x}px" style:top="{tip.y}px">{tip.m}</div>{/if}
   <div class="gl" class:off={mode === '2d'} bind:this={host}></div>
   <div class="ov" class:off={mode === '2d'} bind:this={ov}></div>
-  {#if boot >= 1}<div class="pl2" class:off={mode !== '2d'}><Plan {doc} {sel} onpick={(k) => pick(k)} active={mode === '2d'} /></div>{/if}
+  {#if boot >= 1}<div class="pl2" class:off={mode !== '2d'} class:dk={mode === '2d' && !!(selSlot || selTrailer || sel === 'hitch')}><Plan {doc} {sel} onpick={(k) => pick(k)} active={mode === '2d'} /></div>{/if}
   {#if xf}<div class="xf" class:b={xf === 2}><i></i></div>{/if}
   <div class="vig"></div><div class="scan"></div>
 
@@ -197,8 +197,8 @@
   @keyframes tgl{0%{text-shadow:-1.5px 0 rgba(255,42,85,.7),1.5px 0 rgba(95,240,255,.7)}50%{text-shadow:1px 0 rgba(255,42,85,.6),-1px 0 rgba(95,240,255,.6)}100%{text-shadow:none}}
   .info:hover{box-shadow:0 0 12px rgba(95,240,255,.35)}
   .gl,.ov{transition:opacity .25s}.gl.off,.ov.off{opacity:0;pointer-events:none;visibility:hidden}
-  .pl2{position:absolute;inset:0;transition:opacity .25s}.pl2.off{opacity:0;pointer-events:none;visibility:hidden}
-  .sp .dock.hide2d,.sp.ready .dock.hide2d{opacity:0;pointer-events:none;transform:translateY(30px)}.dock{transition:opacity .25s,transform .35s}
+  .pl2{position:absolute;inset:0;transition:opacity .25s}.pl2.off{opacity:0;pointer-events:none;visibility:hidden}.pl2.dk :global(.bar){bottom:auto;top:62px}
+  .sp .dock.hide2d,.sp.ready .dock.hide2d{opacity:0;pointer-events:none;visibility:hidden;transform:translateY(30px);transition:opacity .25s,transform .35s,visibility 0s .35s}.dock.hide2d>*,.dock.hide2d *{pointer-events:none!important}.dock{transition:opacity .25s,transform .35s}
   .sw{position:absolute;left:50%;top:46px;transform:translateX(-50%);display:flex;padding:3px;background:rgba(3,8,14,.82);border:1px solid rgba(0,240,255,.3);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);z-index:6}
   .sw button{position:relative;z-index:1;width:150px;padding:8px 0;background:none;border:0;color:#7fb6c9;font:inherit;font-size:10.5px;letter-spacing:.22em;cursor:pointer;transition:color .25s,text-shadow .25s}
   .sw button b{color:inherit;font-weight:700;margin-right:4px}.sw button.on{color:#04080f}.sw button:not(.on):hover{color:#e9fbff;text-shadow:0 0 8px rgba(95,240,255,.6)}
@@ -232,7 +232,7 @@
   @keyframes g1{0%,90%,100%{opacity:0;transform:none}91%{opacity:.85;transform:translate(-3px,-1px)}94%{opacity:.6;transform:translate(3px,1px)}}
   @keyframes g2{0%,85%,100%{opacity:0;transform:none}86%{opacity:.8;transform:translate(3px,0)}89%{opacity:.5;transform:translate(-2px,1px)}}
   .boot{position:absolute;inset:0;z-index:20;background:#02040a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .7s,filter .7s}
-  .boot.out{opacity:0;filter:blur(6px) hue-rotate(60deg)}
+  .boot.out{opacity:0;pointer-events:none;filter:blur(6px) hue-rotate(60deg)}
   .bt{font-family:var(--f-disp);font-size:44px;font-weight:700;letter-spacing:.4em;color:var(--cy);text-shadow:0 0 22px rgba(0,240,255,.6);animation:bz .5s steps(4) 3}
   @keyframes bz{50%{transform:skewX(-8deg) translateX(6px);filter:hue-rotate(90deg)}}
   .bl{font-size:12.5px;letter-spacing:.16em;color:#8fe9ff;min-height:110px;width:min(520px,80vw)}.bl div{animation:fi .2s both}@keyframes fi{from{opacity:0;transform:translateX(-8px)}}

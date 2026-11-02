@@ -24,6 +24,7 @@
   const TABS = [['players', 'Oyuncular'], ['know', 'Bilgi izinleri'], ['events', 'Olaylar'], ['sess', 'Oturum'], ['gods', "God's Eye"], ['cal', 'Takvim'], ['notify', 'Bildirim'], ['npc', 'ghOS-Net'], ['markers', 'Harita işaretleri'], ['wallet', 'Cüzdan'], ['dice', 'Zar akışı'], ['duel', 'Zar Düellosu'], ['ship', 'Gemi']] as const;
   let tab = $state<string>(arg && TABS.some((t) => t[0] === arg) ? arg : 'players'), err = $state('');
   const go = (t: string) => { tab = t; sfx.click(); };
+  $effect(() => { if (arg && TABS.some((t) => t[0] === arg)) tab = arg; });
   onMount(() => { if (ok) loadDm().catch((e) => (err = String(e))); return stopDm; });
   const online = $derived(dm.users.filter((u) => isOnline(dm.pres.find((p) => p.uid === u.uid))).length);
   const npcUnread = $derived(ghos.unread);

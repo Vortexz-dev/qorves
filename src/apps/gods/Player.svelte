@@ -33,7 +33,7 @@
     const b = watchInks(sid, (m) => { inks = m; mark(); });
     const c = watchTokens(sid, (l) => { if (!drag) toks = l; else toks = l.map((t) => (t.uid === me.uid ? toks.find((x) => x.uid === me.uid) ?? t : t)); mark(); });
     const e = watchRulers(sid, (l) => { rulers = l; mark(); });
-    const d = watchPings(sid, (l) => { const fresh = l.filter((p) => now() - p.at < PING_MS); if (fresh.some((p) => !pings.some((q) => q.uid === p.uid && q.at === p.at))) sfx.ping(); pings = l; mark(); });
+    const d = watchPings(sid, (l) => { const fresh = l.filter((p) => now() - (p.lt ?? p.at) < PING_MS); if (fresh.some((p) => !pings.some((q) => q.uid === p.uid && q.at === p.at))) sfx.ping(); pings = l; mark(); });
     return () => { a(); b(); c(); d(); e(); rul.dispose(); };
   });
   onMount(() => {
@@ -42,7 +42,7 @@
     let raf = 0;
     const loop = () => {
       raf = requestAnimationFrame(loop); if (wm.coreMin || !cv || !scene) return;
-      const t = now(), lp = pings.some((p) => t - p.at < PING_MS);
+      const t = now(), lp = pings.some((p) => t - (p.lt ?? p.at) < PING_MS);
       if (!dirty && !lp) return; dirty = false;
       const W = wrap.clientWidth, H = wrap.clientHeight, dpr = devicePixelRatio || 1;
       if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
@@ -51,7 +51,7 @@
       g.setTransform(dpr * k, 0, 0, dpr * k, dpr * fit.ox, dpr * fit.oy);
       g.save(); g.beginPath(); g.rect(0, 0, scene.w, scene.h); g.clip(); g.fillStyle = '#000'; g.fillRect(0, 0, scene.w, scene.h);
       drawScene(g, scene, inks); drawTokens(g, toks); drawPings(g, pings, t, k); g.restore();
-      drawRulers(g, [...rulers.filter((r) => r.uid !== me.uid && t - r.at < RUL_STALE), ...(rul.mine ? [rul.mine] : [])], k);
+      drawRulers(g, [...rulers.filter((r) => r.uid !== me.uid && t - (r.lt ?? r.at) < RUL_STALE), ...(rul.mine ? [rul.mine] : [])], k);
     };
     raf = requestAnimationFrame(loop);
     const ro = new ResizeObserver(mark); ro.observe(wrap);

@@ -51,7 +51,7 @@ export const PING_MS = 2600;
 export function drawPings(g: CanvasRenderingContext2D, pings: Ping[], t: number, k = 1) {
   let live = false;
   for (const p of pings) {
-    const a = (t - p.at) / PING_MS; if (a < 0 || a > 1) continue; live = true;
+    const a = (t - (p.lt ?? p.at)) / PING_MS; if (a < 0 || a > 1) continue; live = true;
     g.save(); g.strokeStyle = p.col; g.fillStyle = p.col;
     for (let i = 0; i < 3; i++) { const q = (a * 1.6 - i * 0.22); if (q < 0 || q > 1) continue; g.globalAlpha = (1 - q) * 0.9; g.lineWidth = 4 / k; g.beginPath(); g.arc(p.x, p.y, (10 + q * 70) / k, 0, Math.PI * 2); g.stroke(); }
     g.globalAlpha = Math.min(1, (1 - a) * 2); g.beginPath(); g.arc(p.x, p.y, 7 / k, 0, Math.PI * 2); g.fill();

@@ -25,7 +25,7 @@ export interface Stroke { c: string; w: number; p: number[] }
 export interface Ink { sid: string; s: Stroke[] }
 export interface DepItem { id: string; kind: 'folder' | 'image' | 'note'; name: string; parent: string; at: number; img?: ImgRef; size?: number; body?: string; thumb?: string }
 export interface Token { sid: string; uid: string; name: string; img: string; col: string; x: number; y: number; at: number }
-export interface Ping { sid: string; uid: string; name: string; col: string; x: number; y: number; at: number }
+export interface Ping { sid: string; uid: string; name: string; col: string; x: number; y: number; at: number; lt?: number }
 export interface GLog { id: string; uid: string; name: string; kind: 'note' | 'shot' | 'ping'; title: string; body?: string; sid: string; scene?: string; src?: string; thumb?: string; at: number }
 
 export const STAGE = { w: 1920, h: 1080 };
@@ -60,8 +60,18 @@ export const watchTokens = (sid: string, cb: (l: Token[]) => void) => watchBySid
 export const saveToken = (t: Token) => setDoc(D('ge_tok', t.sid + '_' + t.uid), t);
 export const moveToken = (t: Token, x: number, y: number) => updateDoc(D('ge_tok', t.sid + '_' + t.uid), { x, y, at: now() });
 export const deleteToken = (sid: string, uid: string) => deleteDoc(D('ge_tok', sid + '_' + uid));
-export const watchPings = (sid: string, cb: (l: Ping[]) => void) => watchBySid<Ping>('ge_ping', sid, cb);
-export const sendPing = (p: Ping) => setDoc(D('ge_ping', p.sid + '_' + p.uid), p);
+// Cihaz saatleri farklı olabilir (DM'nin saati oyuncudan birkaç saniye geri/ileri): canlılık, belgenin BU cihaza
+// ulaştığı yerel zamanla (lt) ölçülür. İlk anlık görüntüdeki eski belgeler bayat sayılır.
+function watchFresh<T extends { at: number; lt?: number }>(c: string, sid: string, cb: (l: T[]) => void) {
+  const seen = new Map<string, { at: number; lt: number }>(); let first = true;
+  return onSnapshot(query(collection(db, c), where('sid', '==', sid)), (s) => {
+    const t = Date.now();
+    const l = s.docs.map((d) => { const x = d.data() as T, o = seen.get(d.id); const lt = o && o.at === x.at ? o.lt : first ? t - 3_600_000 : t; seen.set(d.id, { at: x.at, lt }); return { ...x, lt }; });
+    first = false; cb(l);
+  }, () => cb([]));
+}
+export const watchPings = (sid: string, cb: (l: Ping[]) => void) => watchFresh<Ping>('ge_ping', sid, cb);
+export const sendPing = ({ lt: _l, ...p }: Ping) => setDoc(D('ge_ping', p.sid + '_' + p.uid), p);
 export const addLog = (l: Omit<GLog, 'id'>) => { const id = nid(); return setDoc(D('ge_log', id), { ...l, id }); };
 export function watchLogs(cb: (l: GLog[]) => void) {
   if (!LIVE) return off; return onSnapshot(query(collection(db, 'ge_log'), orderBy('at', 'desc'), limit(300)), (s) => cb(s.docs.map((d) => d.data() as GLog)), () => cb([]));
@@ -136,12 +146,18 @@ export async function tokenImg(avatar: string) {
 }
 
 // ---------- cetvel (geçici, sahneye özel) ----------
-export interface Ruler { sid: string; uid: string; name: string; col: string; a: number[]; b: number[]; d: string; at: number }
-export const watchRulers = (sid: string, cb: (l: Ruler[]) => void) => watchBySid<Ruler>('ge_rul', sid, cb);
-export const saveRuler = (r: Ruler) => setDoc(D('ge_rul', r.sid + '_' + r.uid), r);
+export interface Ruler { sid: string; uid: string; name: string; col: string; a: number[]; b: number[]; d: string; at: number; lt?: number }
+export const watchRulers = (sid: string, cb: (l: Ruler[]) => void) => watchFresh<Ruler>('ge_rul', sid, cb);
+export const saveRuler = ({ lt: _l, ...r }: Ruler) => setDoc(D('ge_rul', r.sid + '_' + r.uid), r);
 export const dropRuler = (sid: string, uid: string) => deleteDoc(D('ge_rul', sid + '_' + uid)).catch(() => {});
 /** Sahne ölçeğiyle mesafe metni (birim/piksel, birim adı). */
-export function distText(s: Pick<Scene, 'upx' | 'unit'>, px: number) { const u = s.upx && s.upx > 0 ? s.upx : 1, v = px * u; return `${v >= 100 ? Math.round(v) : Math.round(v * 10) / 10} ${s.unit?.trim() || (s.upx ? 'birim' : 'px')}`; }
+/** Varsayılan ölçek: 1 metre = 40 piksel (1920 px genişlik ≈ 48 m). DM sahne başına değiştirebilir. */
+export const DEF_PPM = 40;
+export const ppmOf = (s: Pick<Scene, 'upx'>) => (s.upx && s.upx > 0 ? 1 / s.upx : DEF_PPM);
+export function distText(s: Pick<Scene, 'upx' | 'unit'>, px: number) {
+  const v = px / ppmOf(s), n = (v >= 100 ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString('tr-TR');
+  return `${n} ${s.unit?.trim() || 'm'} · ${Math.round(px)} px`.slice(0, 39);
+}
 // ---------- ortak sohbet (bütün sahneler) ----------
 export interface Chat { id?: string; uid: string; name: string; col: string; k: 'msg' | 'roll'; t: string; at: number; nat?: string }
 export function watchChat(cb: (l: Chat[]) => void, n = 40) { return onSnapshot(query(collection(db, 'ge_chat'), orderBy('at', 'desc'), limit(n)), (s) => cb(s.docs.map((d) => ({ ...(d.data() as Chat), id: d.id })).reverse()), () => cb([])); }
