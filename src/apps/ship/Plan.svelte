@@ -14,6 +14,7 @@
   const P = $derived(layout(doc));
   const st = $derived(stats(doc));
   let floor = $state(1), grid = $state(false), view = $state({ s: 40, x: 0, y: 0 }), box = $state<HTMLDivElement>(), room = $state<Room | null>(null), hovR = $state<string | null>(null);
+  $effect(() => { if (floor >= P.floors.length) floor = P.floors.length - 1; });
   let toks = $state<ShipTok[]>([]), drag = $state<{ uid: string; x: number; y: number; ox: number; oy: number } | null>(null);
     function fit() {
     if (!box) return; const BW = box.clientWidth, BH = box.clientHeight, b = P.bounds, bw = b.x1 - b.x0 + 3, bh = b.y1 - b.y0 + 3.4;
@@ -40,8 +41,8 @@
   }
   function up() {
     if (drag) { clearTimeout(sendT); const d = drag, t = toks.find((x) => x.uid === d.uid); let x = d.x, y = d.y;
-      const stp = P.stairs.find((q) => x >= q.x && x <= q.x + q.w && y >= q.y && y <= q.y + q.h);
-      if (stp) { const nf = floor ? 0 : 1; x = stp.x + stp.w / 2; y = stp.y + stp.h + 0.5; moveTok(d.uid, +x.toFixed(2), +y.toFixed(2), nf).catch(() => {}); toks = toks.map((q) => (q.uid === d.uid ? { ...q, x, y, f: nf } : q)); drag = null; pan = null; floor = nf; sfx.click(); return; }
+      const stp = P.stairs.find((q) => q.floors.includes(floor) && x >= q.x && x <= q.x + q.w && y >= q.y && y <= q.y + q.h);
+      if (stp) { const nf = stairTo(stp); x = stp.x + stp.w / 2; y = stp.y + stp.h + 0.5; moveTok(d.uid, +x.toFixed(2), +y.toFixed(2), nf).catch(() => {}); toks = toks.map((q) => (q.uid === d.uid ? { ...q, x, y, f: nf } : q)); drag = null; pan = null; floor = nf; sfx.click(); return; }
       if (!roomAt(P, floor, x, y)) { sfx.error(); if (t && roomAt(P, t.f, t.x, t.y)) { x = t.x; y = t.y; } else { const r = P.rooms.find((q) => q.id === 'cab_lng')!; x = r.x + r.w / 2; y = r.y + r.h / 2; } } else sfx.click();
       moveTok(d.uid, +x.toFixed(2), +y.toFixed(2), floor).catch(() => {}); toks = toks.map((q) => (q.uid === d.uid ? { ...q, x, y, f: floor } : q)); drag = null; }
     pan = null;
@@ -70,6 +71,7 @@
   const holdOf = (r: Room) => (r.hold ? st.holds.find((h) => h.loc === r.hold) : null);
   const cargoIn = (r: Room) => doc.cargo.filter((c) => c.loc === r.hold && (r.kind === 'hidden' ? c.hidden : !c.hidden));
   const vert = (r: Room) => r.h > r.w && r.name.length * 0.2 > r.w - 0.3;
+  const stairTo = (q: { floors: [number, number] }) => (q.floors[0] === floor ? q.floors[1] : q.floors[0]);
   function setFloor(f: number) { if (f === floor) return; floor = f; room = null; sfx.click(); }
   const onFloor = (f: number) => toks.filter((t) => tokPos(t).f === f).length;
 </script>
@@ -143,8 +145,8 @@
         {#if d.v}<g class="door {d.kind}"><rect class="cut" x={d.x - 0.14} y={d.y - d.w / 2} width="0.28" height={d.w} /><line x1={d.x} y1={d.y - d.w / 2} x2={d.x} y2={d.y + d.w / 2} /></g>
         {:else}<g class="door {d.kind}"><rect class="cut" x={d.x - d.w / 2} y={d.y - 0.14} width={d.w} height="0.28" /><line x1={d.x - d.w / 2} y1={d.y} x2={d.x + d.w / 2} y2={d.y} /></g>{/if}
       {/each}
-      {#each P.stairs as s, i (i)}
-        <g class="stairs" onclick={() => clickOk() && setFloor(floor ? 0 : 1)} role="button" tabindex="-1" onkeydown={() => {}}><rect x={s.x} y={s.y} width={s.w} height={s.h} />{#each Array(7) as _, j (j)}<line x1={s.x + 0.1 + j * (s.w - 0.2) / 6} y1={s.y + 0.08} x2={s.x + 0.1 + j * (s.w - 0.2) / 6} y2={s.y + s.h - 0.08} />{/each}<path d="M{s.x + 0.3} {s.y + s.h / 2} h{s.w - 0.6} m-0.25 -0.2 l0.25 0.2 l-0.25 0.2" /><text x={s.x + s.w / 2} y={s.y + s.h + 0.32}>{floor ? '↓ ALT GÜVERTE' : '↑ ÜST GÜVERTE'}</text></g>
+      {#each P.stairs.filter((q) => q.floors.includes(floor)) as s, i (i)}{@const to = stairTo(s)}
+        <g class="stairs" onclick={() => clickOk() && setFloor(to)} role="button" tabindex="-1" onkeydown={() => {}}><rect x={s.x} y={s.y} width={s.w} height={s.h} />{#each Array(7) as _, j (j)}<line x1={s.x + 0.1 + j * (s.w - 0.2) / 6} y1={s.y + 0.08} x2={s.x + 0.1 + j * (s.w - 0.2) / 6} y2={s.y + s.h - 0.08} />{/each}<path d="M{s.x + 0.3} {s.y + s.h / 2} h{s.w - 0.6} m-0.25 -0.2 l0.25 0.2 l-0.25 0.2" /><text x={s.x + s.w / 2} y={s.y + s.h + 0.32}>{(to > floor ? '↑ ' : '↓ ') + FLOORS[to].toLocaleUpperCase('tr')}</text></g>
       {/each}
       {#if grid}<rect class="grid" x={P.bounds.x0 - 2} y="-2" width={P.bounds.x1 - P.bounds.x0 + 4} height={P.bounds.y1 + 4} fill="url(#pg)" />{/if}
       {#each P.pins.filter((p) => p.f === floor) as p (p.key)}
@@ -169,7 +171,7 @@
   </svg>
 
   <div class="bar">
-    <div class="fls">{#each FLOORS as name, i (i)}{@const f = FLOORS.length - 1 - i}<button class:on={floor === f} onclick={() => setFloor(f)}><span>{FLOORS[f]}</span>{#if onFloor(f)}<i>{onFloor(f)}</i>{/if}</button>{/each}</div>
+    <div class="fls">{#each P.floors as name, i (i)}{@const f = P.floors.length - 1 - i}<button class:on={floor === f} onclick={() => setFloor(f)}><span>{FLOORS[f]}</span>{#if onFloor(f)}<i>{onFloor(f)}</i>{/if}</button>{/each}</div>
     <button class="tg" class:on={grid} onclick={() => { grid = !grid; sfx.click(); }}>Izgara</button>
     <button class="tg" onclick={() => { fit(); sfx.click(); }}>Sığdır</button>
     <span class="hint">Oda: fotoğraf · Jeton: sürükle, merdivene bırak = kat · Fare tekerleği: yakınlaş</span>

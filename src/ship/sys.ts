@@ -3,7 +3,7 @@
  * Yalnız T1 Outrider uygulanır; T2–T4 şasi/parça eklenince aynı kurallarla çalışır.
  */
 import CAT from './t1.json' with { type: 'json' };
-import { XENGINES, XCORES, XPRICE, sized, truckSlots, CAB, MAX_PART } from './tiers';
+import { XENGINES, XCORES, XTRAILERS, XPRICE, sized, truckSlots, CAB, MAX_PART } from './tiers';
 export const cat = CAT;
 export type Mount = 'Dış' | 'İç' | 'Her ikisi' | 'Motor' | 'Çekirdek';
 export interface Engine { id: string; brand: string; model: string; size: string; mass: number; thrust: number; power_draw: number; efficiency: number; legality: string; rarity?: string; note?: string }
@@ -11,7 +11,7 @@ export interface Core { id: string; brand: string; model: string; size: string; 
 export interface TrailerDef { id: string; type: string; brand: string; model: string; size: string; mass: number; capacity: number; hidden: number; power_draw: number; armor: number; slots: { size: string; mount: string }[]; rooms: string[]; legality: string; special: string; mobility_penalty: number }
 export interface Addon { id: string; cat: string; brand: string; model: string; size: string; mount: string; mass: number; power: number; effect: string; req: string; legality: string; thrust: number; mobility: number; capacity: number }
 export interface Chassis { id: string; name: string; chassis_mass: number; base_mobility: number; max_trailers: number; trailer_sizes: string[]; engine_rule: string; core_rule: string; max_slot_size: string; slots: string; cab_armor: number; implemented: boolean }
-const T1TR = CAT.trailers as TrailerDef[];
+const T1TR = [...(CAT.trailers as TrailerDef[]), ...XTRAILERS];
 export const ENGINES = [...(CAT.engines as Engine[]), ...XENGINES.map((x) => ({ ...x, price: XPRICE[x.id] }))], CORES = [...(CAT.cores as Core[]), ...XCORES.map((x) => ({ ...x, price: XPRICE[x.id] }))];
 export const TRAILERS: TrailerDef[] = [...T1TR, ...(['T2', 'T3', 'T4'] as const).flatMap((z) => T1TR.map((t) => sized(t, z)))];
 export const ADDONS = CAT.addons as Addon[], CHASSIS = (CAT.chassis as Chassis[]).map((c) => ({ ...c, implemented: true }));

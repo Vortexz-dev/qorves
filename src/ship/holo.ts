@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { part, slots as allSlots, type ShipDoc, type Addon, type TrailerDef, type Engine, type Core } from './sys';
 import { gearStyle, type GearStyle } from './plan';
+import { decksOf } from './rooms';
 
 const VS = `varying vec3 vN; varying vec3 vV; varying vec3 vW;
 void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix * viewMatrix * w; }`;
@@ -107,41 +108,89 @@ export class ShipHolo {
     else if (style === 'scrap') { const pd = box(1.3, 0.26, 0.9, x + 0.15, 0.13, zf, new THREE.Color('#c8a070')); pd.rotation.y = 0.35; box(0.5, 0.5, 0.12, x - 0.2, 1.6, z + out * 0.3, new THREE.Color('#9dff6a'), 0.6, false); } // yamalı plaka
     else { cylY(0.8, 0.9, 0.22, x, 0.11, zf, C, 6); cylY(0.35, 0.35, 0.1, x, 0.27, zf, new THREE.Color('#ffb547'), 6, 0.8); } // altıgen taban, rün halkası
   }
-  private buildCab() {
-    const g = new THREE.Group(), L: THREE.ShaderMaterial[] = [], C = CAB_COLOR;
-    for (const z of [-2.2, 2.2]) { const r = this.add(new THREE.BoxGeometry(27, 0.9, 0.8), g, C, L); r.position.set(-0.5, 2, z); }
+  /** Tır (uzun burunlu çekici): her kademede gövde, kaplama, modüller, iticiler, antenler ve iniş takımı değişir. */
+  private buildCab(z = 'T1') {
+    const g = new THREE.Group(), L: THREE.ShaderMaterial[] = [], C = CAB_COLOR, W = new THREE.Color('#d8fbff'), WIN = new THREE.Color('#9ff6ff'), lv = +z.slice(1) || 1;
+    const B = (w: number, h: number, d: number, x: number, y: number, zz: number, c = C, a = 1, e = true) => { const m = this.add(new THREE.BoxGeometry(w, h, d), g, c, L, a, e); m.position.set(x, y, zz); return m; };
+    const Cy = (r0: number, r1: number, h: number, x: number, y: number, zz: number, c = C, seg = 12, a = 1, e = false) => { const m = this.add(new THREE.CylinderGeometry(r0, r1, h, seg), g, c, L, a, e); m.position.set(x, y, zz); return m; };
+    // şasi kirişleri + gövde
+    for (const zz of [-2.2, 2.2]) B(27 + lv, 0.9, 0.8, -0.5 - lv / 2, 2, zz);
     this.add(this.profile([[12.5, 2.6], [12.5, 7.2], [11.8, 7.7], [4.5, 8.0], [4.5, 2.6]], 5.4), g, C, L); // kaput
     this.add(this.profile([[4.6, 2.6], [4.6, 8.1], [2.6, 12], [-3.2, 12.4], [-3.6, 13.2], [-8, 13.2], [-8, 2.6]], 7.2), g, C, L); // kabin + yatak bölmesi
-    const ws = this.add(new THREE.PlaneGeometry(4.5, 6.2), g, new THREE.Color('#9ff6ff'), L, 0.7); ws.position.set(3.65, 10, 0); ws.rotation.set(0, Math.PI / 2, 0); ws.rotateX(-0.46);
-    const gr = this.add(new THREE.BoxGeometry(0.35, 4.6, 4.2), g, new THREE.Color('#d8fbff'), L); gr.position.set(12.75, 5, 0); // ızgara
-    const bars = new THREE.Group(); for (let i = -6; i <= 6; i++) { const b = this.add(new THREE.BoxGeometry(0.1, 4.2, 0.06), bars, C, L, 0.8, false); b.position.set(12.98, 5, i * 0.31); } g.add(bars);
-    const bump = this.add(new THREE.BoxGeometry(0.9, 1.1, 8.4), g, C, L); bump.position.set(13.2, 2.4, 0);
-    for (const y of [3.4, 6]) { const t = this.add(new THREE.CylinderGeometry(0.22, 0.22, 7.6, 10), g, C, L, 1, false); t.rotation.x = Math.PI / 2; t.position.set(14.2, y, 0); } // koruma demiri
-    for (const z of [-3.4, -1.2, 1.2, 3.4]) { const t = this.add(new THREE.CylinderGeometry(0.2, 0.2, 4.4, 8), g, C, L, 1, false); t.position.set(14.2, 4.4, z); }
-    for (const z of [-3.9, 3.9]) { const s = this.add(new THREE.CylinderGeometry(0.42, 0.42, 10, 14), g, new THREE.Color('#d8fbff'), L); s.position.set(4.4, 11, z); this.glow(g, 4.4, 16.3, z, 2.2, '#ffb547', 0.5); } // egzoz bacaları
-    for (const z of [-2.6, 2.6]) this.glow(g, 13.1, 6.6, z, 2.6, '#e6fbff', 0.8); // farlar
+    const ws = this.add(new THREE.PlaneGeometry(4.5, 6.2), g, WIN, L, 0.7); ws.position.set(3.65, 10, 0); ws.rotation.set(0, Math.PI / 2, 0); ws.rotateX(-0.46);
+    B(0.35, 4.6, 4.2, 12.75, 5, 0, W); // ızgara (soğutucu)
+    for (let i = -6; i <= 6; i++) B(0.1, 4.2, 0.06, 12.98, 5, i * 0.31, C, 0.8, false);
+    B(0.9, 1.1, 8.4, 13.2, 2.4, 0); // tampon
+    for (const y of [3.4, 6]) { const t = Cy(0.22, 0.22, 7.6, 14.2, y, 0, C, 10); t.rotation.x = Math.PI / 2; } // koruma demiri
+    for (const zz of [-3.4, -1.2, 1.2, 3.4]) Cy(0.2, 0.2, 4.4, 14.2, 4.4, zz, C, 8);
+    for (const zz of [-3.9, 3.9]) { Cy(0.42, 0.42, 10, 4.4, 11, zz, W, 14, 1, true); this.glow(g, 4.4, 16.3, zz, 2.2, '#ffb547', 0.5); } // ısı bacaları
+    for (const zz of [-2.6, 2.6]) this.glow(g, 13.1, 6.6, zz, 2.6, '#e6fbff', 0.8); // farlar
     for (let i = 0; i < 5; i++) this.glow(g, -1 + i * 0.8, 12.75, (i - 2) * 1.1, 0.9, '#ffb547', 0.7); // tavan lambaları
-    const ant = this.add(new THREE.CylinderGeometry(0.05, 0.05, 3.2, 6), g, C, L, 1, false); ant.position.set(-6.5, 14.8, 2.6);
-    // yan itici kapsülleri (ön ve arka) + bağlantı kolları
-    for (const [x, len, r] of [[8.2, 6.4, 1.55], [-9.5, 7.2, 1.75]] as const) for (const z of [-5.6, 5.6]) {
-      const p = this.add(new THREE.CapsuleGeometry(r, len, 6, 16).rotateZ(Math.PI / 2), g, C, L); p.position.set(x, 3.6, z);
-      const n = this.add(new THREE.CylinderGeometry(r * 0.7, r * 0.95, 1.2, 16).rotateZ(Math.PI / 2), g, new THREE.Color('#d8fbff'), L); n.position.set(x - len / 2 - r - 0.2, 3.6, z);
-      const st = this.add(new THREE.BoxGeometry(1.2, 0.5, 2.6), g, C, L, 1, false); st.position.set(x, 3.6, z * 0.66);
-      this.glow(g, x - len / 2 - r - 1.4, 3.6, z, 4.5, '#5ff0ff', 0.75);
+    this.glow(g, 12.4, 7.6, -2.9, 0.9, '#ff3b4f', 0.8); this.glow(g, 12.4, 7.6, 2.9, 0.9, '#39ff8a', 0.8); // seyir ışıkları (sol kırmızı, sağ yeşil)
+    // kabin ayrıntısı: kapı, yan cam, basamak, tutamak, ayna, panel çizgileri, havalandırma
+    for (const zz of [-3.62, 3.62]) { const sg = Math.sign(zz);
+      B(3.2, 4.8, 0.06, 1.6, 6.6, zz, W, 0.7, false); B(2.2, 1.6, 0.05, 1.8, 9.2, zz * 1.004, WIN, 0.85, true); // kapı + cam
+      for (let k = 0; k < 3; k++) B(1.4, 0.16, 0.7, 1.6, 2.9 + k * 1.1, zz + sg * 0.35, C, 0.9, false); // basamak
+      B(0.12, 2.4, 0.12, 3.5, 7, zz + sg * 0.12, W, 1, false); // tutamak
+      const arm = B(0.12, 0.12, 1.6, 3.9, 9.4, zz + sg * 0.8, C, 1, false); void arm; B(0.3, 1.6, 0.9, 3.9, 9.2, zz + sg * 1.6, W, 0.9); // ayna
+      for (let k = 0; k < 4; k++) B(0.06, 9.8, 0.05, -7.4 + k * 2.4, 7.8, zz, C, 0.5, false); // panel dikişleri
+      for (let k = 0; k < 6; k++) B(1.6, 0.12, 0.05, -5.6, 5.2 + k * 0.4, zz * 1.003, W, 0.6, false); // yatak bölmesi havalandırması
+      for (let k = 0; k < 3; k++) B(2.4, 0.08, 0.05, 8.4, 4 + k * 1.3, (zz > 0 ? 2.72 : -2.72), C, 0.5, false); // kaput panelleri
     }
-    // ana motorlar (arka, çift) ve Skarn çekirdeği
-    for (const z of [-3.4, 3.4]) {
-      const e = this.add(this.cyl(2, 7.5), g, C, L); e.position.set(-15.2, 2.4, z);
-      const nz = this.add(new THREE.CylinderGeometry(1.6, 2.3, 1.8, 20).rotateZ(-Math.PI / 2), g, new THREE.Color('#d8fbff'), L); nz.position.set(-19.8, 2.4, z);
-      this.glow(g, -21.6, 2.4, z, 9, '#ff9a3c', 0.9); this.glow(g, -21, 2.4, z, 4, '#fff1d0', 0.9);
+    // yan itici kapsülleri (kademe: 2 → 3 çift) + halkalar
+    const pods: [number, number, number][] = lv >= 3 ? [[8.2, 6.4, 1.55], [-1, 5.4, 1.4], [-9.5, 7.2, 1.75 + (lv - 3) * 0.25]] : [[8.2, 6.4, 1.55], [-9.5, 7.2, 1.75]];
+    for (const [x, len, r] of pods) for (const zz of [-5.6 - (lv - 1) * 0.2, 5.6 + (lv - 1) * 0.2]) {
+      const p = this.add(new THREE.CapsuleGeometry(r, len, 6, 16).rotateZ(Math.PI / 2), g, C, L); p.position.set(x, 3.6, zz);
+      for (const q of [-0.3, 0, 0.3]) { const ring = this.add(this.cyl(r + 0.08, 0.18, 18), g, W, L, 0.7, false); ring.position.set(x + q * len, 3.6, zz); }
+      const n = this.add(new THREE.CylinderGeometry(r * 0.7, r * 0.95, 1.2, 16).rotateZ(Math.PI / 2), g, W, L); n.position.set(x - len / 2 - r - 0.2, 3.6, zz);
+      B(1.2, 0.5, Math.abs(zz) - 3.4, x, 3.6, zz / 2 + Math.sign(zz) * 1.7, C, 1, false);
+      this.glow(g, x - len / 2 - r - 1.4, 3.6, zz, 4.5, '#5ff0ff', 0.75);
+    }
+    // ana motorlar: T1–T2 çift, T3 üçlü (orta üstte), T4 dörtlü (2×2)
+    const eng: [number, number][] = lv >= 4 ? [[2.4, -3.4], [2.4, 3.4], [6.6, -2.4], [6.6, 2.4]] : lv === 3 ? [[2.4, -3.4], [2.4, 3.4], [6.4, 0]] : [[2.4, -3.4], [2.4, 3.4]];
+    for (const [y, zz] of eng) {
+      const big = y < 3 ? 2 : 1.6, e = this.add(this.cyl(big, 7.5), g, C, L); e.position.set(-15.2, y, zz);
+      for (const q of [-2.4, 0, 2.4]) { const rg = this.add(this.cyl(big + 0.12, 0.25, 22), g, W, L, 0.7, false); rg.position.set(-15.2 + q, y, zz); }
+      const nz = this.add(new THREE.CylinderGeometry(big * 0.8, big * 1.15, 1.8, 20).rotateZ(-Math.PI / 2), g, W, L); nz.position.set(-19.8, y, zz);
+      const gs = big < 2 ? 0.45 : eng.length > 2 ? 0.8 : 1; this.glow(g, -21.6, y, zz, 9 * gs, '#ff9a3c', 0.9 * gs); this.glow(g, -21, y, zz, 4 * gs, '#fff1d0', 0.9);
     }
     const core = this.add(new THREE.BoxGeometry(3.2, 3.2, 3.4), g, new THREE.Color('#ffb547'), L); core.position.set(-9.9, 4.5, 0); this.glow(g, -9.9, 4.5, 0, 6, '#ff9a3c', 0.35);
     const fw = this.add(new THREE.CylinderGeometry(1.8, 1.8, 0.4, 24), g, C, L); fw.position.set(-14, 3.2, 0); // dorse kenetleme tablası
-    for (const gx of [10, -3.5]) for (const gz of [-2.6, 2.6]) this.gear(g, L, C, gx, gz, 1.7, 'craft'); // Gnistborn iniş takımları (ön/arka)
+    // Skarnit yakıt tankları (gövde altında, kademeyle uzar)
+    for (const zz of [-3, 3]) { const tk = this.add(this.cyl(0.8, 3.2 + lv * 0.8, 16), g, new THREE.Color('#ffb547'), L, 0.7); tk.position.set(-4.6 - lv * 0.3, 1.5, zz); }
+    // iniş takımı: T1 4, T2–T3 6, T4 8 ayak
+    const gx = lv >= 4 ? [10.5, 3.5, -3.5, -10.5] : lv >= 2 ? [10, 3, -4.5] : [10, -3.5];
+    for (const x of gx) for (const gz of [-2.6, 2.6]) this.gear(g, L, C, x, gz, 1.7, lv >= 3 ? 'heavy' : 'craft');
+    // anten + çanak
+    Cy(0.05, 0.05, 3.2 + lv * 0.4, -6.5, 14.8 + lv * 0.2, 2.6, C, 6); this.glow(g, -6.5, 16.6 + lv * 0.4, 2.6, 0.7, '#ff3b4f', 0.9);
+    // ---- kademe modülleri
+    if (lv >= 2) { // T2 Longhaul: uzun yatak bölmesi + tavan yük kapsülü + burun RCS
+      B(3.2, 9.4, 7, -9.7, 7.9, 0); for (const zz of [-3.52, 3.52]) B(1.8, 1, 0.05, -9.7, 10.4, zz, WIN, 0.85, true);
+      B(6.4, 1.4, 4.6, -4.4, 14, 0); for (let k = 0; k < 5; k++) B(0.12, 1.5, 4.7, -7.2 + k * 1.4, 14, 0, W, 0.6, false);
+      for (const zz of [-2, 2]) { const r = this.add(new THREE.CylinderGeometry(0.25, 0.4, 0.8, 10).rotateZ(Math.PI / 2), g, W, L); r.position.set(13.9, 7.2, zz); this.glow(g, 14.6, 7.2, zz, 1.2, '#5ff0ff', 0.6); }
+      Cy(0.05, 0.05, 2.6, -2, 14.2, -2.6, C, 6);
+    }
+    if (lv >= 3) { // T3: ikinci güverte modülü, yan zırh plakaları, radar çanağı, projektörler
+      B(10.5, 3, 6.6, -4.2, 15.4, 0); for (const zz of [-3.32, 3.32]) for (let k = 0; k < 4; k++) B(1.8, 0.9, 0.05, -8 + k * 2.5, 15.6, zz, WIN, 0.85, true);
+      for (const zz of [-3.75, 3.75]) for (let k = 0; k < 4; k++) B(2.6, 2.2, 0.18, -6.8 + k * 2.8, 4.4, zz, C, 0.85);
+      const dish = this.add(new THREE.SphereGeometry(1.4, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2.6), g, C, L); dish.position.set(-7.6, 17.6, -1.8); dish.rotation.z = 0.6; Cy(0.1, 0.1, 1.2, -7.6, 17.1, -1.8, C, 6);
+      for (const zz of [-2.4, 0, 2.4]) this.glow(g, 0.8, 17, zz, 1.4, '#e6fbff', 0.7);
+    }
+    if (lv >= 4) { // T4: köprü kubbesi, haberleşme dizisi, ağır perçinli zırh, radyatör kanatları
+      const dome = this.add(new THREE.SphereGeometry(2.6, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), g, WIN, L, 0.75); dome.position.set(-3, 16.9, 0); Cy(2.9, 2.9, 0.35, -3, 16.95, 0, W, 24, 0.9);
+      for (let k = 0; k < 4; k++) { Cy(0.06, 0.06, 3 + k * 0.7, -8.6 + k * 0.6, 18.4 + k * 0.35, 2.4, C, 6); this.glow(g, -8.6 + k * 0.6, 20 + k * 0.7, 2.4, 0.6, '#ff3b4f', 0.8); }
+      for (const zz of [-3.9, 3.9]) { for (let k = 0; k < 5; k++) { B(2.3, 3.2, 0.22, -7 + k * 2.4, 9.4, zz, C, 0.8); for (const q of [-0.9, 0.9]) Cy(0.08, 0.08, 0.1, -7 + k * 2.4 + q, 10.8, zz * 1.03, W, 6); } }
+      for (const zz of [-1, 1]) { const fin = B(5, 0.12, 3.2, -12, 9, zz * 5.2, C, 0.7); fin.rotation.x = zz * 0.4; }
+    }
     this.shipGroup.add(g);
-    const hit = new THREE.Mesh(new THREE.BoxGeometry(36, 15, 13), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(-3.5, 7, 0); g.add(hit);
-    this.mods.push({ id: 'cab', group: g, inner: new THREE.Group(), hit, center: new THREE.Vector3(-2, 7, 0), mats: L, rmats: [], len: 36 });
-    this.engGlows = this.glows.filter((x) => x.s.position.x < -20); this.coreGlow = this.glows.find((x) => Math.abs(x.s.position.x + 9.9) < 0.01 && x.s.position.y === 4.5) ?? null; this.coreMesh = core;
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(36, 15 + lv, 13), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(-3.5, 7, 0); g.add(hit);
+    this.mods.unshift({ id: 'cab', group: g, inner: new THREE.Group(), hit, center: new THREE.Vector3(-2, 7, 0), mats: L, rmats: [], len: 36 });
+    this.engGlows = this.glows.filter((x) => g.children.includes(x.s) && x.s.position.x < -20); this.coreGlow = this.glows.find((x) => g.children.includes(x.s) && Math.abs(x.s.position.x + 9.9) < 0.01 && x.s.position.y === 4.5) ?? null; this.coreMesh = core;
+  }
+  private dropMod(m: Mod) {
+    this.shipGroup.remove(m.group); m.group.traverse((o) => { (o as THREE.Mesh).geometry?.dispose?.(); });
+    const sp = new Set<THREE.Object3D>(); m.group.traverse((o) => { if ((o as THREE.Sprite).isSprite) { sp.add(o); ((o as THREE.Sprite).material as THREE.Material).dispose(); } }); this.glows = this.glows.filter((x) => !sp.has(x.s));
+    this.mats = this.mats.filter((x) => !m.mats.includes(x)); m.mats.forEach((x) => x.dispose());
   }
   private label(p: THREE.Vector3, text: string, mod: string, cls = '') {
     const el = document.createElement('div'); el.className = 'sh-lbl ' + cls; el.textContent = text; this.overlay.appendChild(el); this.labels.push({ p, el, mod }); return el;
@@ -149,7 +198,7 @@ export class ShipHolo {
   // ---------- gemi durumu ----------
   setShip(doc: ShipDoc) {
     this.doc = doc;
-    if (doc.chassis !== this.chassis) { this.chassis = doc.chassis; this.cabS = CAB_S[doc.chassis] ?? 1; const cab = this.mods.find((m) => m.id === 'cab'); if (cab) { cab.group.scale.setScalar(this.cabS); cab.group.position.x = 0; } this.trSig = ''; this.sig = ''; }
+    if (doc.chassis !== this.chassis) { this.chassis = doc.chassis; this.cabS = CAB_S[doc.chassis] ?? 1; const old = this.mods.find((m) => m.id === 'cab'); if (old) { this.dropMod(old); this.mods = this.mods.filter((m) => m !== old); } this.buildCab(doc.chassis); const cab = this.mods.find((m) => m.id === 'cab'); if (cab) { cab.group.scale.setScalar(this.cabS); cab.group.position.x = 0; for (const mt of cab.mats) mt.uniforms.uReveal.value = this.reveal; } this.trSig = ''; this.sig = ''; }
     const trSig = doc.trailers.map((t) => t.k + ':' + t.id).join('|');
     if (trSig !== this.trSig) { this.trSig = trSig; this.rebuildTrailers(doc.trailers); }
     const sig = JSON.stringify([doc.engine, doc.core, doc.fit, trSig]);
@@ -170,7 +219,7 @@ export class ShipHolo {
   private trTop: Record<string, { x0: number; x1: number; top: number; Y: number }> = {}; private trEnd = CAB_REAR; private cabS = 1; private chassis = 'T1';
   /** Dorse modeli: tipine göre biçim (yaşam = pencereli modül, tanker = tank…), boyuna göre ölçü/kat, markaya göre ton ve ayrıntı. */
   private buildTrailer(key: string, d: TrailerDef, x1: number) {
-    const z = d.size as 'T1' | 'T2' | 'T3' | 'T4', TLz = TLEN[z] ?? TL, WD = TWID[z] ?? 8.2, HM = THM[z] ?? 1, decks = z === 'T3' || z === 'T4' ? 2 : 1;
+    const z = d.size as 'T1' | 'T2' | 'T3' | 'T4', TLz = TLEN[z] ?? TL, WD = TWID[z] ?? 8.2, decks = decksOf((d as TrailerDef & { base?: string }).base ?? d.id, z), HM = decks === 2 && z === 'T2' ? 1.45 : THM[z] ?? 1;
     const g = new THREE.Group(), L: THREE.ShaderMaterial[] = [], C = TR_COLOR.clone().lerp(new THREE.Color(BRAND_TINT[d.brand] ?? '#5fd0ff'), 0.45), x0 = x1 - TLz, cx = (x0 + x1) / 2, Y = 4.2, W = new THREE.Color('#d8fbff'), WIN = new THREE.Color('#9ff6ff');
     const B = (w: number, h: number, dd: number, x: number, y: number, zz: number, c = C, a = 1, e = true) => { const m = this.add(new THREE.BoxGeometry(w, h, dd), g, c, L, a, e); m.position.set(x, y, zz); return m; };
     const hw = WD / 2;
@@ -260,7 +309,7 @@ export class ShipHolo {
   // ---------- yuvalar + takılı parçalar ----------
   static TRUCK: Record<string, [number, number, number]> = { truck_roof: [-3.6, 14.2, 0], truck_roof2: [-6.6, 14.2, 0], truck_sh_l: [1.5, 9.4, -3.9], truck_sh_r: [1.5, 9.4, 3.9], truck_nose: [9, 8.6, 0], truck_tail: [-11.5, 7.4, 0], truck_flank_l: [-1.6, 7.2, -4.5], truck_flank_r: [-1.6, 7.2, 4.5], truck_bay: [-5.6, 6, 0], truck_bay2: [-3, 6, 0], truck_bay3: [-0.4, 6, 0], engine_mount: [-15.2, 5.4, -3.4], core_mount: [-9.9, 6.9, 0], hitch: [-14, 4.6, 0] };
   anchor(key: string): THREE.Vector3 {
-    const t = ShipHolo.TRUCK[key]; if (t) return new THREE.Vector3(...t).multiplyScalar(this.cabS);
+    const t = ShipHolo.TRUCK[key]; if (t) { const v = new THREE.Vector3(...t); if (key.startsWith('truck_roof') && this.chassis >= 'T3') v.y += this.chassis === 'T4' ? 5 : 3.4; return v.multiplyScalar(this.cabS); }
     const [k, ii] = key.split('#'), i = +ii, tr = this.trTop[k], d = part(this.trailers.find((x) => x.k === k)?.id ?? '') as TrailerDef | null;
     if (!tr || !d) return new THREE.Vector3();
     const outs = d.slots.map((s, j) => ({ s, j })).filter((x) => x.s.mount === 'Dış'), ins = d.slots.map((s, j) => ({ s, j })).filter((x) => x.s.mount !== 'Dış');

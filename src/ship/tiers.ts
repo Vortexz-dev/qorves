@@ -4,6 +4,7 @@
  * Ad, marka, model ve kademe adları belgedeki gibi kalır (çevrilmez).
  */
 import type { Engine, Core, TrailerDef } from './sys';
+import { TWO_T2 } from './rooms';
 export const MULT: Record<string, number> = { T1: 1, T2: 1.8, T3: 3, T4: 5 };          // Tablo 8.1
 export const MAX_PART: Record<string, string> = { T1: 'S1', T2: 'S2', T3: 'S3', T4: 'S4' }; // Tablo 4: motor/çekirdek tek parça üst sınırı
 /** Şasi başına kabin değerleri (T1 belgeden; T2–T4 tahmin: Tablo 8.1 çarpanı). */
@@ -22,6 +23,14 @@ export const XCORES: Core[] = [
   { id: 'core_allfathers_ember', brand: 'gn', model: "Allfather's Ember", size: 'S4', mass: 38, power_output: 550, skarnit_per_day: 1, legality: 'Yasal', rarity: 'Efsanevi', tech: 'skarn', note: 'S4 Skarn Çekirdeği.' },
 ];
 export const XPRICE: Record<string, number> = { eng_tempest_forge: 260000, eng_magnetar_heart: 720000, eng_brute_voyage: 1900000, core_kilnheart: 240000, core_hearthstar: 650000, core_allfathers_ember: 1700000 };
+/** Yeni dorse modelleri (belgede yok — non-canon öneri; mevcut firmalar ve üslupla uyumlu). */
+export const XTRAILERS = [
+  { id: 'trl_velvet_curtain', type: 'Yayın / Perde', brand: 'emt_y', model: 'Velvet Curtain', mass: 13, capacity: 0, hidden: 0, power_draw: 22, armor: 0, slots: [{ size: 'S2', mount: 'Dış' }, { size: 'S1', mount: 'İç' }], rooms: ['Yatak odası stüdyosu', 'Kurgu odası'], legality: 'Yasal*', price: 46000, special: 'Perde yayını +2; yatak odası seti, halka ışık ve softbox', size: 'T1', mobility_penalty: 5, noncanon: true },
+  { id: 'trl_hearthwagon', type: 'Yaşam', brand: 'gn', model: 'Hearthwagon', mass: 17, capacity: 2, hidden: 0, power_draw: 14, armor: 1, slots: [{ size: 'S1', mount: 'Dış' }, { size: 'S1', mount: 'İç' }], rooms: ['Kamara (4 yatak)', 'Ocak başı'], legality: 'Yasal', price: 21000, special: 'Gnistborn ocaklı aile vagonu; moral +1', size: 'T1', mobility_penalty: 5, noncanon: true },
+  { id: 'trl_stonebreath_refinery', type: 'Madencilik / kurtarma', brand: 'dk', model: 'Stonebreath Refinery', mass: 32, capacity: 18, hidden: 0, power_draw: 30, armor: 2, slots: [{ size: 'S2', mount: 'Dış' }, { size: 'S1', mount: 'İç' }], rooms: ['Eritme odası', 'Cevher ambarı'], legality: 'Lisanslı', price: 46000, special: 'Cevheri yolda eritir; satış değeri +%15', size: 'T1', mobility_penalty: 6, noncanon: true },
+  { id: 'trl_mirage_box', type: 'Kaçakçılık', brand: 'emt_y', model: 'Mirage Box', mass: 15, capacity: 10, hidden: 6, power_draw: 18, armor: 0, slots: [{ size: 'S1', mount: 'İç' }, { size: 'S1', mount: 'İç' }], rooms: ['Ambar', 'Hologram perde odası', 'Gizli bölme'], legality: 'Gri', price: 42000, special: 'Hologram kılıf: dorse taramada başka yük gibi görünür', size: 'T1', mobility_penalty: 5, noncanon: true },
+  { id: 'trl_quartermaster', type: 'Kargo', brand: 'mil', model: 'Quartermaster', mass: 22, capacity: 22, hidden: 0, power_draw: 10, armor: 2, slots: [{ size: 'S1', mount: 'Dış' }, { size: 'S1', mount: 'İç' }], rooms: ['Ambar', 'Levazım odası'], legality: 'Lisanslı', price: 26000, special: 'Askerî levazım dorsesi; ikmal +1', size: 'T1', mobility_penalty: 5, noncanon: true },
+] as unknown as TrailerDef[];
 const UP: Record<string, string> = { S1: 'S2', S2: 'S3', S3: 'S3' };
 /** Bir T1 dorse modelinin büyük boyutu: aynı marka/model/tip/odalar; kütle ve kapasite Tablo 8.1 çarpanıyla, yuvalar 8.1 aralığında. */
 export function sized(t: TrailerDef, size: 'T2' | 'T3' | 'T4'): TrailerDef {
@@ -31,9 +40,10 @@ export function sized(t: TrailerDef, size: 'T2' | 'T3' | 'T4'): TrailerDef {
   sl[0].size = UP[sl[0].size] ?? sl[0].size;                                   // T2+: ilk yuva bir boy büyür
   if (size !== 'T2') sl[0].size = 'S3';                                         // T3/T4: bir S3 yuva
   if (size === 'T4') sl = sl.map((x) => ({ ...x, size: x.size === 'S1' ? 'S2' : x.size }));  // T4: S2–S3
+  const two = size === 'T2' && TWO_T2.has(t.id), hm = two ? 1.3 : 1; // T2 iki katlı özel: daha ağır, daha pahalı
   const r = (x: number) => Math.round(x * m);
-  return { ...t, id: `${t.id}__${size.toLowerCase()}`, size, mass: r(t.mass), capacity: r(t.capacity), hidden: r(t.hidden), power_draw: Math.round(t.power_draw * (1 + (m - 1) * 0.6)),
-    armor: t.armor ? t.armor + n : 0, slots: sl, price: (t as TrailerDef & { price?: number }).price ? Math.round((t as TrailerDef & { price: number }).price * m * 1.3) : null, mobility_penalty: size === 'T2' ? 6 : size === 'T3' ? 8 : 10, base: t.id } as unknown as TrailerDef;
+  return { ...t, id: `${t.id}__${size.toLowerCase()}`, size, mass: Math.round(t.mass * m * hm), capacity: r(t.capacity), hidden: r(t.hidden), power_draw: Math.round(t.power_draw * (1 + (m - 1) * 0.6)),
+    armor: t.armor ? t.armor + n : 0, slots: sl, price: (t as TrailerDef & { price?: number }).price ? Math.round((t as TrailerDef & { price: number }).price * m * 1.3 * (two ? 1.4 : 1)) : null, special: two ? `${t.special}; iki katlı özel yapım` : t.special, mobility_penalty: size === 'T2' ? 6 : size === 'T3' ? 8 : 10, base: t.id } as unknown as TrailerDef;
 }
 /** Tablo 4 "Tır yuva düzeni" metninden tır yuvaları. Anahtarlar kademeler arasında korunur (T1 → T2 geçişte takılı parçalar yerinde kalır). */
 export function truckSlots(rule: string, eng: string) {
