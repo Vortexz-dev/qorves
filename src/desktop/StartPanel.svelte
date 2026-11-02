@@ -5,9 +5,14 @@
   import { sfx } from '../lib/sfx';
   import { visibleApps } from './apps';
   import { ICONS } from './icons';
-  import { wm, openApp, resetWM } from './wm.svelte';
+  import { wm, openApp, resetWM, recent, loadRecent } from './wm.svelte';
   const u = session.user!;
   const race = RACES.find((r) => r.id === u.character?.race)?.label;
+  loadRecent();
+  const DEF = ['gods', 'ship', 'logbook', 'starmap'];
+  let all = $state(false);
+  const vis = $derived(visibleApps(u));
+  const top = $derived([...recent.ids, ...DEF, ...vis.map((a) => a.id)].filter((id, i, arr) => arr.indexOf(id) === i).map((id) => vis.find((a) => a.id === id)).filter((a) => !!a).slice(0, 4));
   function out(fn: () => void) { sfx.close(); resetWM(); fn(); }
 </script>
 
@@ -16,14 +21,20 @@
     <img src={u.avatar} alt="" />
     <div><b>{u.username}</b><span class="mono">{u.role === 'dm' ? 'DUNGEON MASTER · TAM ERİŞİM' : `${u.character?.name ?? ''}${race ? ' · ' + race : ''}`}</span></div>
   </div>
-  <div class="sec mono">UYGULAMALAR</div>
+  <div class="sec mono">SON KULLANILANLAR</div>
   <div class="apps">
-    {#each visibleApps(u) as a}
+    {#each top as a (a.id)}
       <button class="app" class:core={a.core} onclick={() => openApp(a.id)} onmouseenter={() => sfx.hover()}>
         <span class="ic">{@html ICONS[a.icon]}</span>{a.title}{#if a.core}<i class="mono">ÇEKİRDEK</i>{/if}
       </button>
     {/each}
   </div>
+  <button class="more mono" onclick={() => { all = !all; sfx.click(); }}>{all ? 'TÜM UYGULAMALARI GİZLE ▾' : 'TÜM UYGULAMALAR ▸'}</button>
+  {#if all}<div class="apps all">
+    {#each vis as a (a.id)}
+      <button class="app sm" onclick={() => openApp(a.id)} onmouseenter={() => sfx.hover()}><span class="ic">{@html ICONS[a.icon]}</span>{a.title}</button>
+    {/each}
+  </div>{/if}
   <div class="sec mono">AYARLAR</div>
   <label class="tg clickable"><input type="checkbox" bind:checked={settings.scanlines} onchange={saveSettings} /> Tarama çizgileri</label>
   <label class="tg clickable"><input type="checkbox" bind:checked={settings.reduceMotion} onchange={saveSettings} /> Animasyonları azalt</label>
@@ -34,7 +45,7 @@
 </div>
 
 <style>
-  .sp{position:absolute;left:8px;bottom:56px;width:340px;z-index:9001;padding:18px;display:flex;flex-direction:column;gap:10px;
+  .sp{position:absolute;left:8px;bottom:56px;width:340px;max-height:calc(100vh - 72px);overflow:hidden;z-index:9001;padding:18px;display:flex;flex-direction:column;gap:10px;
     background:rgba(8,11,19,.94);backdrop-filter:blur(14px);border:1px solid rgba(0,240,255,.35);
     clip-path:polygon(0 0,calc(100% - 22px) 0,100% 22px,100% 100%,0 100%);animation:sp .22s cubic-bezier(.2,.9,.2,1) both;box-shadow:0 0 40px rgba(0,0,0,.6)}
   .sp::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(var(--ye),var(--rd))}
@@ -43,7 +54,10 @@
   .me img{width:56px;height:56px;object-fit:cover;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
   .me b{display:block;font-size:18px;color:var(--ye);letter-spacing:.06em}.me span{font-size:11px;color:var(--mut);letter-spacing:.1em}
   .sec{font-size:10.5px;letter-spacing:.3em;color:var(--cy);margin-top:4px}
-  .apps{display:flex;flex-direction:column;gap:2px}
+  .apps{display:flex;flex-direction:column;gap:2px;flex:none}.apps.all{flex:1 1 auto;min-height:60px;overflow-y:auto;border:1px solid var(--line);padding:4px}
+  .app.sm{padding:5px 10px;font-size:14px}.app.sm .ic{width:20px;height:20px}
+  .more{align-self:flex-start;background:none;border:none;color:var(--mut);font-size:10.5px;letter-spacing:.22em;padding:2px 10px;cursor:pointer}.more:hover{color:var(--cy)}
+  .me,.sec,.tg,.foot{flex:none}
   .app{display:flex;align-items:center;gap:12px;padding:7px 10px;background:none;border:1px solid transparent;color:var(--tx);font-family:var(--f-ui);font-size:15px;font-weight:600;text-align:left}
   .app:hover{background:rgba(0,240,255,.08);border-color:rgba(0,240,255,.3)}
   .app .ic{width:26px;height:26px}.app .ic :global(svg){width:100%;height:100%}

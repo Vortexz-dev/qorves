@@ -196,12 +196,22 @@ export function watchDrops(uid: string, cb: (items: DeskItem[]) => void) {
   if (!LIVE) return off;
   return onSnapshot(query(collection(db, 'users', uid, 'items'), where('from', '==', 'dm')), (s) => cb(s.docs.map((d) => d.data() as DeskItem)), () => {});
 }
-/** DM'in yüklediği görsel (base64 veri adresi) — users/{uid}/media; öğe src'si 'media:<id>'. */
-export async function putMedia(uid: string, data: string) { const id = nid(); await setDoc(doc(db, 'users', uid, 'media', id), { d: data, at: now() }); return 'media:' + id; }
-const mcache = new Map<string, string>();
-export async function mediaUrl(uid: string, src: string) {
-  if (!src.startsWith('media:')) return src; const k = uid + '/' + src; if (mcache.has(k)) return mcache.get(k)!;
-  const s = await getDoc(doc(db, 'users', uid, 'media', src.slice(6))).catch(() => null); const v = (s?.exists() ? (s.data().d as string) : '') || ''; mcache.set(k, v); return v;
+/** Kullanıcı masaüstü görseli (base64 veri adresi) — users/{uid}/media. 1 MB doküman sınırı için parçalı:
+ *  ilk parça <id>, sonrakiler <id>~1, <id>~2…; öğe src'si 'media:<id>' (tek parça) ya da 'media:<id>~<n>' (n parça). */
+const MCH = 900_000;
+export async function putMedia(uid: string, data: string) {
+  const id = nid(), n = Math.max(1, Math.ceil(data.length / MCH)), b = writeBatch(db), at = now();
+  for (let k = 0; k < n; k++) b.set(doc(db, 'users', uid, 'media', k ? `${id}~${k}` : id), { d: data.slice(k * MCH, (k + 1) * MCH), at });
+  await b.commit(); return 'media:' + id + (n > 1 ? '~' + n : '');
+}
+const mcache = new Map<string, Promise<string>>();
+export function mediaUrl(uid: string, src: string): Promise<string> {
+  if (!src.startsWith('media:')) return Promise.resolve(src); const k = uid + '/' + src; const c = mcache.get(k); if (c) return c;
+  const [id, ns] = src.slice(6).split('~'), n = Math.max(1, Number(ns) || 1);
+  const p = Promise.all(Array.from({ length: n }, (_, i) => getDoc(doc(db, 'users', uid, 'media', i ? `${id}~${i}` : id)).then((s) => (s.exists() ? (s.data().d as string) : null))))
+    .then((parts) => (parts.every((x) => typeof x === 'string') ? parts.join('') : ''))
+    .catch(() => '');
+  p.then((v) => { if (!v) mcache.delete(k); }); mcache.set(k, p); return p;
 }
 
 // ---------- zar düellosu (bota karşı bahisli zar) ----------

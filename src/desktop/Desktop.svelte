@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { media } from '../lib/media.svelte';
   import { autoSel } from '../lib/portal';
   import { onMount } from 'svelte';
   import { session } from '../lib/session.svelte';
@@ -165,7 +166,7 @@
           data-folder={o.kind === 'folder' ? o.k.slice(3) : undefined}
           onpointerdown={(e) => down(e, o.k)} onpointermove={(e) => move(e, o.k)} onpointerup={(e) => up(e, o.k)} oncontextmenu={(e) => { sel = o.k; ctx(e, o.k); }}
           ondblclick={() => ren !== o.k && openKey(o.k)} onkeydown={(e) => { if (ren === o.k) return; if (e.key === 'Enter') openKey(o.k); if (e.key === 'F2') ren = o.k; if (e.key === 'Delete') delKey(o.k); }} onmouseenter={() => sfx.hover()}>
-          {#if o.kind === 'image'}<span class="th" data-nolb><img src={o.src} alt="" draggable="false" /></span>{:else}<span class="ic">{@html ICONS[o.kind]}</span>{/if}
+          {#if o.kind === 'image'}<span class="th" data-nolb><img src={media(o.src)} alt="" draggable="false" /></span>{:else}<span class="ic">{@html ICONS[o.kind]}</span>{/if}
           {#if ren === o.k}
             <!-- svelte-ignore a11y_autofocus -->
             <input class="rn" value={o.name} use:autoSel onpointerdown={(e) => e.stopPropagation()} ondblclick={(e) => e.stopPropagation()}

@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { part, slots as allSlots, type ShipDoc, type Addon, type TrailerDef, type Engine, type Core } from './sys';
+import { gearStyle, type GearStyle } from './plan';
 
 const VS = `varying vec3 vN; varying vec3 vV; varying vec3 vW;
 void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix * viewMatrix * w; }`;
@@ -90,6 +91,22 @@ export class ShipHolo {
   }
   private cyl(r: number, len: number, seg = 20) { const g = new THREE.CylinderGeometry(r, r, len, seg, 1); g.rotateZ(Math.PI / 2); return g; }
   // ---------- kabin (uzun burunlu çekici) ----------
+  /** İniş takımı ayağı (tekerlek yok): gövdeden yere hidrolik dikme + piston + payanda + markaya göre ayak tabanı. */
+  private gear(g: THREE.Object3D, L: THREE.ShaderMaterial[], C: THREE.Color, x: number, z: number, top: number, style: GearStyle) {
+    const W = new THREE.Color('#d8fbff'), out = Math.sign(z) || 1, heavy = style === 'heavy', k = heavy ? 1.3 : style === 'sleek' ? 0.8 : 1;
+    const box = (w: number, h: number, d: number, px: number, py: number, pz: number, c = C, a = 1, e = true) => { const m = this.add(new THREE.BoxGeometry(w, h, d), g, c, L, a, e); m.position.set(px, py, pz); return m; };
+    const cylY = (r0: number, r1: number, h: number, px: number, py: number, pz: number, c = C, seg = 10, a = 1) => { const m = this.add(new THREE.CylinderGeometry(r0, r1, h, seg), g, c, L, a, false); m.position.set(px, py, pz); return m; };
+    const zf = z + out * 0.35; // ayak hafif dışa açık
+    box(1.1 * k, 0.7, 1 * k, x, top - 0.35, z); // ayak yuvası
+    const sl = top - 0.7 - 0.55; // dikme boyu
+    const st = cylY(0.24 * k, 0.24 * k, sl, x, top - 0.7 - sl / 2, (z + zf) / 2); st.rotation.x = -out * 0.12;
+    cylY(0.13 * k, 0.13 * k, 0.9, x, 0.75, zf, W); // parlak piston
+    const br = box(0.12, Math.max(0.6, top - 1.2), 0.12, x, (top - 0.4) / 2 + 0.4, z - out * 0.55, C, 0.9, false); br.rotation.x = out * 0.45; // payanda
+    if (heavy) { const st2 = cylY(0.2, 0.2, sl, x + 0.7, top - 0.7 - sl / 2, (z + zf) / 2); st2.rotation.x = -out * 0.12; box(2.1, 0.32, 1.5, x + 0.35, 0.16, zf); box(2.1, 0.08, 1.6, x + 0.35, 0.36, zf, W, 0.7, false); }
+    else if (style === 'sleek') { cylY(0.62, 0.7, 0.14, x, 0.07, zf, C, 20); this.glow(g, x, 0.25, zf, 0.9, '#5ff0ff', 0.6); }
+    else if (style === 'scrap') { const pd = box(1.3, 0.26, 0.9, x + 0.15, 0.13, zf, new THREE.Color('#c8a070')); pd.rotation.y = 0.35; box(0.5, 0.5, 0.12, x - 0.2, 1.6, z + out * 0.3, new THREE.Color('#9dff6a'), 0.6, false); } // yamalı plaka
+    else { cylY(0.8, 0.9, 0.22, x, 0.11, zf, C, 6); cylY(0.35, 0.35, 0.1, x, 0.27, zf, new THREE.Color('#ffb547'), 6, 0.8); } // altıgen taban, rün halkası
+  }
   private buildCab() {
     const g = new THREE.Group(), L: THREE.ShaderMaterial[] = [], C = CAB_COLOR;
     for (const z of [-2.2, 2.2]) { const r = this.add(new THREE.BoxGeometry(27, 0.9, 0.8), g, C, L); r.position.set(-0.5, 2, z); }
@@ -119,7 +136,8 @@ export class ShipHolo {
       this.glow(g, -21.6, 2.4, z, 9, '#ff9a3c', 0.9); this.glow(g, -21, 2.4, z, 4, '#fff1d0', 0.9);
     }
     const core = this.add(new THREE.BoxGeometry(3.2, 3.2, 3.4), g, new THREE.Color('#ffb547'), L); core.position.set(-9.9, 4.5, 0); this.glow(g, -9.9, 4.5, 0, 6, '#ff9a3c', 0.35);
-    const fw = this.add(new THREE.CylinderGeometry(1.8, 1.8, 0.4, 24), g, C, L); fw.position.set(-14, 3.2, 0); // beşinci teker (bağlantı tablası)
+    const fw = this.add(new THREE.CylinderGeometry(1.8, 1.8, 0.4, 24), g, C, L); fw.position.set(-14, 3.2, 0); // dorse kenetleme tablası
+    for (const gx of [10, -3.5]) for (const gz of [-2.6, 2.6]) this.gear(g, L, C, gx, gz, 1.7, 'craft'); // Gnistborn iniş takımları (ön/arka)
     this.shipGroup.add(g);
     const hit = new THREE.Mesh(new THREE.BoxGeometry(36, 15, 13), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(-3.5, 7, 0); g.add(hit);
     this.mods.push({ id: 'cab', group: g, inner: new THREE.Group(), hit, center: new THREE.Vector3(-2, 7, 0), mats: L, rmats: [], len: 36 });
@@ -156,12 +174,11 @@ export class ShipHolo {
     const g = new THREE.Group(), L: THREE.ShaderMaterial[] = [], C = TR_COLOR.clone().lerp(new THREE.Color(BRAND_TINT[d.brand] ?? '#5fd0ff'), 0.45), x0 = x1 - TLz, cx = (x0 + x1) / 2, Y = 4.2, W = new THREE.Color('#d8fbff'), WIN = new THREE.Color('#9ff6ff');
     const B = (w: number, h: number, dd: number, x: number, y: number, zz: number, c = C, a = 1, e = true) => { const m = this.add(new THREE.BoxGeometry(w, h, dd), g, c, L, a, e); m.position.set(x, y, zz); return m; };
     const hw = WD / 2;
-    // şasi: kirişler, şah pimi, ayaklar, akslar (boyla artar)
+    // şasi: kirişler, kenetleme pimi, iniş takımları (boyla çoğalır, markaya göre biçim)
     for (const zz of [-hw * 0.55, hw * 0.55]) B(TLz, 0.8, 0.7, cx, 3.8, zz, C, 1, false);
     B(3, 0.4, WD * 0.6, x1 - 1.5, 3.6, 0, C, 1, false);
-    for (const zz of [-hw * 0.7, hw * 0.7]) B(0.35, 3.4, 0.35, x1 - 5, 1.9, zz, C, 1, false);
-    const axles = z === 'T1' ? 2 : z === 'T2' ? 3 : z === 'T3' ? 4 : 5;
-    for (let j = 0; j < axles; j++) for (const zz of [-hw * 0.82, hw * 0.82]) { const wh = this.add(new THREE.CylinderGeometry(1.25, 1.25, 1.1, 18).rotateX(Math.PI / 2), g, C, L, 0.8); wh.position.set(x0 + 3 + j * 3.1, 1.25, zz); }
+    const legs = z === 'T1' ? 2 : z === 'T2' ? 3 : z === 'T3' ? 4 : 5, gs = gearStyle(d.brand);
+    for (let j = 0; j < legs; j++) for (const zz of [-hw * 0.62, hw * 0.62]) this.gear(g, L, C, x0 + 3 + ((TLz - 8) * j) / (legs - 1), zz, 3.4, gs);
     const ty = d.type, br = d.brand; let top = Y + 8.6 * HM;
     const H = (base: number) => base * HM;
     const ribs = (h: number, n: number, c = C, a = 0.6) => { for (let j = 1; j < n; j++) for (const zz of [-hw - 0.02, hw + 0.02]) B(0.12, h - 0.4, 0.06, x0 + (TLz / n) * j, Y + h / 2, zz, c, a, false); };

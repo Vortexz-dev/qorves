@@ -5,8 +5,16 @@ import { roomArt, corArt } from './art';
 export type RoomKind = 'cockpit' | 'lounge' | 'bunk' | 'wc' | 'hold' | 'engine' | 'core' | 'corridor' | 'cabin' | 'commons' | 'galley' | 'pantry' | 'turret' | 'armory' | 'server' | 'netrun' | 'studio' | 'desk' | 'meeting' | 'tank' | 'medbay' | 'cryo' | 'dig' | 'ore' | 'salvage' | 'scrap' | 'hidden' | 'fakewall' | 'bridge2' | 'hangar' | 'maint' | 'lab' | 'samples' | 'ramp' | 'armorlock';
 export interface Room { id: string; name: string; f: number; x: number; y: number; w: number; h: number; owner: string; kind: RoomKind; img?: string; hold?: string; dashed?: boolean; walk?: boolean; lx?: number }
 export interface Door { x: number; y: number; f: number; v: boolean; w: number; kind: 'door' | 'hatch' | 'ramp' | 'armored' | 'secret' }
-export interface Mech { x: number; y: number; w: number; h: number; f: number; kind: 'axle' | 'locker' | 'tank' | 'roof'; label?: string }
-export interface Hull { owner: string; f: number; x: number; y: number; w: number; h: number; label: string; nose?: boolean }
+export interface Mech { x: number; y: number; w: number; h: number; f: number; kind: 'gear' | 'locker' | 'tank' | 'roof'; label?: string }
+export interface Hull { owner: string; f: number; x: number; y: number; w: number; h: number; label: string; nose?: boolean; gear?: GearStyle }
+export type GearStyle = 'craft' | 'heavy' | 'sleek' | 'scrap';
+/** İniş takımı biçimi markaya göre: zanaat (Gnistborn vb.), ağır (döküm/askerî), ince (kurumsal/medikal), derme çatma (hurdacı/kaçakçı). */
+export function gearStyle(brand: string): GearStyle {
+  if (/^(kz|ic|dk|mil|pc)/.test(brand)) return 'heavy';
+  if (/^(ara|emt|hd|vm)/.test(brand)) return 'sleek';
+  if (/^(kk|gh|sr)/.test(brand)) return 'scrap';
+  return 'craft';
+}
 export interface SlotPin { key: string; f: number; x: number; y: number; slot: Slot }
 export interface Plan { floors: string[]; hulls: Hull[]; rooms: Room[]; doors: Door[]; mechs: Mech[]; stairs: { x: number; y: number; w: number; h: number }[]; couplings: { x: number; y: number; w: number; h: number }[]; pins: SlotPin[]; bounds: { x0: number; x1: number; y0: number; y1: number } }
 
@@ -36,12 +44,12 @@ export function layout(doc: ShipDoc): Plan {
   const P: Plan = { floors: FLOORS, hulls: [], rooms: [], doors: [], mechs: [], stairs: [], couplings: [], pins: [], bounds: { x0: 0, x1: 18, y0: 0, y1: W } };
   const R = (o: Omit<Room, 'kind' | 'img'> & { kind?: RoomKind; img?: string }) => { const k = kindOf(o.name); P.rooms.push({ kind: o.kind ?? k.kind, img: o.img ?? k.img, walk: true, ...o } as Room); };
   // ---- tır: alt güverte
-  P.hulls.push({ owner: 'truck', f: 0, x: 0, y: 0, w: 18, h: W, label: 'TIR · ALT GÜVERTE', nose: true }, { owner: 'truck', f: 1, x: 2.4, y: 0, w: 15.6, h: W, label: 'TIR · ÜST GÜVERTE', nose: true });
+  P.hulls.push({ owner: 'truck', f: 0, x: 0, y: 0, w: 18, h: W, label: 'TIR · ALT GÜVERTE', nose: true, gear: 'craft' }, { owner: 'truck', f: 1, x: 2.4, y: 0, w: 15.6, h: W, label: 'TIR · ÜST GÜVERTE', nose: true });
   R({ id: 'cab_cor', name: 'Servis koridoru', f: 0, x: IN, y: IN, w: 14.6, h: CY - IN, owner: 'truck', kind: 'corridor', img: undefined, lx: 8.75 });
   R({ id: 'cab_eng', name: 'Motor bölmesi', f: 0, x: IN, y: CY, w: 5.2, h: BOT - CY, owner: 'truck' });
   R({ id: 'cab_core', name: 'Çekirdek odası', f: 0, x: 5.6, y: CY, w: 4.6, h: BOT - CY, owner: 'truck' });
   R({ id: 'cab_hold', name: 'Kabin ambarı', f: 0, x: 10.2, y: CY, w: 4.8, h: BOT - CY, owner: 'truck', hold: 'cab' });
-  P.mechs.push({ f: 0, x: 15, y: IN, w: 2.6, h: BOT - IN, kind: 'axle', label: 'Ön aks' });
+  P.mechs.push({ f: 0, x: 15, y: IN, w: 2.6, h: BOT - IN, kind: 'gear', label: 'Ön iniş takımı' });
   P.doors.push({ f: 0, x: 3, y: CY, v: false, w: 1, kind: 'door' }, { f: 0, x: 9.4, y: CY, v: false, w: 1, kind: 'door' }, { f: 0, x: 12.6, y: CY, v: false, w: 1.4, kind: 'door' }, { f: 0, x: IN, y: 1.1, v: true, w: 1, kind: 'hatch' });
   // ---- tır: üst güverte
   R({ id: 'cab_ckp', name: 'Kokpit', f: 1, x: 13.6, y: IN, w: 4, h: BOT - IN, owner: 'truck' });
@@ -67,7 +75,7 @@ export function layout(doc: ShipDoc): Plan {
     const x1 = xr - GAP, x0 = x1 - TL; xr = x0;
     P.couplings.push({ x: x1, y: 0.55, w: GAP, h: 1.1 });
     const nm = `DORSE ${i + 1} · ${d.model.toLocaleUpperCase('tr')}${d.size !== 'T1' ? ' · ' + d.size : ''}`;
-    P.hulls.push({ owner: t.k, f: 0, x: x0, y: 0, w: TL, h: Wt, label: nm + (two ? ' · ALT' : '') });
+    P.hulls.push({ owner: t.k, f: 0, x: x0, y: 0, w: TL, h: Wt, label: nm + (two ? ' · ALT' : ''), gear: gearStyle(d.brand) });
     P.doors.push({ f: 0, x: x1 - IN, y: 1.1, v: true, w: 1, kind: 'hatch' });
     const rs = d.rooms.map((n) => ({ n, ...kindOf(n) }));
     const ix0 = x0 + IN, ix1 = x1 - IN;

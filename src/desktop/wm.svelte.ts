@@ -1,11 +1,17 @@
 import { appById } from './apps';
 import { sfx } from '../lib/sfx';
+import { session } from '../lib/session.svelte';
 export interface Win { id: number; app: string; x: number; y: number; w: number; h: number; z: number; min: boolean; max: boolean; closing?: boolean; arg?: string; title?: string }
 export const wm = $state<{ wins: Win[]; core: string | null; coreClosing: boolean; coreMin: boolean; z: number; focus: number; start: boolean }>(
   { wins: [], core: null, coreClosing: false, coreMin: false, z: 10, focus: -1, start: false });
 let seq = 1;
+// Başlat menüsü: kullanıcı başına son kullanılan uygulamalar (bu cihazda, localStorage)
+const RKEY = () => 'qv.recent.' + (session.user?.uid ?? '');
+export const recent = $state<{ ids: string[] }>({ ids: [] });
+export function loadRecent() { try { recent.ids = JSON.parse(localStorage.getItem(RKEY()) || '[]'); } catch { recent.ids = []; } }
+function touchRecent(id: string) { if (appById(id)?.hidden) return; recent.ids = [id, ...recent.ids.filter((x) => x !== id)].slice(0, 8); try { localStorage.setItem(RKEY(), JSON.stringify(recent.ids)); } catch { /* yer yok */ } }
 export function openApp(id: string, arg?: string) {
-  wm.start = false;
+  wm.start = false; touchRecent(id);
   const a = appById(id);
   if (a.core) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; wm.coreMin = false; sfx.open(); } else if (wm.coreMin) { wm.coreMin = false; sfx.open(); } return; } // çekirdek uygulamalar birbirinin yerine geçer
   // tek pencereli uygulamalar (ghOS-Net, DM Paneli): var olan pencere yeni hedefe geçer

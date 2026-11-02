@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { media } from '../lib/media.svelte';
   import { autoSel } from '../lib/portal';
   // Klasör gezgini: klasör içeriği, gezinti, sağ tık, yeniden adlandırma, sürükle-bırak.
   import { desk, createFolder, renameItem, moveTo, removeItem, pathOf, dropTarget } from '../lib/desk.svelte';
@@ -56,7 +57,7 @@
       <button class="it" class:sel={sel === r.key} class:ghost={dg?.on && dg.key === r.key} data-folder={r.kind === 'folder' ? r.key : undefined}
         onpointerdown={(e) => down(e, r)} onpointermove={move} onpointerup={up} ondblclick={() => open(r)} oncontextmenu={(e) => { sel = r.key; ctx(e, r); }}
         onkeydown={(e) => { if (e.key === 'Enter' && !ren) open(r); if (e.key === 'F2') ren = r.key; }}>
-        {#if r.kind === 'image'}<span class="th" data-nolb><img src={r.src} alt="" draggable="false" /></span>{:else}<span class="ic">{@html ICONS[r.kind === 'folder' ? 'folder' : 'note']}</span>{/if}
+        {#if r.kind === 'image'}<span class="th" data-nolb><img src={media(r.src)} alt="" draggable="false" /></span>{:else}<span class="ic">{@html ICONS[r.kind === 'folder' ? 'folder' : 'note']}</span>{/if}
         {#if ren === r.key}
           <!-- svelte-ignore a11y_autofocus -->
           <input class="rn" value={r.name} use:autoSel onpointerdown={(e) => e.stopPropagation()}

@@ -86,9 +86,11 @@
   async function shot() {
     if (!scene || busy) return; busy = true; sfx.key();
     try {
-      const c = capture(scene, inks, toks); let q = 0.88, url = c.toDataURL('image/webp', q);
-      while (url.length > 930_000 && q > 0.4) { q -= 0.12; url = c.toDataURL('image/webp', q); }
-      if (url.length > 930_000) { const s = document.createElement('canvas'); s.width = c.width / 2; s.height = c.height / 2; s.getContext('2d')!.drawImage(c, 0, 0, s.width, s.height); url = s.toDataURL('image/webp', 0.8); }
+      // Kalite: önce kayıpsız PNG; büyükse yüksek kaliteli WebP; çok büyük sahnede 3200 px'e indir. Veri parçalı kaydedilir (putMedia).
+      let c = capture(scene, inks, toks), url = c.toDataURL('image/png');
+      const MAX = 3_600_000; // ~2,7 MB görsel (base64 karakteri)
+      if (url.length > MAX && Math.max(c.width, c.height) > 3200) { const r = 3200 / Math.max(c.width, c.height), s2 = document.createElement('canvas'); s2.width = Math.round(c.width * r); s2.height = Math.round(c.height * r); const g2 = s2.getContext('2d')!; g2.imageSmoothingQuality = 'high'; g2.drawImage(c, 0, 0, s2.width, s2.height); c = s2; url = c.toDataURL('image/png'); }
+      for (const q of [0.95, 0.92, 0.88, 0.82]) { if (url.length <= MAX) break; url = c.toDataURL('image/webp', q); }
       flash = { src: url }; setTimeout(() => (flash = null), 1500);
       const d = new Date(), name = `${scene.name} · ${d.toLocaleDateString('tr-TR')} ${d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
       const src = await putMedia(me.uid, url); await saveImage(src, 'Ekran görüntüsü — ' + name);

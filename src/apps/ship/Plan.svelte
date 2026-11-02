@@ -29,6 +29,8 @@
   // ---- pan / zoom
   let pan: { x: number; y: number; vx: number; vy: number; moved: boolean } | null = null;
   const toWorld = (cx: number, cy: number) => { const r = box!.getBoundingClientRect(); return { x: (cx - r.left - view.x) / view.s, y: (cy - r.top - view.y) / view.s }; };
+  /** İniş takımı ayaklarının x konumları: tırda ön/arka, dorsede boya göre 2–3 çift. */
+  function gearXs(h: { x: number; w: number; nose?: boolean }) { const n = Math.max(2, Math.round(h.w / 10)); const fr = h.nose ? [0.17, 0.86] : Array.from({ length: n }, (_, k) => (k + 0.5) / n); return fr.map((f) => h.x + h.w * f); }
   function wheel(e: WheelEvent) { e.preventDefault(); const r = box!.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top; const ns = Math.max(12, Math.min(120, view.s * (e.deltaY < 0 ? 1.12 : 1 / 1.12))); view = { s: ns, x: mx - ((mx - view.x) * ns) / view.s, y: my - ((my - view.y) * ns) / view.s }; }
   function down(e: PointerEvent) { if (e.button !== 0 || drag) return; pan = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false }; }
   let lastSend = 0, sendT = 0;
@@ -96,8 +98,17 @@
       {#each P.couplings as c, i (i)}{#if floor === 0}<g class="cpl"><rect x={c.x} y={c.y} width={c.w} height={c.h} />{#each Array(9) as _, j (j)}<line x1={c.x + 0.12 + j * (c.w - 0.24) / 8} y1={c.y} x2={c.x + 0.12 + j * (c.w - 0.24) / 8} y2={c.y + c.h} />{/each}</g><rect class="drawbar" x={c.x - 0.2} y="2.6" width={c.w + 0.4} height="0.8" rx="0.2" />{/if}{/each}
       {#if floor === 0}
         {#each P.hulls.filter((h) => h.f === 0) as h (h.owner)}
-          {#each (h.nose ? [2.6, 4.2, 15.6] : [h.x + 1.5, h.x + 3.1, h.x + 4.7]).map((x) => (h.nose ? h.x + x : x)) as ax (ax)}
-            {#each [-0.32, h.h - 0.08] as ty (ty)}<g class="tyre"><rect x={ax - 0.62} y={h.y + ty} width="1.24" height="0.4" rx="0.12" />{#each [0, 1, 2, 3, 4] as k (k)}<line x1={ax - 0.48 + k * 0.24} y1={h.y + ty + 0.05} x2={ax - 0.48 + k * 0.24} y2={h.y + ty + 0.35} />{/each}</g>{/each}
+          {#each gearXs(h) as ax (ax)}
+            {#each [-1, 1] as dir (dir)}{@const ey = dir < 0 ? h.y : h.y + h.h}{@const py = ey + dir * 0.34}
+              <g class="gear {h.gear ?? 'craft'}">
+                <rect class="gbay" x={ax - 0.6} y={dir < 0 ? ey + 0.04 : ey - 0.36} width="1.2" height="0.32" rx="0.06" />
+                <line x1={ax - 0.42} y1={ey} x2={ax} y2={py} /><line x1={ax + 0.42} y1={ey} x2={ax} y2={py} /><line class="pis" x1={ax} y1={ey} x2={ax} y2={py} />
+                {#if h.gear === 'heavy'}<rect class="pad" x={ax - 0.5} y={py - 0.12} width="1" height="0.24" rx="0.04" />
+                {:else if h.gear === 'sleek'}<circle class="pad" cx={ax} cy={py} r="0.2" /><circle class="pgl" cx={ax} cy={py} r="0.07" />
+                {:else if h.gear === 'scrap'}<rect class="pad" x={ax - 0.34} y={py - 0.13} width="0.7" height="0.26" rx="0.03" transform="rotate({dir * 7} {ax} {py})" /><circle class="pgl" cx={ax + 0.22} cy={py} r="0.05" />
+                {:else}<path class="pad" d="M{ax - 0.3} {py} L{ax - 0.15} {py - 0.17} L{ax + 0.15} {py - 0.17} L{ax + 0.3} {py} L{ax + 0.15} {py + 0.17} L{ax - 0.15} {py + 0.17} Z" />{/if}
+              </g>
+            {/each}
           {/each}
           {#if h.nose}{#each [3.3, 4.7] as ny (ny)}<g class="noz"><circle cx={h.x - 1.3} cy={h.y + ny} r="0.75" fill="url(#g-glw)" /><path d="M{h.x + 0.05} {h.y + ny - 0.35} L{h.x - 0.75} {h.y + ny - 0.55} L{h.x - 0.75} {h.y + ny + 0.55} L{h.x + 0.05} {h.y + ny + 0.35} Z" /></g>{/each}{/if}
         {/each}
@@ -116,7 +127,7 @@
       {/each}
       {#each P.mechs.filter((m) => m.f === floor) as m, i (i)}
         {#if m.kind === 'tank'}<g class="tank"><rect x={m.x} y={m.y} width={m.w} height={m.h} rx={m.h / 2} fill="url(#g-tank)" />{#each Array(Math.floor(m.w / 2.2)) as _, j (j)}<line x1={m.x + 1.4 + j * 2.2} y1={m.y + 0.05} x2={m.x + 1.4 + j * 2.2} y2={m.y + m.h - 0.05} />{/each}<rect class="tband" x={m.x + m.w * 0.4} y={m.y} width="0.9" height={m.h} /><text x={m.x + m.w / 2} y={m.y + m.h / 2 + 0.12}>{m.label}</text></g>
-        {:else}<g class="mech {m.kind}"><rect x={m.x} y={m.y} width={m.w} height={m.h} rx="0.08" />{#if m.kind === 'axle'}<rect class="whl" x={m.x + 0.6} y={m.y - 0.05} width="1.4" height="0.5" rx="0.12" /><rect class="whl" x={m.x + 0.6} y={m.y + m.h - 0.45} width="1.4" height="0.5" rx="0.12" /><line x1={m.x + 1.3} y1={m.y + 0.45} x2={m.x + 1.3} y2={m.y + m.h - 0.45} />{/if}<text x={m.x + m.w / 2} y={m.y + m.h / 2 + 0.1}>{m.label}</text></g>{/if}
+        {:else}<g class="mech {m.kind}"><rect x={m.x} y={m.y} width={m.w} height={m.h} rx="0.08" />{#if m.kind === 'gear'}{#each [m.y + 0.5, m.y + m.h - 0.5] as gy (gy)}<rect class="strut" x={m.x + m.w / 2 - 0.55} y={gy - 0.22} width="1.1" height="0.44" rx="0.08" /><circle class="ram" cx={m.x + m.w / 2} cy={gy} r="0.14" />{/each}<line x1={m.x + m.w / 2} y1={m.y + 0.72} x2={m.x + m.w / 2} y2={m.y + m.h - 0.72} />{/if}<text x={m.x + m.w / 2} y={m.y + m.h / 2 + 0.1}>{m.label}</text></g>{/if}
       {/each}
       {#each P.rooms.filter((r) => r.f === floor) as r (r.id)}
         <g class="room {floorCls(r)}" class:dash={r.dashed} class:hv={hovR === r.id} class:clk={!!r.img} class:on={room?.id === r.id} transform="translate({r.x} {r.y})" onpointerenter={() => (hovR = r.id)} onpointerleave={() => (hovR = null)} onclick={() => { if (clickOk() && r.img) { room = r; sfx.click(); } }} role="button" tabindex="-1" onkeydown={() => {}}>
@@ -161,7 +172,7 @@
     <div class="fls">{#each FLOORS as name, i (i)}{@const f = FLOORS.length - 1 - i}<button class:on={floor === f} onclick={() => setFloor(f)}><span>{FLOORS[f]}</span>{#if onFloor(f)}<i>{onFloor(f)}</i>{/if}</button>{/each}</div>
     <button class="tg" class:on={grid} onclick={() => { grid = !grid; sfx.click(); }}>Izgara</button>
     <button class="tg" onclick={() => { fit(); sfx.click(); }}>Sığdır</button>
-    <span class="hint">Oda: fotoğraf · Jeton: sürükle, merdivene bırak = kat · Tekerlek: yakınlaş</span>
+    <span class="hint">Oda: fotoğraf · Jeton: sürükle, merdivene bırak = kat · Fare tekerleği: yakınlaş</span>
   </div>
 
   {#if room}
@@ -188,7 +199,7 @@
   .hlab{font-size:.34px;letter-spacing:.12px;fill:#7fb6c9;opacity:.85}
   .cpl rect{fill:#0d141c;stroke:#5d7b91;stroke-width:.06}.cpl line{stroke:#3b5161;stroke-width:.05}.drawbar{fill:#1a2430;stroke:#4f677a;stroke-width:.05}
   .tank rect:first-child{stroke:#9fb3c4;stroke-width:.06}.tank line{stroke:rgba(10,16,22,.6);stroke-width:.08}.tband{fill:#d2a020;opacity:.75}.tank text{font-size:.34px;fill:#e8f1f7;text-anchor:middle;stroke:#0a1118;stroke-width:.06}
-  .mech rect{fill:#0c131a;stroke:#33485a;stroke-width:.05}.mech.axle>rect:first-child{fill:url(#p-haz);opacity:.35}.mech .whl{fill:#141a20;stroke:#4d6070;opacity:1}.mech line{stroke:#4d6070;stroke-width:.12}.mech text{font-size:.26px;fill:#6c8596;text-anchor:middle}
+  .mech rect{fill:#0c131a;stroke:#33485a;stroke-width:.05}.mech.gear>rect:first-child{fill:url(#p-haz);opacity:.35}.mech .strut{fill:#141a20;stroke:#6a8496}.mech .ram{fill:#0c131a;stroke:#ffb547;stroke-width:.05}.mech line{stroke:#4d6070;stroke-width:.12}.mech text{font-size:.26px;fill:#6c8596;text-anchor:middle}
   .room .fl{stroke:none}.fl-svc .fl{fill:url(#p-svc)}.fl-liv .fl{fill:url(#p-liv)}.fl-ckp .fl{fill:url(#p-ckp)}.fl-wet .fl{fill:url(#p-wet)}.fl-cor .fl{fill:url(#p-cor)}
   .room .wall{fill:none;stroke:#9cb6c8;stroke-width:.14}.room.dash .wall{stroke-dasharray:.25 .15;stroke:#d2a020}
   .plan :global(svg *:focus),.plan :global(svg *:focus-visible){outline:none}
@@ -233,10 +244,10 @@
   .plan :global(.fx .binf){fill:#0e1319;stroke:none}.plan :global(.fx .oreg){fill:#ffb547;stroke:#fff1d0;stroke-width:.02}.plan :global(.fx .scrr){fill:#6a3d2a;stroke:#a5634a;stroke-width:.02}.plan :global(.fx .curt){stroke:#7fb6c9;stroke-width:.05;stroke-dasharray:.08 .05}.plan :global(.fx .sht){fill:#9fb9c9;stroke:none;opacity:.85}.plan :global(.fx .olamp){fill:rgba(255,241,200,.08);stroke:#fff1c8;stroke-width:.03;stroke-dasharray:.06 .06}.plan :global(.fx .gauge){fill:#141a20;stroke:#ffb547;stroke-width:.03}
   .plan :global(.fx .ore){fill:#6b5a46;stroke:#a88b62;stroke-width:.02}.plan :global(.fx .scrp){fill:#4d555c;stroke:#8a959e;stroke-width:.02}
   .plan :global(.fx .hid){stroke:rgba(210,160,32,.35);stroke-width:.03;stroke-dasharray:.1 .1}.plan :global(.fx .hatch){stroke:#d2a020;stroke-width:.04;opacity:.6}
-  .plan :global(.fx .pad){fill:none;stroke:#ffb547;stroke-width:.06;stroke-dasharray:.4 .2}.plan :global(.fx .veh){fill:#2a3542;stroke:#a3b7c7;stroke-width:.05}.plan :global(.fx .whl){fill:#0d1116;stroke:#5c6c79;stroke-width:.03}
+  .plan :global(.fx .pad){fill:none;stroke:#ffb547;stroke-width:.06;stroke-dasharray:.4 .2}.plan :global(.fx .veh){fill:#2a3542;stroke:#a3b7c7;stroke-width:.05}.plan :global(.fx .skid){fill:#0d1116;stroke:#7fa6bb;stroke-width:.03}.plan :global(.fx .skidp){fill:#0d1116;stroke:#ffb547;stroke-width:.03}
   .plan :global(.fx .tool){fill:#33404c;stroke:#93a9ba;stroke-width:.02}.plan :global(.fx .gls){fill:rgba(95,240,255,.15);stroke:#9fe8f5;stroke-width:.03}
   .plan :global(.fx .rmp){fill:#15191d;stroke:#d2a020;stroke-width:.04}.plan :global(.fx .chev){fill:none;stroke:#d2a020;stroke-width:.08}.plan :global(.fx .hz2){stroke:#ff5a6e;stroke-width:.12}
-  .tyre rect{fill:#07090c;stroke:#2f3b46;stroke-width:.04}.tyre line{stroke:#1c242c;stroke-width:.05}
+  .gear line{stroke:#5b7487;stroke-width:.07;stroke-linecap:round}.gear .pis{stroke:#9fd8ea;stroke-width:.12}.gear .gbay{fill:url(#p-haz);opacity:.45;stroke:#33485a;stroke-width:.03}.gear .pad{fill:#0e161d;stroke:#7fa6bb;stroke-width:.05}.gear.heavy .pad{stroke:#c98a5a;stroke-width:.07}.gear.heavy line{stroke-width:.11}.gear.sleek .pad{stroke:#9ff6ff}.gear .pgl{fill:#5ff0ff}.gear.scrap .pad{stroke:#8f7d62}.gear.scrap .pgl{fill:#ffb547}.gear.craft .pad{stroke:#ffb547}
   .noz path{fill:#1e2833;stroke:#8aa4b8;stroke-width:.05}.noz circle{opacity:.8}
   .hin{fill:none;stroke:rgba(140,170,190,.18);stroke-width:.03;stroke-dasharray:.6 .15}
   .rv{fill:#3d5466}.rl-a{fill:#ffb547;filter:url(#glow);animation:blink 2.6s ease-in-out infinite}.rl-c{fill:#bff8ff;filter:url(#glow)}
