@@ -85,6 +85,7 @@
       <pattern id="p-haz" width="0.5" height="0.5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="0.5" height="0.5" fill="#1a1406" /><rect width="0.25" height="0.5" fill="#d2a020" /></pattern>
       <radialGradient id="g-core"><stop offset="0" stop-color="#fff3d6" /><stop offset=".35" stop-color="#ffb547" /><stop offset="1" stop-color="#ff6a1a" stop-opacity="0" /></radialGradient>
       <radialGradient id="g-glw"><stop offset="0" stop-color="#ffe6b8" /><stop offset=".5" stop-color="#ff9a3c" stop-opacity=".7" /><stop offset="1" stop-color="#ff9a3c" stop-opacity="0" /></radialGradient>
+      <radialGradient id="g-lit"><stop offset="0" stop-color="#fff1d0" stop-opacity=".07" /><stop offset="1" stop-color="#fff1d0" stop-opacity="0" /></radialGradient>
       <radialGradient id="g-holo"><stop offset="0" stop-color="#5ff0ff" stop-opacity=".55" /><stop offset="1" stop-color="#5ff0ff" stop-opacity="0" /></radialGradient>
       <linearGradient id="g-tank" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a4c5c" /><stop offset=".45" stop-color="#7f97ab" /><stop offset="1" stop-color="#26323e" /></linearGradient>
       <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.12" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
@@ -93,11 +94,23 @@
       <!-- diğer güverte silik -->
       {#each P.hulls.filter((h) => h.f !== floor) as h (h.owner + h.f)}<rect class="ghost" x={h.x} y={h.y} width={h.w} height={h.h} rx="0.6" />{/each}
       {#each P.couplings as c, i (i)}{#if floor === 0}<g class="cpl"><rect x={c.x} y={c.y} width={c.w} height={c.h} />{#each Array(9) as _, j (j)}<line x1={c.x + 0.12 + j * (c.w - 0.24) / 8} y1={c.y} x2={c.x + 0.12 + j * (c.w - 0.24) / 8} y2={c.y + c.h} />{/each}</g><rect class="drawbar" x={c.x - 0.2} y="2.6" width={c.w + 0.4} height="0.8" rx="0.2" />{/if}{/each}
+      {#if floor === 0}
+        {#each P.hulls.filter((h) => h.f === 0) as h (h.owner)}
+          {#each (h.nose ? [2.6, 4.2, 15.6] : [h.x + 1.5, h.x + 3.1, h.x + 4.7]).map((x) => (h.nose ? h.x + x : x)) as ax (ax)}
+            {#each [-0.32, h.h - 0.08] as ty (ty)}<g class="tyre"><rect x={ax - 0.62} y={h.y + ty} width="1.24" height="0.4" rx="0.12" />{#each [0, 1, 2, 3, 4] as k (k)}<line x1={ax - 0.48 + k * 0.24} y1={h.y + ty + 0.05} x2={ax - 0.48 + k * 0.24} y2={h.y + ty + 0.35} />{/each}</g>{/each}
+          {/each}
+          {#if h.nose}{#each [3.3, 4.7] as ny (ny)}<g class="noz"><circle cx={h.x - 1.3} cy={h.y + ny} r="0.75" fill="url(#g-glw)" /><path d="M{h.x + 0.05} {h.y + ny - 0.35} L{h.x - 0.75} {h.y + ny - 0.55} L{h.x - 0.75} {h.y + ny + 0.55} L{h.x + 0.05} {h.y + ny + 0.35} Z" /></g>{/each}{/if}
+        {/each}
+      {/if}
       {#each P.hulls.filter((h) => h.f === floor) as h (h.owner + h.f)}
         <g class="hull">
           {#if h.nose}<path class="hl" d="M{h.x} {h.y + 0.3} Q{h.x} {h.y} {h.x + 0.3} {h.y} H{h.x + h.w - 1.6} Q{h.x + h.w + 0.2} {h.y} {h.x + h.w + 0.2} {h.y + 1.6} V{h.y + h.h - 1.6} Q{h.x + h.w + 0.2} {h.y + h.h} {h.x + h.w - 1.6} {h.y + h.h} H{h.x + 0.3} Q{h.x} {h.y + h.h} {h.x} {h.y + h.h - 0.3} Z" />
           {:else}<rect class="hl" x={h.x} y={h.y} width={h.w} height={h.h} rx="0.3" />{/if}
           {#if h.nose && floor === 1}<path class="wind" d="M{h.x + h.w - 1.2} {h.y + 0.35} Q{h.x + h.w + 0.05} {h.y + h.h / 2} {h.x + h.w - 1.2} {h.y + h.h - 0.35}" />{/if}
+          <rect class="hin" x={h.x + 0.16} y={h.y + 0.16} width={h.w - (h.nose ? 0.6 : 0.32)} height={h.h - 0.32} rx="0.2" />
+          {#each Array(Math.floor(h.w / 1.5)) as _, k (k)}<circle class="rv" cx={h.x + 0.75 + k * 1.5} cy={h.y + 0.08} r="0.035" /><circle class="rv" cx={h.x + 0.75 + k * 1.5} cy={h.y + h.h - 0.08} r="0.035" />{/each}
+          <circle class="rl-a" cx={h.x + 0.14} cy={h.y + 0.5} r="0.07" /><circle class="rl-a" cx={h.x + 0.14} cy={h.y + h.h - 0.5} r="0.07" />
+          {#if h.nose}<circle class="rl-c" cx={h.x + h.w - 0.2} cy={h.y + 1.3} r="0.09" /><circle class="rl-c" cx={h.x + h.w - 0.2} cy={h.y + h.h - 1.3} r="0.09" />{/if}
           <text class="hlab" x={h.x + 0.2} y={h.y - 0.66}>{h.label}</text>
         </g>
       {/each}
@@ -108,6 +121,7 @@
       {#each P.rooms.filter((r) => r.f === floor) as r (r.id)}
         <g class="room {floorCls(r)}" class:dash={r.dashed} class:hv={hovR === r.id} class:clk={!!r.img} transform="translate({r.x} {r.y})" onpointerenter={() => (hovR = r.id)} onpointerleave={() => (hovR = null)} onclick={() => { if (clickOk() && r.img) { room = r; sfx.click(); } }} role="button" tabindex="-1" onkeydown={() => {}}>
           <rect class="fl" width={r.w} height={r.h} />
+          {#if r.kind !== 'corridor' && r.kind !== 'tank' && r.kind !== 'fakewall'}<ellipse class="lit" cx={r.w / 2} cy={r.h / 2} rx={r.w * 0.45} ry={r.h * 0.45} />{/if}
           <g class="fx">{@html furn(r.kind, r.w, r.h, r.name)}</g>
           <rect class="wall" width={r.w} height={r.h} />
           {#if vert(r)}<text class="rl" transform="translate(0.42 {r.h - 0.2}) rotate(-90)">{r.name.toLocaleUpperCase('tr')}</text>{:else if r.kind !== 'corridor' || r.w > 6}<text class="rl" x={r.lx ?? 0.18} y="0.42">{r.name.toLocaleUpperCase('tr')}</text>{/if}
@@ -124,10 +138,10 @@
       {#if grid}<rect class="grid" x={P.bounds.x0 - 2} y="-2" width={P.bounds.x1 - P.bounds.x0 + 4} height={P.bounds.y1 + 4} fill="url(#pg)" />{/if}
       {#each P.pins.filter((p) => p.f === floor) as p (p.key)}
         {@const id = pinId(p.key)}
-        <g class="pin" class:full={!!id} class:sel={sel === p.key} transform="translate({p.x} {p.y})" onclick={(e) => { e.stopPropagation(); if (clickOk()) onpick(p.key); }} role="button" tabindex="-1" onkeydown={() => {}}>
+        {#key id}<g class="pin" class:full={!!id} class:sel={sel === p.key} transform="translate({p.x} {p.y})" onclick={(e) => { e.stopPropagation(); if (clickOk()) onpick(p.key); }} role="button" tabindex="-1" onkeydown={() => {}}>
           <title>{p.slot.label} · {p.slot.size} {p.slot.mount}: {id ? nameOf(id) : 'boş'}</title>
           <circle class="pr" r="0.46" /><circle class="pc" r="0.32" /><text y="0.11">{pinIcon(id)}</text>
-        </g>
+        </g>{/key}
       {/each}
       {#each toks as t (t.uid)}
         {@const q = tokPos(t)}
@@ -220,6 +234,17 @@
   .plan :global(.fx .pad){fill:none;stroke:#ffb547;stroke-width:.06;stroke-dasharray:.4 .2}.plan :global(.fx .veh){fill:#2a3542;stroke:#a3b7c7;stroke-width:.05}.plan :global(.fx .whl){fill:#0d1116;stroke:#5c6c79;stroke-width:.03}
   .plan :global(.fx .tool){fill:#33404c;stroke:#93a9ba;stroke-width:.02}.plan :global(.fx .gls){fill:rgba(95,240,255,.15);stroke:#9fe8f5;stroke-width:.03}
   .plan :global(.fx .rmp){fill:#15191d;stroke:#d2a020;stroke-width:.04}.plan :global(.fx .chev){fill:none;stroke:#d2a020;stroke-width:.08}.plan :global(.fx .hz2){stroke:#ff5a6e;stroke-width:.12}
+  .tyre rect{fill:#07090c;stroke:#2f3b46;stroke-width:.04}.tyre line{stroke:#1c242c;stroke-width:.05}
+  .noz path{fill:#1e2833;stroke:#8aa4b8;stroke-width:.05}.noz circle{opacity:.8}
+  .hin{fill:none;stroke:rgba(140,170,190,.18);stroke-width:.03;stroke-dasharray:.6 .15}
+  .rv{fill:#3d5466}.rl-a{fill:#ffb547;filter:url(#glow);animation:blink 2.6s ease-in-out infinite}.rl-c{fill:#bff8ff;filter:url(#glow)}
+  @keyframes blink{0%,100%{opacity:.35}50%{opacity:1}}
+  .lit{fill:url(#g-lit);pointer-events:none}
+  .pin.full .pr{animation:pop .6s ease-out}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.35);opacity:1}100%{transform:scale(1)}}
+  .fls button,.tg{position:relative;overflow:hidden;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+  .fls button::after,.tg::after{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.22) 50%,transparent 70%);transform:translateX(-110%)}
+  .fls button:hover::after,.tg:hover::after{transform:translateX(110%);transition:transform .55s ease-out}
   /* üst çubuk */
   .bar{position:absolute;left:50%;transform:translateX(-50%);bottom:18px;display:flex;gap:8px;align-items:center;padding:6px 8px;background:rgba(3,8,14,.85);border:1px solid rgba(0,240,255,.22);backdrop-filter:blur(4px)}
   .fls{display:flex;gap:2px}.fls button,.tg{font:inherit;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap;padding:6px 10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);color:#9fc6d4;cursor:pointer;transition:all .18s}

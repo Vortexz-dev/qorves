@@ -292,7 +292,7 @@ export class ShipHolo {
     this.hooks.select(p?.slot ?? (p?.mod && p.mod !== 'cab' ? 'trailer:' + p.mod : p?.mod === 'cab' ? null : null)); };
   private onVis = () => { if (!document.hidden && !this.raf) this.loop(); };
   replay() { this.reveal = -2; }
-  private resize() { const w = this.host.clientWidth || 1, h = this.host.clientHeight || 1; this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
+  private resize() { const w = this.host.clientWidth || 1, h = this.host.clientHeight || 1; this.renderer.setSize(w, h); this.renderer.domElement.style.display = "block"; this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
   paused = false;
   private loop = () => {
     if (document.hidden) { this.raf = 0; return; }

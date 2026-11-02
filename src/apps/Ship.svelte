@@ -62,7 +62,7 @@
     const op = opFor(id, sel); const p = part(id)!;
     if (!op) { const f = fitInfo(doc, id); sfx.error(); say(f.msg ?? 'Uygun yuva yok.', false); return; }
     const where = op.t === 'fit' ? allSl.find((s) => s.key === op.slot)?.label : op.t === 'attach' ? 'dorse bağlantısı' : op.t === 'engine' ? 'motor bölmesi' : 'çekirdek odası';
-    run(op, `${p.model} → ${where}`).then(() => { if (op.t === 'fit') pick(op.slot); else if (op.t === 'attach') pick(null); });
+    run(op, `${p.model} → ${where}`).then(() => { const k = op.t === 'fit' ? op.slot : op.t === 'engine' ? 'engine_mount' : op.t === 'core' ? 'core_mount' : 'hitch'; flash = k; setTimeout(() => flash === k && (flash = ''), 1100); if (op.t === 'fit') pick(op.slot); else if (op.t === 'attach') pick(null); });
   }
   const groups = $derived([
     { t: 'TIR · ' + chassisOf(doc).name.toLocaleUpperCase('tr'), k: '', rows: allSl.filter((s) => s.owner === 'truck') },
@@ -78,7 +78,9 @@
   const desc = (p: Part) => (p.k === 'addon' ? (p as Addon).effect : p.k === 'trailer' ? `${(p as TrailerDef).type} · ${(p as TrailerDef).special} · Odalar: ${(p as TrailerDef).rooms.join(', ')}` : (p as Engine).note ?? '');
   const icon = (p: Part) => CAT_ICON[p.k === 'addon' ? (p as Addon).cat : p.k] ?? '◇';
   const CATS = [['', 'Tümü'], ['Silah', 'Silah'], ['İtici', 'İtici'], ['Zırh', 'Zırh'], ['Kalkan', 'Kalkan'], ['Sensör', 'Sensör'], ['EW', 'EW'], ['Yardımcı', 'Yardımcı'], ['engine', 'Motor'], ['core', 'Çekirdek'], ['trailer', 'Dorse']];
-  let mode = $state<'3d' | '2d'>('3d'), xf = $state(0);
+  let mode = $state<'3d' | '2d'>('3d'), xf = $state(0), flash = $state(''), pulse = $state(0);
+  let lastRev = 0;
+  $effect(() => { const r = doc.rev; if (lastRev && r !== lastRev) { pulse++; } lastRev = r; });
   function setMode(m: '3d' | '2d') { if (m === mode || xf) return; xf = 1; sfx.glitch(); setTimeout(() => { mode = m; if (holo) holo.paused = m === '2d'; xf = 2; }, 230); setTimeout(() => (xf = 0), 560); }
   let tip = $state<{ m: string; x: number; y: number } | null>(null), root = $state<HTMLElement>();
   function showTip(e: MouseEvent, m: string) { const a = (e.currentTarget as HTMLElement).getBoundingClientRect(), b = root!.getBoundingClientRect(); tip = { m, x: a.right - b.left + 4, y: a.top - b.top - 8 }; }
@@ -112,7 +114,7 @@
       <div class="h mono"><span>{g.t}</span>{#if g.k}<button class="lnk" onclick={() => pick('trailer:' + g.k)}>DORSE ›</button>{/if}</div>
       {#each g.rows as s (s.key)}
         {@const id = fittedId(s)}
-        <button class="slot" class:on={sel === s.key} class:hv={hov === s.key} class:full={!!id} onclick={() => pick(s.key)} onmouseenter={() => (hov = s.key)} onmouseleave={() => (hov = null)}>
+        <button class="slot" class:on={sel === s.key} class:hv={hov === s.key} class:full={!!id} class:flash={flash === s.key} onclick={() => pick(s.key)} onmouseenter={() => (hov = s.key)} onmouseleave={() => (hov = null)}>
           <i class="dot"></i><span class="l">{s.label}<small class="mono">{s.mount === 'Motor' || s.mount === 'Çekirdek' ? s.size : s.size + ' · ' + s.mount}</small></span><span class="v">{id ? nameOf(id) : 'BOŞ'}</span>
         </button>
       {/each}
@@ -125,7 +127,7 @@
     <button class="ovw mono" onclick={() => pick(null)}>⌖ GENEL BAKIŞ</button>
   </aside>
 
-  <div class="stats"><Stats s={st} p={preview} /></div>
+  <div class="stats">{#key pulse}<i class="pz" class:go={pulse > 0}></i>{/key}<Stats s={st} p={preview} /></div>
 
   <!-- seçim kartı + tersane deposu -->
   <section class="dock" class:hide2d={mode === '2d' && !(selSlot || selTrailer || sel === 'hitch')}>
@@ -176,6 +178,24 @@
 </div>
 
 <style>
+  /* 3c: siberpunk etkileşim efektleri (yumuşak) */
+  .slot.flash{animation:sfl 1.1s ease-out}.slot.flash .dot{animation:dfl 1.1s ease-out}
+  @keyframes sfl{0%{background:rgba(57,255,138,.28);border-color:#39ff8a;box-shadow:0 0 18px rgba(57,255,138,.35)}100%{background:rgba(4,10,18,.72);box-shadow:none}}
+  @keyframes dfl{0%,40%{transform:scale(1.8);box-shadow:0 0 10px #39ff8a}100%{transform:none}}
+  .stats{position:absolute}.pz{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:0}
+  .pz.go{animation:pz .7s ease-out}
+  @keyframes pz{0%{opacity:1;box-shadow:inset 0 0 0 1px rgba(95,240,255,.8),0 0 22px rgba(95,240,255,.25);background:linear-gradient(180deg,rgba(95,240,255,.12),transparent 30%)}100%{opacity:0}}
+  .it::before{content:'';position:absolute;inset:-1px;pointer-events:none;opacity:0;transition:opacity .2s;background:
+    linear-gradient(var(--cy),var(--cy)) top left/10px 1px no-repeat,linear-gradient(var(--cy),var(--cy)) top left/1px 10px no-repeat,
+    linear-gradient(var(--cy),var(--cy)) bottom right/10px 1px no-repeat,linear-gradient(var(--cy),var(--cy)) bottom right/1px 10px no-repeat}
+  .it:hover:not(:disabled):not(.bad)::before{opacity:1;animation:brk .35s ease-out}
+  @keyframes brk{from{inset:-5px;opacity:0}to{inset:-1px;opacity:1}}
+  .it::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 30%,rgba(95,240,255,.12) 50%,transparent 70%);transform:translateX(-110%)}
+  .it:hover:not(:disabled):not(.bad)::after{transform:translateX(110%);transition:transform .6s ease-out}
+  .it:active:not(:disabled):not(.bad){transform:scale(.985)}
+  .ovw,.btn.cy{position:relative;overflow:hidden}.ovw:hover,.btn.cy:hover{animation:tgl .32s steps(2) 1}
+  @keyframes tgl{0%{text-shadow:-1.5px 0 rgba(255,42,85,.7),1.5px 0 rgba(95,240,255,.7)}50%{text-shadow:1px 0 rgba(255,42,85,.6),-1px 0 rgba(95,240,255,.6)}100%{text-shadow:none}}
+  .info:hover{box-shadow:0 0 12px rgba(95,240,255,.35)}
   .gl,.ov{transition:opacity .25s}.gl.off,.ov.off{opacity:0;pointer-events:none;visibility:hidden}
   .pl2{position:absolute;inset:0;transition:opacity .25s}.pl2.off{opacity:0;pointer-events:none;visibility:hidden}
   .sp .dock.hide2d,.sp.ready .dock.hide2d{opacity:0;pointer-events:none;transform:translateY(30px)}.dock{transition:opacity .25s,transform .35s}
