@@ -146,7 +146,7 @@
   });
 </script>
 
-<div class="desk" class:entered class:hidden={!!wm.core && !wm.coreClosing}>
+<div class="desk" class:entered class:hidden={!!wm.core && !wm.coreClosing && !wm.coreMin}>
   <Backdrop dim={0.05} />
   <div class="brand"><Logo size={22} glitch={false} /><span class="mono">KİŞİSEL TERMİNAL · {user.username.toUpperCase()}</span></div>
   <div class="area" data-desk role="presentation" onpointerdown={(e) => { menu = null; if (e.target === e.currentTarget) { sel = ''; wm.start = false; } }} oncontextmenu={(e) => ctx(e)}>
