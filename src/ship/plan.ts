@@ -56,6 +56,8 @@ export function layout(doc: ShipDoc): Plan {
   if (K !== 1) { const sc = (o: { x: number; y: number; w?: number; h?: number }) => { o.x *= K; o.y *= K; if (o.w !== undefined) o.w *= K; if (o.h !== undefined) o.h *= K; };
     P.hulls.forEach(sc); P.rooms.forEach((r) => { sc(r); if (r.lx) r.lx *= K; }); P.doors.forEach((d) => { d.x *= K; d.y *= K; d.w *= K; }); P.mechs.forEach(sc); P.stairs.forEach(sc); }
   for (const r of P.rooms) if (r.kind === 'corridor') r.img = corArt(r.id === 'cab_cor' ? 'servis-koridoru' : 'kabin-koridoru');
+  const pid = (id: string) => (id || '').replace(/^(eng|core|rx)_/, '');
+  for (const r of P.rooms) { if (r.id === 'cab_eng') r.img = corArt('motor--' + pid(doc.engine), r.img); if (r.id === 'cab_core') r.img = corArt('cekirdek--' + pid(doc.core), r.img); }
   // ---- dorseler: boyuta göre boy/en; T3–T4 iki katlı (üst kat: yaşam/iş odalarının ikinci sırası)
   let xr = 0, maxW = TW;
   doc.trailers.forEach((t, i) => {
