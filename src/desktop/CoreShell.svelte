@@ -22,7 +22,7 @@
 <div class={'core ' + id} class:closing={wm.coreClosing} class:min={wm.coreMin}>
   {#if intro}{#key id}<CoreIntro id={id as 'gods'} ondone={() => (go = true)} />{/key}{:else}<div class="fx"></div>{/if}
   <div class="stage">
-    {#if !intro || go}{#await mod then m}<m.default />{/await}{/if}
+    {#if !intro || go}{#await mod then m}<m.default />{:catch e}<div class="fail"><b>Uygulama açılamadı</b><span>Site az önce güncellenmiş olabilir. Sayfayı yenileyince düzelir.</span><small class="mono">{String((e as Error)?.message ?? e).slice(0, 140)}</small><div><button onclick={() => location.reload()}>Yenile</button><button onclick={() => closeCore()}>Masaüstüne dön</button></div></div>{/await}{/if}
   </div>
   <div class="top">
     <span class="t">{app.title}</span><span class="mono k">{gods ? 'CANLI · OTOMATİK KAYIT' : 'ESC · ÇIKIŞ'}</span>
@@ -44,6 +44,7 @@
   .m{width:40px;height:32px;display:grid;place-items:center;background:rgba(0,240,255,.08);border:1px solid rgba(0,240,255,.45);color:var(--cy)}.m svg{width:13px;height:13px}.m:hover{background:var(--cy);color:#04050a}
   .core.min{visibility:hidden;pointer-events:none;animation:none}
   .gods .k{color:#39ff8a}
+  .fail{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:10px;text-align:center;color:var(--tx,#cfe3ee)}.fail b{font-family:var(--f-disp);letter-spacing:.2em;color:var(--rd)}.fail small{color:var(--mut);font-size:10px}.fail div{display:flex;gap:10px}.fail button{padding:7px 16px;border:1px solid rgba(0,240,255,.5);background:rgba(0,240,255,.08);color:var(--cy)}.fail button:hover{background:var(--cy);color:#04050a}
   .x svg{width:13px;height:13px}.x:hover{background:var(--rd);color:#fff}
   @keyframes fd{from{opacity:0;transform:translateY(-10px)}}
   .fx{position:absolute;inset:0;pointer-events:none;z-index:6}

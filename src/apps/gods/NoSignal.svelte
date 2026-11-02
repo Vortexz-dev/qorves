@@ -1,11 +1,12 @@
 <script lang="ts">
   // Atanmamış oyuncu: "BAĞLANTI YOK" boşta ekranı (efektler yalnız burada).
   import { onMount } from 'svelte';
+  import { wm } from '../../desktop/wm.svelte';
   let { sub = 'DM seni bir sahneye bağladığında yayın burada açılır.' }: { sub?: string } = $props();
   let cv: HTMLCanvasElement, t = $state('00:00:00');
   onMount(() => {
     const g = cv.getContext('2d')!; let raf = 0, last = 0; const W = 320, H = 180; cv.width = W; cv.height = H; const im = g.createImageData(W, H); const t0 = Date.now();
-    const loop = (ts: number) => { raf = requestAnimationFrame(loop); if (ts - last < 50) return; last = ts; const d = im.data;
+    const loop = (ts: number) => { raf = requestAnimationFrame(loop); if (ts - last < 50 || wm.coreMin) return; last = ts; const d = im.data;
       for (let i = 0; i < d.length; i += 4) { const v = (Math.random() * 60) | 0; d[i] = v * 0.6; d[i + 1] = v * 0.9; d[i + 2] = v; d[i + 3] = 255; }
       g.putImageData(im, 0, 0); const s = ((Date.now() - t0) / 1000) | 0; t = [s / 3600, (s / 60) % 60, s % 60].map((x) => String(Math.floor(x)).padStart(2, '0')).join(':'); };
     raf = requestAnimationFrame(loop); return () => cancelAnimationFrame(raf);

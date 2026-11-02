@@ -1,10 +1,13 @@
 <script lang="ts" module>
   // Masaüstü bildirimleri: DM sistem uyarıları (glitch'li, onay ister) + kısa uygulama bildirimleri (ghOS-Net vb.)
-  export const toasts = $state({ list: [] as { id: number; app: string; title: string; body: string; act?: () => void }[] });
+  export const toasts = $state({ list: [] as { id: number; app: string; title: string; body: string; act?: () => void; mini?: boolean }[] });
   let n = 0;
   export function pushToast(app: string, title: string, body: string, act?: () => void) {
-    const id = ++n; toasts.list.push({ id, app, title, body, act }); setTimeout(() => (toasts.list = toasts.list.filter((t) => t.id !== id)), 7000);
+    // tam ekran uygulama açıksa küçük toast: yalnız gönderen/başlık, 3.5 sn
+    const mini = !!wm.core && !wm.coreMin;
+    const id = ++n; toasts.list.push({ id, app, title, body, act, mini }); setTimeout(() => (toasts.list = toasts.list.filter((t) => t.id !== id)), mini ? 3600 : 7000);
   }
+  import { wm } from '../desktop/wm.svelte';
 </script>
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -15,6 +18,8 @@
   let known = new Set<string>();
   onMount(() => watchNotices(uid, (n) => { if (n.some((x) => !known.has(x.id))) (n.some((x) => x.level === 'crit') ? sfx.alarm : sfx.glitch)(); n.forEach((x) => known.add(x.id)); list = n; }));
   const ack = (x: Notice) => { list = list.filter((y) => y.id !== x.id); seenNotice(uid, x.id); sfx.click(); };
+  let sw = $state<{ id: number; x: number; dx: number } | null>(null);
+  const drop = (id: number) => (toasts.list = toasts.list.filter((y) => y.id !== id));
   const LV = { info: 'SİSTEM BİLDİRİMİ', warn: 'UYARI', crit: 'KRİTİK İHLAL' } as const;
 </script>
 {#each list.slice(-3) as x, i (x.id)}
@@ -28,9 +33,18 @@
 {/each}
 <div class="ts">
   {#each toasts.list as t (t.id)}
+    {#if t.mini}
+      <div class="tm" class:g={t.app === 'ghOS-Net'} role="status" style:transform={sw?.id === t.id ? `translateX(${Math.max(0, sw.dx)}px)` : undefined} style:opacity={sw?.id === t.id ? Math.max(0.15, 1 - sw.dx / 160) : undefined}
+        onpointerdown={(e) => { sw = { id: t.id, x: e.clientX, dx: 0 }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }}
+        onpointermove={(e) => { if (sw?.id === t.id) sw = { ...sw, dx: e.clientX - sw.x }; }}
+        onpointerup={() => { if (sw?.id === t.id && sw.dx > 70) drop(t.id); sw = null; }} onpointercancel={() => (sw = null)}>
+        <i></i><b class="mono">{t.app}</b><span>{t.title}</span>
+      </div>
+    {:else}
     <button class="tt" class:g={t.app === 'ghOS-Net'} onclick={() => { t.act?.(); toasts.list = toasts.list.filter((y) => y.id !== t.id); }}>
       <b class="mono">{t.app}</b><span>{t.title}</span><small>{t.body}</small>
     </button>
+    {/if}
   {/each}
 </div>
 <style>
@@ -58,5 +72,9 @@
   .tt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:320px;padding:10px 14px;background:rgba(5,8,14,.95);border:1px solid rgba(0,240,255,.5);color:var(--tx);text-align:left;animation:tin .35s both;box-shadow:0 0 20px rgba(0,0,0,.6)}
   .tt.g{border-color:#39ff8a;background:rgba(2,10,6,.96);font-family:var(--f-mono)}.tt.g b{color:#39ff8a}
   .tt b{font-size:10px;letter-spacing:.3em;color:var(--cy)}.tt span{font-weight:600}.tt small{color:var(--mut);font-size:12.5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tm{display:flex;align-items:center;gap:8px;max-width:280px;padding:7px 12px 7px 10px;background:rgba(5,8,14,.9);border:1px solid rgba(0,240,255,.35);border-left:2px solid var(--cy);color:var(--tx);font-size:13px;cursor:grab;touch-action:none;user-select:none;animation:tin .3s both,tout .5s 3.1s forwards;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+  .tm.g{border-color:rgba(57,255,138,.4);border-left-color:#39ff8a}.tm b{font-size:9.5px;letter-spacing:.25em;color:var(--cy)}.tm.g b{color:#39ff8a}
+  .tm span{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tm i{width:6px;height:6px;border-radius:50%;background:currentColor;color:#39ff8a;box-shadow:0 0 6px currentColor;flex:none}
+  @keyframes tout{to{opacity:0;transform:translateX(24px)}}
   @keyframes tin{from{opacity:0;transform:translateX(30px)}}
 </style>

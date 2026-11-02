@@ -20,7 +20,7 @@ export interface Layer {
   x: number; y: number; w: number; h: number; lock?: boolean;
   img?: ImgRef; t?: string; fs?: number; col?: string; al?: 'left' | 'center' | 'right'; bold?: boolean;
 }
-export interface Scene { id: string; name: string; w: number; h: number; order: number; layers: Layer[]; imgs: string[]; at: number }
+export interface Scene { id: string; name: string; w: number; h: number; order: number; layers: Layer[]; imgs: string[]; at: number; upx?: number; unit?: string; grid?: number }
 export interface Stroke { c: string; w: number; p: number[] }
 export interface Ink { sid: string; s: Stroke[] }
 export interface DepItem { id: string; kind: 'folder' | 'image' | 'note'; name: string; parent: string; at: number; img?: ImgRef; size?: number; body?: string; thumb?: string }
@@ -47,7 +47,7 @@ export function watchScene(sid: string, cb: (s: Scene | null, local: boolean) =>
 export const saveScene = (s: Scene) => setDoc(D('ge_scn', s.id), { ...s, imgs: [...new Set(s.layers.filter((l) => l.img).map((l) => l.img!.id))], at: now() });
 export async function deleteScene(sid: string) {
   const b = writeBatch(db); b.delete(D('ge_scn', sid));
-  for (const c of ['ge_ink', 'ge_tok', 'ge_ping']) for (const d of (await getDocs(query(collection(db, c), where('sid', '==', sid)))).docs) b.delete(d.ref);
+  for (const c of ['ge_ink', 'ge_tok', 'ge_ping', 'ge_rul']) for (const d of (await getDocs(query(collection(db, c), where('sid', '==', sid)))).docs) b.delete(d.ref);
   await b.commit();
 }
 function watchBySid<T>(c: string, sid: string, cb: (l: T[]) => void) {
@@ -134,3 +134,16 @@ export async function tokenImg(avatar: string) {
     const s = Math.min(im.width, im.height); g.beginPath(); g.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); g.clip(); g.drawImage(im, (im.width - s) / 2, (im.height - s) * 0.3, s, s, 0, 0, S, S); return c.toDataURL('image/webp', 0.8); }
   catch { return ''; }
 }
+
+// ---------- cetvel (geçici, sahneye özel) ----------
+export interface Ruler { sid: string; uid: string; name: string; col: string; a: number[]; b: number[]; d: string; at: number }
+export const watchRulers = (sid: string, cb: (l: Ruler[]) => void) => watchBySid<Ruler>('ge_rul', sid, cb);
+export const saveRuler = (r: Ruler) => setDoc(D('ge_rul', r.sid + '_' + r.uid), r);
+export const dropRuler = (sid: string, uid: string) => deleteDoc(D('ge_rul', sid + '_' + uid)).catch(() => {});
+/** Sahne ölçeğiyle mesafe metni (birim/piksel, birim adı). */
+export function distText(s: Pick<Scene, 'upx' | 'unit'>, px: number) { const u = s.upx && s.upx > 0 ? s.upx : 1, v = px * u; return `${v >= 100 ? Math.round(v) : Math.round(v * 10) / 10} ${s.unit?.trim() || (s.upx ? 'birim' : 'px')}`; }
+// ---------- ortak sohbet (bütün sahneler) ----------
+export interface Chat { id?: string; uid: string; name: string; col: string; k: 'msg' | 'roll'; t: string; at: number; nat?: string }
+export function watchChat(cb: (l: Chat[]) => void, n = 40) { return onSnapshot(query(collection(db, 'ge_chat'), orderBy('at', 'desc'), limit(n)), (s) => cb(s.docs.map((d) => ({ ...(d.data() as Chat), id: d.id })).reverse()), () => cb([])); }
+export const sendChat = (c: Chat) => setDoc(D('ge_chat', nid()), c);
+export const delChat = (id: string) => deleteDoc(D('ge_chat', id)).catch(() => {});

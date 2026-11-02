@@ -70,3 +70,27 @@ export function capture(s: Scene, inks: Record<string, Ink>, toks: Token[]) {
   const c = document.createElement('canvas'); c.width = s.w; c.height = s.h; const g = c.getContext('2d')!;
   g.fillStyle = '#000'; g.fillRect(0, 0, s.w, s.h); drawScene(g, s, inks); drawTokens(g, toks); return c;
 }
+// ---------- cetvel ----------
+import type { Ruler } from '../../lib/gods';
+export const RUL_STALE = 9000;
+export function drawRulers(g: CanvasRenderingContext2D, rs: Ruler[], k = 1) {
+  for (const r of rs) {
+    const [ax, ay] = r.a, [bx, by] = r.b; g.save();
+    g.lineCap = 'round'; g.strokeStyle = 'rgba(0,0,0,.65)'; g.lineWidth = 6 / k; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+    g.strokeStyle = r.col; g.lineWidth = 2.5 / k; g.setLineDash([12 / k, 6 / k]); g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); g.setLineDash([]);
+    g.fillStyle = r.col; for (const [x, y] of [[ax, ay], [bx, by]]) { g.beginPath(); g.arc(x, y, 5 / k, 0, Math.PI * 2); g.fill(); }
+    const fs = 15 / k, label = `${r.d}  ·  ${r.name}`; g.font = `700 ${fs}px "Rajdhani", sans-serif`;
+    const tw = g.measureText(label).width, px = bx + 12 / k, py = by - 12 / k;
+    g.fillStyle = 'rgba(4,6,10,.85)'; g.fillRect(px - 6 / k, py - fs, tw + 12 / k, fs * 1.4);
+    g.strokeStyle = r.col; g.lineWidth = 1 / k; g.strokeRect(px - 6 / k, py - fs, tw + 12 / k, fs * 1.4);
+    g.fillStyle = '#fff'; g.textBaseline = 'alphabetic'; g.fillText(label, px, py + fs * 0.12);
+    g.restore();
+  }
+}
+/** Cetvel ucu: Shift → 45° adım, ızgara varsa ızgaraya oturt (Alt: serbest). */
+export function snapEnd(a: number[], p: { x: number; y: number }, shift: boolean, alt: boolean, grid = 0) {
+  let x = p.x, y = p.y;
+  if (grid > 0 && !alt) { x = Math.round(x / grid) * grid; y = Math.round(y / grid) * grid; }
+  if (shift) { const dx = x - a[0], dy = y - a[1], L = Math.hypot(dx, dy), ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4); x = a[0] + Math.cos(ang) * L; y = a[1] + Math.sin(ang) * L; }
+  return [Math.round(x), Math.round(y)];
+}

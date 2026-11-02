@@ -269,6 +269,20 @@ service cloud.firestore {
         && request.resource.data.img is string && request.resource.data.img.size() < 60000 && request.resource.data.x is number && request.resource.data.y is number);
       allow delete: if isDM() || (signedIn() && resource.data.uid == request.auth.uid);
     }
+    // cetvel: sahneye özel, geçici (ölçerken ~6 Hz yazılır, bırakınca silinir)
+    match /ge_rul/{id} {
+      allow read: if isDM() || (signedIn() && resource.data.sid == geSid());
+      allow create, update: if isDM() || (geMine(id) && request.resource.data.keys().hasOnly(['sid', 'uid', 'name', 'col', 'a', 'b', 'd', 'at'])
+        && request.resource.data.a is list && request.resource.data.b is list && request.resource.data.d is string && request.resource.data.d.size() < 40);
+      allow delete: if isDM() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+    // ortak sohbet: bütün sahnelerde tek akış (mesaj + zar atışı özeti)
+    match /ge_chat/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.keys().hasOnly(['uid', 'name', 'col', 'k', 't', 'at', 'nat'])
+        && request.resource.data.t is string && request.resource.data.t.size() > 0 && request.resource.data.t.size() <= 400 && request.resource.data.k in ['msg', 'roll'];
+      allow delete: if isDM();
+    }
     match /ge_ping/{id} {
       allow read: if isDM() || (signedIn() && resource.data.sid == geSid());
       allow create, update: if isDM() || (geMine(id) && request.resource.data.keys().hasOnly(['sid', 'uid', 'name', 'col', 'x', 'y', 'at']));

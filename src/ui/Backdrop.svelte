@@ -7,14 +7,14 @@
       <linearGradient id="bf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a2440"/><stop offset="1" stop-color="#05060b"/></linearGradient>
       <linearGradient id="bn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d2846"/><stop offset="1" stop-color="#0a0d18"/></linearGradient>
     </defs>
-    <path fill="url(#bf)" opacity=".7" d="M0 420V250h40v-60h30v40h25V150h50v80h20v-50h40v90h35V120h18V90h14v30h18v140h30v-70h45v90h20V170h55v100h25v-40h30v60h40V100h12V60h8v40h12v170h35v-90h50v120h30v-60h45v80h20V140h60v130h25v-70h40v100h30V180h45v80h35V110h14V70h10v40h14v160h40v-60h50v90h30v-120h45v120h25v-70h40v100h40V160h55v110h30v-40h40v190z"/>
-    <path fill="url(#bn)" d="M0 420V320h60v-50h40v70h35v-90h60v110h30v-40h55v60h25V230h70v120h20v-30h50v50h45V260h35v-30h20v30h30v110h40v-70h60v90h30v-120h50v130h25v-50h45v60h35V250h65v110h20v-40h55v60h40v-90h45v100h30V290h50v60h35v-40h45v110z"/>
-    <path d="M0 320h60v-50h40v70h35v-90h60v110h30v-40h55v60h25V230h70v120h20v-30h50v50h45V260h35v-30h20v30h30v110h40v-70h60v90h30v-120h50v130h25v-50h45v60h35V250h65v110h20v-40h55v60h40v-90h45v100h30V290h50v60h35v-40h45" fill="none" stroke="#00f0ff" stroke-opacity=".35" stroke-width="1.2"/>
+    <path fill="url(#bf)" opacity=".7" d="M0 420V250h40v-60h30v40h25V150h50v80h20v-50h40v90h35V120h18V90h14v30h18v140h30v-70h45v90h20V170h55v100h25v-40h30v60h40V100h12V60h8v40h12v170h35v-90h50v120h30v-60h45v80h20V140h60v130h25v-70h40v100h30V180h45v80h35V110h14V70h10v40h14v160h40v-60h50v90h30v-120h45v120h25v-70h40v100h40V160h55v110h30v-40h40v-50h35v-60h12v-30h10v30h12v90h40v-40h45v70h31V420z"/>
+    <path fill="url(#bn)" d="M0 420V320h60v-50h40v70h35v-90h60v110h30v-40h55v60h25V230h70v120h20v-30h50v50h45V260h35v-30h20v30h30v110h40v-70h60v90h30v-120h50v130h25v-50h45v60h35V250h65v110h20v-40h55v60h40v-90h45v100h30V290h50v60h35v-40h45v-60h55v80h40v-120h60v100h30v-50h50v70h35v-40h40v20h45V420z"/>
+    <path d="M0 320h60v-50h40v70h35v-90h60v110h30v-40h55v60h25V230h70v120h20v-30h50v50h45V260h35v-30h20v30h30v110h40v-70h60v90h30v-120h50v130h25v-50h45v60h35V250h65v110h20v-40h55v60h40v-90h45v100h30V290h50v60h35v-40h45v-60h55v80h40v-120h60v100h30v-50h50v70h35v-40h40v20h45" fill="none" stroke="#00f0ff" stroke-opacity=".35" stroke-width="1.2"/>
     <g class="win" fill="#00f0ff">
       {#each Array(70) as _, i}<rect x={(i * 233) % 1580 + 10} y={260 + ((i * 97) % 140)} width={i % 3 ? 3 : 6} height="2" opacity={0.25 + (i % 5) / 8} />{/each}
     </g>
     <g fill="#fcee0a">{#each Array(22) as _, i}<rect x={(i * 389) % 1560 + 20} y={300 + ((i * 53) % 100)} width="4" height="2" opacity=".55" />{/each}</g>
-    <g fill="#ff2a55"><rect x="463" y="226" width="3" height="3" class="beacon"/><rect x="1043" y="66" width="3" height="3" class="beacon b2"/><rect x="1253" y="66" width="3" height="3" class="beacon"/></g>
+    <g fill="#ff2a55"><rect x="463" y="226" width="3" height="3" class="beacon"/><rect x="1043" y="66" width="3" height="3" class="beacon b2"/><rect x="1253" y="66" width="3" height="3" class="beacon"/><rect x="1465" y="86" width="3" height="3" class="beacon b2"/></g>
   </svg>
   <div class="grid"></div>
   <div class="vig"></div>

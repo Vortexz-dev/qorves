@@ -11,8 +11,15 @@
   import { wm } from '../../desktop/wm.svelte';
   import Panel from './Panel.svelte';
   import Depot from './Depot.svelte';
+  import Chat from './Chat.svelte';
+  import FloatWin from './FloatWin.svelte';
+  import Dice from '../Dice.svelte';
+  import { RulerCtl, postRoll } from './tools';
+  import { watchRulers, type Ruler } from '../../lib/gods';
+  import { drawRulers, RUL_STALE } from './render';
+  const DMPanel = import('../DMPanel.svelte');
   const me = session.user!;
-  type Tool = 'sel' | 'pan' | 'brush' | 'text' | 'ping';
+  type Tool = 'sel' | 'pan' | 'brush' | 'text' | 'ping' | 'ruler';
   let scenes = $state<Scene[]>([]), sid = $state(localStorage.getItem('qv.ge.sid') ?? ''), sc = $state<Scene | null>(null);
   let inks: Record<string, Ink> = $state({}), toks = $state<Token[]>([]), pings: Ping[] = [], asg = $state<Record<string, string>>({}), pls = $state<{ uid: string; name: string; user: string }[]>([]);
   let tool = $state<Tool>('sel'), sel = $state(''), brush = $state({ c: '#ff2a55', w: 6 }), view = $state({ x: 0, y: 0, z: 0.5 }), space = false;
@@ -20,6 +27,8 @@
   let renS = $state(''), renV = $state(''), renL = $state(''), renLV = $state(''), msg = $state('');
   const cur = $derived(sc?.layers.find((l) => l.id === sel) ?? null);
   const mark = () => (dirty = true);
+  let rulers: Ruler[] = [], measuring = false, dice = $state(false), dmp = $state(false);
+  const rul = new RulerCtl({ uid: me.uid, name: 'DM', col: '#ffffff', sid: () => sid, scene: () => sc, mark });
   setImgListener(mark);
   const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
   // ---------- geri al / yinele ----------
@@ -55,7 +64,8 @@
     const a = watchInks(sid, (m) => { if (!busy) inks = m; mark(); });
     const b = watchTokens(sid, (l) => { if (!tokDrag) toks = l; mark(); });
     const c = watchPings(sid, (l) => { if (l.some((p) => now() - p.at < 1500 && !pings.some((q) => q.uid === p.uid && q.at === p.at))) sfx.ping(); pings = l; mark(); });
-    return () => { a(); b(); c(); };
+    const e = watchRulers(sid, (l) => { rulers = l; mark(); });
+    return () => { a(); b(); c(); e(); rul.dispose(); };
   });
   // ---------- görünüm ----------
   function fitView() { if (!box || !sc) return; const W = box.clientWidth, H = box.clientHeight, z = Math.min((W - 160) / sc.w, (H - 160) / sc.h); view = { z, x: (W - sc.w * z) / 2, y: (H - sc.h * z) / 2 + 10 }; mark(); }
@@ -77,6 +87,7 @@
       drawScene(g, sc, inks);
       if (live && extra) { const l = sc.layers.find((x) => x.id === live!.lid); if (l) { g.save(); g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = brush.c; g.lineWidth = brush.w; g.beginPath(); const p = live.pts; g.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); if (p.length === 2) g.lineTo(p[0] + .01, p[1]); g.stroke(); g.restore(); } }
       drawTokens(g, toks, tokDrag?.uid); drawPings(g, pings, t, view.z);
+      drawRulers(g, [...rulers.filter((r) => r.uid !== me.uid && t - r.at < RUL_STALE), ...(rul.mine ? [rul.mine] : [])], view.z);
       // sahne dışı perde + sınır (yalnız DM)
       g.setTransform(d, 0, 0, d, 0, 0); const sx = view.x, sy = view.y, sw = sc.w * view.z, sh = sc.h * view.z;
       g.fillStyle = 'rgba(4,6,10,.55)'; g.beginPath(); g.rect(0, 0, W, H); g.rect(sx, sy, sw, sh); g.fill('evenodd');
@@ -91,7 +102,7 @@
       else if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); doRedo(); }
       else if (e.key === 'Delete' || e.key === 'Backspace') { if (cur) { e.preventDefault(); delLayer(cur.id); } }
       else if (e.key === ' ') { space = true; e.preventDefault(); }
-      else if (!e.ctrlKey && !e.metaKey && !e.altKey) { const m: Record<string, Tool> = { v: 'sel', h: 'pan', b: 'brush', t: 'text', p: 'ping' }; if (m[k]) tool = m[k]; else if (k === 'f') fitView(); else if (e.key === 'Escape') sel = ''; }
+      else if (!e.ctrlKey && !e.metaKey && !e.altKey) { const m: Record<string, Tool> = { v: 'sel', h: 'pan', b: 'brush', t: 'text', p: 'ping', r: 'ruler' }; if (m[k]) tool = m[k]; else if (k === 'f') fitView(); else if (e.key === 'Escape') sel = ''; }
     };
     const ku = (e: KeyboardEvent) => { if (e.key === ' ') space = false; };
     addEventListener('keydown', kd); addEventListener('keyup', ku);
@@ -106,6 +117,7 @@
     cv.setPointerCapture(e.pointerId); const p = sc ? toS(e) : { x: 0, y: 0 };
     if (e.button === 1 || e.button === 2 || tool === 'pan' || space) { dr = { kind: 'pan', sx: e.clientX, sy: e.clientY, ox: view.x, oy: view.y }; return; }
     if (!sc) return;
+    if (tool === 'ruler') { measuring = true; rul.start(p, e); return; }
     if (tool === 'ping') { const pg: Ping = { sid, uid: me.uid, name: 'DM', col: '#ffffff', x: Math.round(p.x), y: Math.round(p.y), at: now() }; pings = [...pings.filter((x) => x.uid !== me.uid), pg]; mark(); sfx.ping(); sendPing(pg).catch(() => {}); return; }
     if (tool === 'text') { push(); const l: Layer = { id: nid(), k: 'text', name: 'Metin', x: Math.round(p.x), y: Math.round(p.y), w: 600, h: 120, t: 'Yeni metin', fs: 56, col: '#ffffff', al: 'left' }; sc.layers.push(l); sel = l.id; tool = 'sel'; fitText(l); persist(true); mark(); return; }
     if (tool === 'brush') {
@@ -123,6 +135,7 @@
     dr = { kind: 'res', sx: p.x, sy: p.y, ox: 0, oy: 0, l: cur, h, o: { x: cur.x, y: cur.y, w: cur.w, h: cur.h } };
   }
   function move(e: PointerEvent) {
+    if (measuring) { rul.move(toS(e), e); return; }
     if (live) { const p = toS(e); const q = live.pts; const lx = q[q.length - 2], ly = q[q.length - 1]; if (Math.hypot(p.x - lx, p.y - ly) * view.z > 2) { q.push(p.x, p.y); mark(); } return; }
     if (tokDrag) { const p = toS(e), t = toks.find((x) => x.uid === tokDrag!.uid); if (t && sc) { t.x = Math.round(Math.max(0, Math.min(sc.w, p.x + tokDrag.dx))); t.y = Math.round(Math.max(0, Math.min(sc.h, p.y + tokDrag.dy))); mark(); if (now() - tokLast > 130) { tokLast = now(); moveToken(t, t.x, t.y).catch(() => {}); } } return; }
     if (!dr) return;
@@ -138,6 +151,7 @@
     mark(); persist();
   }
   function up() {
+    if (measuring) { measuring = false; rul.end(); return; }
     if (live && sc) { const l = sc.layers.find((x) => x.id === live!.lid); if (l) { const p = live.pts, n: number[] = []; for (let i = 0; i < p.length; i += 2) n.push(Math.round(((p[i] - l.x) / l.w) * 1e4), Math.round(((p[i + 1] - l.y) / l.h) * 1e4));
         const ink: Ink = { sid, s: [...(inks[l.id]?.s ?? []), { c: brush.c, w: brush.w / l.w, p: n }] }; inks[l.id] = ink; saveInk(l.id, $state.snapshot(ink) as Ink).catch((e) => flash('Çizim kaydedilemedi: ' + (e?.code ?? e))); }
       live = null; busy = false; mark(); return; }
@@ -184,6 +198,7 @@
   const assign = (uid: string, v: string) => { setAsg(uid, v || null).then(() => { sfx.granted(); flash(v ? `${pls.find((p) => p.uid === uid)?.name} → ${scenes.find((s) => s.id === v)?.name}` : 'Bağlantı kesildi'); }); };
   // seçim kutusu (ekran koordinatı)
   const selBox = $derived(cur && !cur.hid ? { l: view.x + cur.x * view.z, t: view.y + cur.y * view.z, w: cur.w * view.z, h: cur.h * view.z } : null);
+  function setOpt(k: 'upx' | 'unit' | 'grid', v: number | string) { if (!sc) return; const o = sc as unknown as Record<string, unknown>; if (v) o[k] = v; else delete o[k]; persist(true); mark(); }
   let ldrag = '';
   const KIND = { img: 'Görsel', text: 'Metin', draw: 'Çizim' } as const;
   const COLORS = ['#ffffff', '#000000', '#ff2a55', '#fcee0a', '#00f0ff', '#39ff8a', '#ff8a00', '#b46cff'];
@@ -215,6 +230,13 @@
         {#each pls as p (p.uid)}
           <label class="pr"><span>{p.name}</span><select class="inp" value={asg[p.uid] ?? ''} onchange={(e) => assign(p.uid, (e.target as HTMLSelectElement).value)}><option value="">— Bağlı değil —</option>{#each scenes as s (s.id)}<option value={s.id}>{s.name}</option>{/each}</select></label>
         {:else}<small class="mut">Oyuncu bulunamadı.</small>{/each}
+        {#if sc}
+          <span class="mono">CETVEL ÖLÇEĞİ · {sc.name.toLocaleUpperCase('tr')}</span>
+          <label class="pr"><span>1 piksel =</span><input class="inp" type="number" min="0" step="0.01" placeholder="1" value={sc.upx ?? ''} onchange={(e) => { const v = +(e.target as HTMLInputElement).value; setOpt('upx', v > 0 ? v : 0); }} /></label>
+          <label class="pr"><span>Birim adı</span><input class="inp" maxlength="16" placeholder="metre" value={sc.unit ?? ''} onchange={(e) => { setOpt('unit', (e.target as HTMLInputElement).value.trim().slice(0, 16)); }} /></label>
+          <label class="pr"><span>Izgara (px, 0 = yok)</span><input class="inp" type="number" min="0" max="500" placeholder="0" value={sc.grid ?? ''} onchange={(e) => { const v = Math.round(+(e.target as HTMLInputElement).value); setOpt('grid', v > 0 ? Math.min(500, v) : 0); }} /></label>
+          <small class="mut">Örnek: 1 piksel = 0.05 metre → 1920 px genişlik 96 metre. Izgara açıksa cetvel uçları ızgaraya oturur (Alt: serbest).</small>
+        {/if}
       </div>
     </div>
   </Panel>
@@ -256,7 +278,7 @@
   </Panel>
 
   <div class="tools" role="toolbar" aria-label="Araçlar">
-    {#each [['sel', 'Seç / taşı (V)', 'M5 3l14 8-6 2-3 6z'], ['pan', 'Kaydır (H · Boşluk · orta tuş)', 'M12 2v20M2 12h20M12 2l-3 3m3-3 3 3M12 22l-3-3m3 3 3-3M2 12l3-3m-3 3 3 3M22 12l-3-3m3 3-3 3'], ['brush', 'Fırça (B)', 'M3 21c3 0 5-2 5-4.5S10 13 12 13l8-8-2-2-8 8c0 2-1 3.5-3.5 3.5S3 17 3 21z'], ['text', 'Metin (T)', 'M5 5h14M12 5v14M9 19h6'], ['ping', 'İşaret (P)', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15z']] as [k, t, d] (k)}
+    {#each [['sel', 'Seç / taşı (V)', 'M5 3l14 8-6 2-3 6z'], ['pan', 'Kaydır (H · Boşluk · orta tuş)', 'M12 2v20M2 12h20M12 2l-3 3m3-3 3 3M12 22l-3-3m3 3 3-3M2 12l3-3m-3 3 3 3M22 12l-3-3m3 3-3 3'], ['brush', 'Fırça (B)', 'M3 21c3 0 5-2 5-4.5S10 13 12 13l8-8-2-2-8 8c0 2-1 3.5-3.5 3.5S3 17 3 21z'], ['text', 'Metin (T)', 'M5 5h14M12 5v14M9 19h6'], ['ping', 'İşaret (P)', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15z'], ['ruler', 'Cetvel (R) · Shift: düz · Alt: ızgarasız', 'M3 17 17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2']] as [k, t, d] (k)}
       <button class:on={tool === k} onclick={() => (tool = k as Tool)} title={t} aria-label={t}><svg viewBox="0 0 24 24"><path {d} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
     {/each}
     {#if tool === 'brush'}<span class="sep"></span>{#each COLORS as c (c)}<button class="swc" style:background={c} class:on={brush.c === c} onclick={() => (brush.c = c)} aria-label={c}></button>{/each}<input type="color" bind:value={brush.c} title="Renk" /><input type="range" min="1" max="60" bind:value={brush.w} title="Kalınlık" /><small class="mono">{brush.w}px</small>{/if}
@@ -265,13 +287,19 @@
     <button onclick={doRedo} title="Yinele (Ctrl+Y)" aria-label="Yinele"><svg viewBox="0 0 24 24"><path d="M15 7h5V2M20 7a9 9 0 1 0 1 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <button onclick={fitView} title="Sahneye sığdır (F)" aria-label="Sığdır"><svg viewBox="0 0 24 24"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <small class="mono zm">{Math.round(view.z * 100)}%</small>
+    <span class="sep"></span>
+    <button class:on={dice} onclick={() => { dice = !dice; sfx.click(); }} title="Zar at (Discord'a ve sohbete düşer)" aria-label="Zar"><svg viewBox="0 0 24 24"><path d="M12 2 21 7v10l-9 5-9-5V7zM12 12 21 7M12 12 3 7M12 12v10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+    <button class:on={dmp} onclick={() => { dmp = !dmp; sfx.click(); }} title="DM Paneli (God's Eye üstünde)" aria-label="DM Paneli"><svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 12h6M12 9v6" stroke="currentColor" stroke-width="1.4"/></svg></button>
   </div>
   {#if msg}<div class="msg mono">{msg}</div>{/if}
+  <Chat />
+  {#if dice}<FloatWin title="ZAR ATICI" id="dice" w={700} h={500} onclose={() => (dice = false)}><Dice compact onrolled={(r) => postRoll(r, true, 'DM')} /></FloatWin>{/if}
+  {#if dmp}<FloatWin title="DM PANELİ" id="dmp" w={Math.min(1180, innerWidth - 80)} h={Math.min(720, innerHeight - 120)} onclose={() => (dmp = false)}>{#await DMPanel then m}<m.default />{/await}</FloatWin>{/if}
 </div>
 <style>
   .dm{position:absolute;inset:46px 0 0 0;overflow:hidden;background:#07090e}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-  canvas.pan,canvas.ping{cursor:grab}canvas.brush{cursor:crosshair}canvas.text{cursor:text}canvas.ping{cursor:crosshair}
+  canvas.pan,canvas.ping{cursor:grab}canvas.brush{cursor:crosshair}canvas.text{cursor:text}canvas.ruler{cursor:crosshair}canvas.ping{cursor:crosshair}
   .sb{position:absolute;border:1px solid var(--cy);pointer-events:none;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
   .h{position:absolute;width:11px;height:11px;margin:-6px;background:#04050a;border:1.5px solid var(--cy);pointer-events:auto}
   .nw{left:0;top:0;cursor:nwse-resize}.n{left:50%;top:0;cursor:ns-resize}.ne{left:100%;top:0;cursor:nesw-resize}.e{left:100%;top:50%;cursor:ew-resize}

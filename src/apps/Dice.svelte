@@ -4,6 +4,7 @@
   import { parse, roll, DICE, fmtMod, discordPayload } from '../lib/dice';
   import { saveRoll, watchRolls, diceHook, type Roll } from '../lib/live';
   import { sfx } from '../lib/sfx';
+  let { onrolled, compact = false }: { onrolled?: (r: Roll) => void; compact?: boolean; arg?: unknown; win?: unknown } = $props();
   const u = session.user!;
   let pool = $state<Record<number, number>>({}), mod = $state(0), adv = $state<'' | 'adv' | 'dis'>(''), custom = $state(''), label = $state('');
   let hist = $state<Roll[]>([]), cur = $state<Roll | null>(null), phase = $state<'idle' | 'roll' | 'land'>('idle'), flick = $state<number[]>([]), err = $state(''), sent = $state('');
@@ -27,6 +28,7 @@
     await new Promise((ok) => setTimeout(ok, 1250)); clearInterval(iv); phase = 'land'; sfx.thud();
     if (r.nat === 'nat20') setTimeout(sfx.crit, 120); else if (r.nat === 'nat1') setTimeout(sfx.fumble, 120);
     saveRoll(r).catch(() => (err = 'Atış kaydedilemedi (bağlantı).'));
+    onrolled?.(r);
     const hook = await diceHook();
     if (hook) { const w = session.world ? `SS ${session.world.year} · Gün ${session.world.day}` : '';
       fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(discordPayload(r, w)) }).then((x) => (sent = x.ok ? 'Discord kanalına iletildi' : 'Discord iletimi başarısız')).catch(() => (sent = 'Discord iletimi başarısız')); }
@@ -34,7 +36,7 @@
   const keyd = (e: KeyboardEvent) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') go(); };
   const parts = Array.from({ length: 26 }, (_, i) => ({ a: (i / 26) * 360 + Math.random() * 10, d: 80 + Math.random() * 140, s: 3 + Math.random() * 5 }));
 </script>
-<div class="dz" role="presentation" onkeydown={keyd}>
+<div class="dz" class:compact role="presentation" onkeydown={keyd}>
   <section class="cfg">
     <div class="mono h">ZAR HAVUZU <small>tık: ekle · sağ tık: çıkar</small></div>
     <div class="dice">
@@ -80,6 +82,7 @@
   </aside>
 </div>
 <style>
+  .dz.compact{grid-template-columns:280px 1fr}.dz.compact .hist{display:none}
   .dz{height:100%;display:grid;grid-template-columns:300px 1fr 180px;background:radial-gradient(ellipse at 60% 40%,rgba(0,240,255,.06),transparent 60%)}
   .cfg{padding:16px;display:flex;flex-direction:column;gap:12px;border-right:1px solid var(--line);overflow:auto}
   .h{font-size:10px;letter-spacing:.3em;color:var(--cy)}.h small{color:var(--mut);letter-spacing:.1em;margin-left:6px}

@@ -31,8 +31,9 @@ export function toggleTask(id: number) {
 }
 export function closeCore() {
   if (!wm.core || wm.coreClosing) return;
-  wm.coreClosing = true; sfx.close();
-  setTimeout(() => { wm.core = null; wm.coreClosing = false; wm.coreMin = false; }, 420);
+  const id = wm.core; wm.coreClosing = true; sfx.close();
+  // kapanış sürerken başka çekirdek uygulama açıldıysa onu kapatma
+  setTimeout(() => { if (wm.core === id && wm.coreClosing) { wm.core = null; wm.coreClosing = false; wm.coreMin = false; } }, 420);
 }
 export function minCore() { if (wm.core) { wm.coreMin = true; sfx.close(); } }
 export function resetWM() { wm.wins = []; wm.core = null; wm.coreMin = false; wm.start = false; }

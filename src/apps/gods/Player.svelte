@@ -2,8 +2,13 @@
   // God's Eye — oyuncu görünümü: yalnız atanmış sahnenin sınırları, sığdırılmış ve canlı.
   import { onMount } from 'svelte';
   import { session } from '../../lib/session.svelte';
+  import { watchRulers, type Ruler } from '../../lib/gods';
   import { watchAsg, watchScene, watchInks, watchTokens, watchPings, saveToken, moveToken, deleteToken, sendPing, addLog, colorOf, tokenImg, now, type Scene, type Ink, type Token, type Ping } from '../../lib/gods';
-  import { drawScene, drawTokens, drawPings, hitToken, capture, setImgListener, PING_MS } from './render';
+  import { drawScene, drawTokens, drawPings, drawRulers, hitToken, capture, setImgListener, PING_MS, RUL_STALE } from './render';
+  import { RulerCtl, postRoll } from './tools';
+  import Chat from './Chat.svelte';
+  import FloatWin from './FloatWin.svelte';
+  import Dice from '../Dice.svelte';
   import { putMedia } from '../../lib/live';
   import { saveImage, freeCell, toast } from '../../lib/desk.svelte';
   import { notes } from '../../lib/notes.svelte';
@@ -13,12 +18,13 @@
   import { wm } from '../../desktop/wm.svelte';
   const me = session.user!, col = colorOf(me.uid), nm = me.character?.name || me.username;
   let sid = $state(''), scene = $state<Scene | null>(null), denied = $state(false), got = $state(false), inks: Record<string, Ink> = {}, toks = $state<Token[]>([]), pings: Ping[] = [];
-  let tool = $state<'' | 'ping'>(''), pin = $state(false), hov = $state(false), noteOpen = $state(false), noteBody = $state(''), noteAsk = $state(false), noteName = $state('');
+  let tool = $state<'' | 'ping' | 'ruler'>(''), dice = $state(false), rulers: Ruler[] = [], measuring = false, pin = $state(false), hov = $state(false), noteOpen = $state(false), noteBody = $state(''), noteAsk = $state(false), noteName = $state('');
   let myImg = '', flash = $state<{ src: string } | null>(null), busy = $state(false);
   let wrap: HTMLDivElement, cv: HTMLCanvasElement, dirty = true, fit = { k: 1, ox: 0, oy: 0 };
   const mine = $derived(toks.find((t) => t.uid === me.uid));
   let drag: { x: number; y: number; ghost: boolean } | null = $state(null), lastSend = 0, sendT: ReturnType<typeof setTimeout> | undefined;
   const mark = () => (dirty = true);
+  const rul = new RulerCtl({ uid: me.uid, name: nm.split(' ')[0], col, sid: () => sid, scene: () => scene, mark });
   setImgListener(mark);
   $effect(() => {
     if (!sid) { scene = null; return; }
@@ -26,8 +32,9 @@
     const a = watchScene(sid, (s) => { scene = s; got = true; mark(); }, () => (denied = true));
     const b = watchInks(sid, (m) => { inks = m; mark(); });
     const c = watchTokens(sid, (l) => { if (!drag) toks = l; else toks = l.map((t) => (t.uid === me.uid ? toks.find((x) => x.uid === me.uid) ?? t : t)); mark(); });
+    const e = watchRulers(sid, (l) => { rulers = l; mark(); });
     const d = watchPings(sid, (l) => { const fresh = l.filter((p) => now() - p.at < PING_MS); if (fresh.some((p) => !pings.some((q) => q.uid === p.uid && q.at === p.at))) sfx.ping(); pings = l; mark(); });
-    return () => { a(); b(); c(); d(); };
+    return () => { a(); b(); c(); d(); e(); rul.dispose(); };
   });
   onMount(() => {
     const stop = watchAsg((m) => (sid = m[me.uid] || ''));
@@ -44,6 +51,7 @@
       g.setTransform(dpr * k, 0, 0, dpr * k, dpr * fit.ox, dpr * fit.oy);
       g.save(); g.beginPath(); g.rect(0, 0, scene.w, scene.h); g.clip(); g.fillStyle = '#000'; g.fillRect(0, 0, scene.w, scene.h);
       drawScene(g, scene, inks); drawTokens(g, toks); drawPings(g, pings, t, k); g.restore();
+      drawRulers(g, [...rulers.filter((r) => r.uid !== me.uid && t - r.at < RUL_STALE), ...(rul.mine ? [rul.mine] : [])], k);
     };
     raf = requestAnimationFrame(loop);
     const ro = new ResizeObserver(mark); ro.observe(wrap);
@@ -54,6 +62,7 @@
   const clamp = (p: { x: number; y: number }) => ({ x: Math.round(Math.max(0, Math.min(scene!.w, p.x))), y: Math.round(Math.max(0, Math.min(scene!.h, p.y))) });
   function down(e: PointerEvent) {
     if (!scene || e.button !== 0) return; const p = toScene(e); if (!inside(p)) return;
+    if (tool === 'ruler') { measuring = true; rul.start(clamp(p), e); cv.setPointerCapture(e.pointerId); return; }
     if (tool === 'ping') { const pg: Ping = { sid, uid: me.uid, name: nm.split(' ')[0], col, ...clamp(p), at: now() }; pings = [...pings.filter((x) => x.uid !== me.uid), pg]; mark(); sfx.ping(); sendPing(pg).catch(() => toast('İşaret gönderilemedi')); return; }
     const t = hitToken(toks, p.x, p.y); if (t && t.uid === me.uid) { drag = { x: p.x, y: p.y, ghost: false }; cv.setPointerCapture(e.pointerId); }
   }
@@ -62,8 +71,8 @@
     clearTimeout(sendT); const go = () => { lastSend = now(); moveToken(t, t.x, t.y).catch(() => {}); };
     if (final || now() - lastSend > 125) go(); else sendT = setTimeout(go, 125);
   }
-  function mv(e: PointerEvent) { if (drag && !drag.ghost) moveMine(toScene(e)); }
-  function up(e: PointerEvent) { if (drag && !drag.ghost) { moveMine(toScene(e), true); drag = null; } }
+  function mv(e: PointerEvent) { if (measuring) { rul.move(clamp(toScene(e)), e); return; } if (drag && !drag.ghost) moveMine(toScene(e)); }
+  function up(e: PointerEvent) { if (measuring) { measuring = false; rul.end(); return; } if (drag && !drag.ghost) { moveMine(toScene(e), true); drag = null; } }
   // jeton: araç çubuğundan sahneye sürükle
   function chipDown(e: PointerEvent) {
     if (!scene) return; e.preventDefault(); drag = { x: e.clientX, y: e.clientY, ghost: true };
@@ -102,11 +111,15 @@
   {#if !sid || denied || (got && !scene)}
     <NoSignal />
   {:else}
-    <canvas bind:this={cv} class:ping={tool === 'ping'} onpointerdown={down} onpointermove={mv} onpointerup={up} oncontextmenu={(e) => e.preventDefault()}></canvas>
+    <canvas bind:this={cv} class:ping={tool === 'ping' || tool === 'ruler'} onpointerdown={down} onpointermove={mv} onpointerup={up} oncontextmenu={(e) => e.preventDefault()}></canvas>
     {#if !scene}<div class="ld mono">SAHNE YÜKLENİYOR…</div>{/if}
     <div class="tb" class:open role="toolbar" aria-label="Araçlar" tabindex="-1" onmouseenter={() => (hov = true)} onmouseleave={() => (hov = false)}>
       <button class="t" class:on={tool === 'ping'} onclick={() => { tool = tool === 'ping' ? '' : 'ping'; sfx.click(); }} title="İşaret: sahneye tıkla, herkes görsün">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="currentColor"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" stroke-width="1" opacity=".5"/></svg><span>İşaret</span></button>
+      <button class="t" class:on={tool === 'ruler'} onclick={() => { tool = tool === 'ruler' ? '' : 'ruler'; sfx.click(); }} title="Cetvel: tıkla, sürükle, bırak · Shift: düz çizgi · Alt: ızgarasız">
+        <svg viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2" stroke="currentColor" stroke-width="1.4"/></svg><span>Cetvel</span></button>
+      <button class="t" class:on={dice} onclick={() => { dice = !dice; sfx.click(); }} title="Zar at (Discord'a ve sohbete düşer)">
+        <svg viewBox="0 0 24 24"><path d="M12 2 21 7v10l-9 5-9-5V7z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 12 21 7M12 12 3 7M12 12v10" stroke="currentColor" stroke-width="1.2"/></svg><span>Zar</span></button>
       <div class="t tok" title={mine ? 'Jetonun sahnede · tutup sürükle' : 'Jetonunu sahneye sürükle'}>
         <button class="chip" style:--c={col} onpointerdown={chipDown} aria-label="Jeton">{#if myImg}<img src={myImg} alt="" />{:else}<b>{nm[0]}</b>{/if}</button>
         <span>Jeton</span>{#if mine && open}<button class="rm" onclick={removeMine} title="Jetonu sahneden kaldır">Kaldır</button>{/if}
@@ -125,8 +138,10 @@
       </div>
     {/if}
     {#if drag?.ghost}<div class="ghost" style:left="{drag.x}px" style:top="{drag.y}px" style:--c={col}>{#if myImg}<img src={myImg} alt="" />{:else}<b>{nm[0]}</b>{/if}</div>{/if}
+    {#if dice}<FloatWin title="ZAR ATICI" id="dice" w={700} h={500} onclose={() => (dice = false)}><Dice compact onrolled={(r) => postRoll(r, false, nm.split(' ')[0])} /></FloatWin>{/if}
     {#if flash}<div class="flash"></div><img class="fly" src={flash.src} alt="" />{/if}
   {/if}
+  <Chat />
 </div>
 <style>
   .pv{position:absolute;inset:46px 0 0 0;background:#000}

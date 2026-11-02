@@ -32,7 +32,7 @@
     </div>
   </header>
   <div class="content">
-    {#await mod}<div class="ld mono">MODÜL YÜKLENİYOR…</div>{:then m}<m.default arg={win.arg} {win} />{/await}
+    {#await mod}<div class="ld mono">MODÜL YÜKLENİYOR…</div>{:then m}<m.default arg={win.arg} {win} />{:catch}<div class="ld mono">AÇILAMADI · site güncellenmiş olabilir, sayfayı yenile <button onclick={() => location.reload()}>Yenile</button></div>{/await}
   </div>
 </section>
 

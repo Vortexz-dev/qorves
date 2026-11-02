@@ -117,7 +117,7 @@
   let ghStarted = false;
   $effect(() => {
     const on = user.role === 'dm' || (user.apps ?? []).includes('ghos');
-    if (on && !ghStarted) { ghStarted = true; startGhos(user.uid, user.role === 'dm', (c) => { sfx.ping();
+    if (on && !ghStarted) { ghStarted = true; startGhos(user.uid, user.role === 'dm', (c) => { if (wm.core && !wm.coreMin) sfx.soft(); else sfx.ping();
       const who = c.last?.from ?? ''; const nm = c.names?.[who] ?? 'Bilinmeyen düğüm';
       pushToast('ghOS-Net', user.role === 'dm' ? `${c.names?.['npc:' + c.npc] ?? 'NPC'} ← ${nm}` : nm, '▒▒ şifreli paket alındı · çözmek için aç', () => openApp('ghos', c.id)); }); }
     else if (!on && ghStarted) { ghStarted = false; stopGhos(); }
@@ -179,10 +179,10 @@
   {#each wm.wins as w (w.id)}<Window win={w} />{/each}
   {#if wm.start}<StartPanel />{/if}
   <Taskbar />
-  <SysNotify uid={user.uid} />
   {#if user.role !== 'dm'}<SessionToast uid={user.uid} />{/if}
 </div>
 {#if wm.core}<CoreShell id={wm.core} />{/if}
+<SysNotify uid={user.uid} />
 
 <style>
   .desk{position:absolute;inset:0;overflow:hidden;opacity:0;transform:scale(1.03);filter:blur(6px);transition:opacity .6s,transform .7s cubic-bezier(.2,.8,.2,1),filter .6s}

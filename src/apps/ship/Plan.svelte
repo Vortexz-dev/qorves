@@ -119,7 +119,7 @@
         {:else}<g class="mech {m.kind}"><rect x={m.x} y={m.y} width={m.w} height={m.h} rx="0.08" />{#if m.kind === 'axle'}<rect class="whl" x={m.x + 0.6} y={m.y - 0.05} width="1.4" height="0.5" rx="0.12" /><rect class="whl" x={m.x + 0.6} y={m.y + m.h - 0.45} width="1.4" height="0.5" rx="0.12" /><line x1={m.x + 1.3} y1={m.y + 0.45} x2={m.x + 1.3} y2={m.y + m.h - 0.45} />{/if}<text x={m.x + m.w / 2} y={m.y + m.h / 2 + 0.1}>{m.label}</text></g>{/if}
       {/each}
       {#each P.rooms.filter((r) => r.f === floor) as r (r.id)}
-        <g class="room {floorCls(r)}" class:dash={r.dashed} class:hv={hovR === r.id} class:clk={!!r.img} transform="translate({r.x} {r.y})" onpointerenter={() => (hovR = r.id)} onpointerleave={() => (hovR = null)} onclick={() => { if (clickOk() && r.img) { room = r; sfx.click(); } }} role="button" tabindex="-1" onkeydown={() => {}}>
+        <g class="room {floorCls(r)}" class:dash={r.dashed} class:hv={hovR === r.id} class:clk={!!r.img} class:on={room?.id === r.id} transform="translate({r.x} {r.y})" onpointerenter={() => (hovR = r.id)} onpointerleave={() => (hovR = null)} onclick={() => { if (clickOk() && r.img) { room = r; sfx.click(); } }} role="button" tabindex="-1" onkeydown={() => {}}>
           <rect class="fl" width={r.w} height={r.h} />
           {#if r.kind !== 'corridor' && r.kind !== 'tank' && r.kind !== 'fakewall'}<ellipse class="lit" cx={r.w / 2} cy={r.h / 2} rx={r.w * 0.45} ry={r.h * 0.45} />{/if}
           <g class="fx">{@html furn(r.kind, r.w, r.h, r.name)}</g>
@@ -191,6 +191,8 @@
   .mech rect{fill:#0c131a;stroke:#33485a;stroke-width:.05}.mech.axle>rect:first-child{fill:url(#p-haz);opacity:.35}.mech .whl{fill:#141a20;stroke:#4d6070;opacity:1}.mech line{stroke:#4d6070;stroke-width:.12}.mech text{font-size:.26px;fill:#6c8596;text-anchor:middle}
   .room .fl{stroke:none}.fl-svc .fl{fill:url(#p-svc)}.fl-liv .fl{fill:url(#p-liv)}.fl-ckp .fl{fill:url(#p-ckp)}.fl-wet .fl{fill:url(#p-wet)}.fl-cor .fl{fill:url(#p-cor)}
   .room .wall{fill:none;stroke:#9cb6c8;stroke-width:.14}.room.dash .wall{stroke-dasharray:.25 .15;stroke:#d2a020}
+  .plan :global(svg *:focus),.plan :global(svg *:focus-visible){outline:none}
+  .room.on .wall{stroke:#5ff0ff;stroke-width:.1;stroke-dasharray:none}.room.on .fl{filter:brightness(1.2)}
   .room.clk{cursor:pointer}.room.hv.clk .wall{stroke:#5ff0ff;filter:url(#glow)}.room.hv.clk .fl{filter:brightness(1.35)}
   .rl{font-size:.27px;letter-spacing:.06px;fill:#cfe3ee;stroke:#070c12;stroke-width:.07;pointer-events:none}.rc{font-size:.24px;fill:#ffb547;stroke:#070c12;stroke-width:.06;pointer-events:none}
   .door .cut{fill:#0b1118}.door line{stroke:#5ff0ff;stroke-width:.07;stroke-dasharray:.18 .08}
