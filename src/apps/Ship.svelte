@@ -1,48 +1,90 @@
 <script lang="ts">
-  // Docked & Loaded: gemi özelleştirme uygulaması. Şimdilik tek kayıtlı gemi (Demir Kervan). Hologram + iç plan + bölme fotoğrafları + dorse modülleri. Değerleri DM yazar (world/ship).
+  // Docked & Loaded v2: veri odaklı gemi sistemi (T1 Outrider). 3D hologram + yuva listesi + tersane deposu + canlı statlar. Ortak düzenleme.
   import { onMount } from 'svelte';
-  import { ShipScene } from '../ship/scene';
-  import { DEFAULT_SHIP, KINDS, ROOMS, MAX_TRAILERS, roomImg, type ShipState, type Room } from '../ship/data';
-  import { openImage } from '../lib/lightbox.svelte';
-  import { watchDoc } from '../lib/live';
+  import { ShipHolo } from '../ship/holo';
+  import { stats, apply, slots, part, fitInfo, nameOf, BRAND, CAT_ICON, chassisOf, startDoc, type ShipDoc, type Part, type Op, type Slot, type Addon, type TrailerDef, type Engine, type Core } from '../ship/sys';
+  import { watchShip, ensureShip, runOp } from '../ship/live';
   import { session } from '../lib/session.svelte';
   import { sfx, ambient } from '../lib/sfx';
-  const isDM = session.user?.role === 'dm';
-  let host: HTMLDivElement | undefined = $state(), ov: HTMLDivElement | undefined = $state(), sc: ShipScene | null = null;
-  let ship = $state<ShipState>({ ...DEFAULT_SHIP }), sel = $state<string | null>(null), hov = $state<string | null>(null), inside = $state(false), room = $state<Room | null>(null);
-  let boot = $state(0), lines = $state<string[]>([]), err = $state('');
-  const tr = $derived(sel && sel !== 'cab' ? ship.trailers.find((t) => t.id === sel) ?? null : null);
-  const totCargo = $derived(ship.cargo + ship.trailers.reduce((a, t) => a + (t.cargo || 0), 0));
-  const totCap = $derived(ship.cargoMax + ship.trailers.reduce((a, t) => a + (t.cargoMax || 0), 0));
-  const pct = (a: number, b: number) => (b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
-  const fmt = (n: number) => (Number(n) || 0).toLocaleString('tr-TR', { maximumFractionDigits: 1 });
-  const BOOT = ['LİMAN BAĞLANTISI KURULUYOR…', 'GEMİ SİCİLİ SORGULANIYOR', '1 KAYITLI GEMİ BULUNDU', 'SEÇİLİ GEMİ YÜKLENİYOR · DEMİR KERVAN', 'HOLOGRAM HAZIR'];
-  const photo = (k: string | undefined, n: string) => { if (!k) return; sfx.click(); openImage(roomImg(k), (ship.name || 'Demir Kervan') + ' · ' + n); };
-  function ovClick(e: MouseEvent) { const el = (e.target as HTMLElement).closest('.sh-lbl.room') as HTMLElement | null; if (el?.dataset.img) photo(el.dataset.img, el.textContent || ''); }
+  import Stats from './ship/Stats.svelte';
+  import Info from './ship/Info.svelte';
+  const me = session.user!, who = { uid: me.uid, name: me.character?.name || me.username };
+  let host: HTMLDivElement, ov: HTMLDivElement, holo: ShipHolo | null = null;
+  let doc = $state<ShipDoc>(startDoc()), loaded = $state(false), sel = $state<string | null>(null), hov = $state<string | null>(null), prevId = $state<string | null>(null);
+  let boot = $state(0), lines = $state<string[]>([]), info = $state(false), msg = $state<{ t: string; ok: boolean } | null>(null), busy = $state(false), filt = $state('');
+  const BOOT = ['LİMAN BAĞLANTISI KURULUYOR…', 'GEMİ SİCİLİ SORGULANIYOR', 'KAYITLI GEMİ · DEMİR KERVAN · T1 OUTRIDER', 'TERSANE DEPOSU EŞLENİYOR', 'HOLOGRAM HAZIR'];
+  const st = $derived(stats(doc));
+  const allSl = $derived(slots(doc));
+  const selSlot = $derived(sel && !sel.startsWith('trailer:') && sel !== 'hitch' ? allSl.find((s) => s.key === sel) ?? null : null);
+  const selTrailer = $derived(sel?.startsWith('trailer:') ? doc.trailers.find((t) => t.k === sel!.slice(8)) ?? null : null);
+  const inv = $derived(Object.entries(doc.inv).filter(([, n]) => n > 0).map(([id, n]) => ({ p: part(id)!, n })).filter((x) => x.p));
+  // seçili yuvaya göre listelenecekler
+  const kindFor = (k: string | null) => (k === 'engine_mount' ? 'engine' : k === 'core_mount' ? 'core' : k === 'hitch' ? 'trailer' : k ? 'addon' : '');
+  const list = $derived.by(() => {
+    const k = kindFor(sel && !sel.startsWith('trailer:') ? sel : null);
+    const rows = inv.map((x) => ({ ...x, f: fitInfo(doc, x.p.id, k === 'addon' ? sel! : undefined) }));
+    if (k) return rows.filter((r) => r.p.k === k && r.f.ok && (k !== 'addon' || !doc.fit[sel!]));
+    return rows.filter((r) => !filt || (r.p.k === 'addon' ? (r.p as Addon).cat : r.p.k) === filt);
+  });
+  const hidden = $derived(sel && kindFor(sel) && !(kindFor(sel) === 'addon' && doc.fit[sel]) ? inv.filter((x) => x.p.k === kindFor(sel)).length - list.length : 0);
+  const preview = $derived.by(() => { if (!prevId) return null; const op = opFor(prevId, sel); if (!op) return null; const r = apply({ ...doc, inv: { ...doc.inv, [prevId]: Math.max(1, doc.inv[prevId] ?? 0) } }, op); return r.next ? stats(r.next) : null; });
+  function opFor(id: string, slot: string | null): Op | null {
+    const p = part(id); if (!p) return null;
+    if (p.k === 'trailer') return { t: 'attach', id }; if (p.k === 'engine') return { t: 'engine', id }; if (p.k === 'core') return { t: 'core', id };
+    const target = slot && kindFor(slot) === 'addon' && !doc.fit[slot] ? slot : fitInfo(doc, id).slots[0]; return target ? { t: 'fit', slot: target, id } : null;
+  }
   onMount(() => {
-    let alive = true; const stopAmb = ambient('ship'); sfx.ignite();
+    let alive = true;
     BOOT.forEach((l, i) => setTimeout(() => { if (alive) { lines = [...lines, l]; sfx.key(); } }, 215 + i * 395));
     setTimeout(() => { if (alive) boot = 1; }, 2280); setTimeout(() => { if (alive) boot = 2; }, 3000);
-    try { sc = new ShipScene(host!, ov!, { hover: (id) => { if (id !== hov && id) sfx.hover(); hov = id; }, select: (id) => pick(id) }); }
-    catch (e) { err = 'Hologram başlatılamadı (WebGL).'; }
-    let prevN = -1;
-    const stop = watchDoc<Partial<ShipState>>(['world', 'ship'], (v) => { ship = { ...DEFAULT_SHIP, ...(v ?? {}), trailers: (v?.trailers ?? []).slice(0, MAX_TRAILERS) };
-      if (prevN >= 0 && ship.trailers.length > prevN) sfx.clamp(); prevN = ship.trailers.length;
-      sc?.setTrailers(ship.trailers); if (sel && sel !== 'cab' && !ship.trailers.some((t) => t.id === sel)) pick(null); });
-    sc?.setTrailers(ship.trailers);
-    const esc = (e: KeyboardEvent) => { if (e.key !== 'Escape') return; if (room) { room = null; e.stopImmediatePropagation(); } else if (sel) { pick(null); e.stopImmediatePropagation(); } };
+    holo = new ShipHolo(host, ov, { hover: (k) => (hov = k), select: (k) => pick(k) });
+    ensureShip(me.uid).catch(() => {});
+    const stop = watchShip((s) => { if (s) { doc = s; loaded = true; holo?.setShip(s); } });
+    holo.setShip(doc); if (location.search.includes('qc=1')) (window as unknown as Record<string, unknown>).__holo = holo;
+    const amb = ambient('ship'); const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && (sel || info)) { e.stopImmediatePropagation(); if (info) info = false; else pick(null); } };
     addEventListener('keydown', esc, true);
-    return () => { alive = false; stop(); stopAmb(); removeEventListener('keydown', esc, true); sc?.dispose(); sc = null; };
+    return () => { alive = false; stop(); holo?.dispose(); holo = null; removeEventListener('keydown', esc, true); amb(); };
   });
-  function pick(id: string | null) { if (id === sel && id) return; sel = id; room = null; if (id) sfx.click(); sc?.focus(id); }
-  function toggleInside() { inside = !inside; sc?.setInterior(inside); sfx.glitch(); room = null; }
-  // yan kesit planı (kabin): x −12…14, y 2.5…13.5
-  const PX = (x: number) => ((x + 12.2) / 26.6) * 520, PY = (y: number) => 150 - ((y - 2.4) / 11.2) * 140;
+  function pick(k: string | null) {
+    if (k === sel) return; sel = k; prevId = null; holo?.setSelected(k && !k.startsWith('trailer:') ? k : null);
+    if (!k) holo?.overview(); else if (k.startsWith('trailer:')) holo?.focus(k.slice(8)); else holo?.focusSlot(k);
+    if (k) sfx.click();
+  }
+  const say = (t: string, ok: boolean) => { msg = { t, ok }; setTimeout(() => msg?.t === t && (msg = null), ok ? 2600 : 5200); };
+  async function run(op: Op, okText: string) {
+    if (busy) return; busy = true; prevId = null;
+    try { const r = await runOp(op, who); if (r.ok) { sfx.granted(); say(okText, true); } else { sfx.error(); say(r.msg ?? 'Olmadı.', false); } }
+    catch (e) { sfx.error(); say('Bağlantı hatası: ' + ((e as { code?: string })?.code ?? e), false); }
+    busy = false;
+  }
+  function equip(id: string) {
+    const op = opFor(id, sel); const p = part(id)!;
+    if (!op) { const f = fitInfo(doc, id); sfx.error(); say(f.msg ?? 'Uygun yuva yok.', false); return; }
+    const where = op.t === 'fit' ? allSl.find((s) => s.key === op.slot)?.label : op.t === 'attach' ? 'dorse bağlantısı' : op.t === 'engine' ? 'motor bölmesi' : 'çekirdek odası';
+    run(op, `${p.model} → ${where}`).then(() => { if (op.t === 'fit') pick(op.slot); else if (op.t === 'attach') pick(null); });
+  }
+  const groups = $derived([
+    { t: 'TIR · ' + chassisOf(doc).name.toLocaleUpperCase('tr'), k: '', rows: allSl.filter((s) => s.owner === 'truck') },
+    ...doc.trailers.map((t) => ({ t: 'DORSE · ' + (part(t.id)?.model ?? '').toLocaleUpperCase('tr'), k: t.k, rows: allSl.filter((s) => s.owner === t.k) })),
+  ]);
+  const fittedId = (s: Slot) => (s.key === 'engine_mount' ? doc.engine : s.key === 'core_mount' ? doc.core : doc.fit[s.key]);
+  const facts = (p: Part): string[] => {
+    if (p.k === 'engine') { const e = p as Engine; return [`${e.mass} t`, `Thrust ${e.thrust}`, `Power ${e.power_draw}`, `Verim ${e.efficiency}`]; }
+    if (p.k === 'core') { const c = p as Core; return [`${c.mass} t`, `Output ${c.power_output}`, c.skarnit_per_day ? `${c.skarnit_per_day} t/gün` : 'füzyon yakıtı']; }
+    if (p.k === 'trailer') { const t = p as TrailerDef; return [`${t.mass} t`, t.capacity ? `Ambar ${t.capacity} t` : '', t.hidden ? `Gizli ${t.hidden} t` : '', `Power ${t.power_draw}`, t.armor ? `Armor +${t.armor}` : '', `${t.slots.length} yuva`].filter(Boolean); }
+    const a = p as Addon; return [`${a.size} ${a.mount}`, `${a.mass} t`, a.power ? `Power ${a.power}` : ''].filter(Boolean);
+  };
+  const desc = (p: Part) => (p.k === 'addon' ? (p as Addon).effect : p.k === 'trailer' ? `${(p as TrailerDef).type} · ${(p as TrailerDef).special} · Odalar: ${(p as TrailerDef).rooms.join(', ')}` : (p as Engine).note ?? '');
+  const icon = (p: Part) => CAT_ICON[p.k === 'addon' ? (p as Addon).cat : p.k] ?? '◇';
+  const CATS = [['', 'Tümü'], ['Silah', 'Silah'], ['İtici', 'İtici'], ['Zırh', 'Zırh'], ['Kalkan', 'Kalkan'], ['Sensör', 'Sensör'], ['EW', 'EW'], ['Yardımcı', 'Yardımcı'], ['engine', 'Motor'], ['core', 'Çekirdek'], ['trailer', 'Dorse']];
+  let tip = $state<{ m: string; x: number; y: number } | null>(null), root = $state<HTMLElement>();
+  function showTip(e: MouseEvent, m: string) { const a = (e.currentTarget as HTMLElement).getBoundingClientRect(), b = root!.getBoundingClientRect(); tip = { m, x: a.right - b.left + 4, y: a.top - b.top - 8 }; }
 </script>
 
-<div class="sp" class:ready={boot === 2}>
+<div class="sp" class:ready={boot === 2} bind:this={root}>
+  {#if tip}<div class="tip" style:left="{tip.x}px" style:top="{tip.y}px">{tip.m}</div>{/if}
   <div class="gl" bind:this={host}></div>
-  <div class="ov" bind:this={ov} onclick={ovClick} role="presentation"></div>
+  <div class="ov" bind:this={ov}></div>
   <div class="vig"></div><div class="scan"></div>
 
   {#if boot < 2}
@@ -54,88 +96,91 @@
   {/if}
 
   <header class="hd">
-    <div class="ttl"><span class="g" data-t="DOCKED &amp; LOADED">DOCKED &amp; LOADED</span><em class="mono">GEMİ ÖZELLEŞTİRME · SEÇİLİ GEMİ</em></div>
-    <div class="nm">{ship.name || 'Demir Kervan'}</div>
-    <div class="own mono">TEK ÖRNEK · ÖZEL YAPIM UZAY ÇEKİCİSİ · SAHİBİ AVGRİDT VEDARRİM GARDABATKİN · HROTHMAR KLANI</div>
+    <div class="ttl"><span class="g" data-t="DOCKED &amp; LOADED">DOCKED &amp; LOADED</span><em class="mono">SHIP CUSTOMIZATION · ORTAK DÜZENLEME</em></div>
+    <div class="nm">{doc.name}</div>
+    <div class="own mono">{chassisOf(doc).id} {chassisOf(doc).name.toLocaleUpperCase('tr')} · {nameOf(doc.engine)} · {nameOf(doc.core)}{#if !loaded} · <span class="sync">EŞLENİYOR…</span>{/if}</div>
   </header>
 
   <aside class="pan left">
-    <div class="h mono">MODÜLLER</div>
-    <button class="mod" class:on={sel === 'cab'} class:hv={hov === 'cab'} onclick={() => pick('cab')}><b class="mono">00</b><span>Çekici kabin<small>kokpit · yaşam · motorlar</small></span></button>
-    {#each Array(MAX_TRAILERS) as _, i (i)}
-      {@const t = ship.trailers[i]}
-      {#if t}<button class="mod" class:on={sel === t.id} class:hv={hov === t.id} onclick={() => pick(t.id)}><b class="mono">{String(i + 1).padStart(2, '0')}</b><span>{t.name || KINDS[t.kind]?.name}<small>{KINDS[t.kind]?.name}</small></span></button>
-      {:else}<div class="mod empty"><b class="mono">{String(i + 1).padStart(2, '0')}</b><span>Boş bağlantı yuvası<small>dorse bağlı değil</small></span></div>{/if}
+    {#each groups as g (g.t)}
+      <div class="h mono"><span>{g.t}</span>{#if g.k}<button class="lnk" onclick={() => pick('trailer:' + g.k)}>DORSE ›</button>{/if}</div>
+      {#each g.rows as s (s.key)}
+        {@const id = fittedId(s)}
+        <button class="slot" class:on={sel === s.key} class:hv={hov === s.key} class:full={!!id} onclick={() => pick(s.key)} onmouseenter={() => (hov = s.key)} onmouseleave={() => (hov = null)}>
+          <i class="dot"></i><span class="l">{s.label}<small class="mono">{s.mount === 'Motor' || s.mount === 'Çekirdek' ? s.size : s.size + ' · ' + s.mount}</small></span><span class="v">{id ? nameOf(id) : 'BOŞ'}</span>
+        </button>
+      {/each}
+      {#if !g.k}
+        <button class="slot" class:on={sel === 'hitch'} class:full={doc.trailers.length > 0} onclick={() => (doc.trailers.length ? pick('trailer:' + doc.trailers[0].k) : pick('hitch'))}>
+          <i class="dot"></i><span class="l">Dorse bağlantısı<small class="mono">{doc.trailers.length} / {chassisOf(doc).max_trailers} · {chassisOf(doc).trailer_sizes.join('/')}</small></span><span class="v">{doc.trailers.length ? nameOf(doc.trailers[0].id) : 'BOŞ'}</span>
+        </button>
+      {/if}
     {/each}
-    <div class="h mono">GÖRÜNÜM</div>
-    <div class="seg"><button class:on={!inside} onclick={() => inside && toggleInside()}>Dış gövde</button><button class:on={inside} onclick={() => !inside && toggleInside()}>İç plan</button></div>
     <button class="ovw mono" onclick={() => pick(null)}>⌖ GENEL BAKIŞ</button>
-    {#if isDM}<p class="dmh">Değerleri ve dorseleri DM Paneli → Gemi sekmesinden düzenlersin.</p>{/if}
   </aside>
 
-  <aside class="pan right">
-    {#if tr}
-      <div class="k mono">DORSE · {KINDS[tr.kind]?.name.toLocaleUpperCase('tr')}</div>
-      <h2>{tr.name || KINDS[tr.kind]?.name}</h2>
-      <p class="d">{KINDS[tr.kind]?.desc}</p>
-      {@render bar('Gövde', tr.hp, tr.hpMax, 'hp')}
-      {@render bar('Yük', tr.cargo, tr.cargoMax, 'cg', ' t')}
-      <div class="rooms"><div class="h mono">BÖLMELER</div>{#each KINDS[tr.kind]?.rooms ?? [] as r (r.n)}<button class="rp" title="Fotoğrafı aç" onclick={() => photo(r.img, r.n)}>{r.n} <i>▣</i></button>{/each}</div>
-      {#if tr.note}<p class="note">{tr.note}</p>{/if}
-    {:else}
-      <div class="k mono">GEMİ DURUMU</div>
-      <h2>{ship.name || 'Demir Kervan'}</h2>
-      {@render bar('Gövde', ship.hp, ship.hpMax, 'hp')}
-      {@render bar('Kalkan', ship.sh, ship.shMax, 'sh')}
-      {@render bar('Yakıt', ship.fuel, ship.fuelMax, 'fu')}
-      {@render bar('Toplam yük', totCargo, totCap, 'cg', ' t')}
-      <table><tbody>
-        <tr><td>Yakıt türü</td><td>{ship.fuelType}</td></tr>
-        <tr><td>Kabin yükü</td><td>{fmt(ship.cargo)} / {fmt(ship.cargoMax)} t</td></tr>
-        <tr><td>Dorseler</td><td>{ship.trailers.length} / {MAX_TRAILERS} bağlı</td></tr>
-        <tr><td>İtki</td><td><b class="good">Çok güçlü</b> · Skarn motorları</td></tr>
-        <tr><td>Manevra</td><td><b class="bad">Zayıf</b> · ağır ve geniş dönüşlü</td></tr>
-        <tr><td>Azami hız</td><td>{ship.speed}</td></tr>
-      </tbody></table>
-      {#if ship.note}<p class="note">{ship.note}</p>{/if}
+  <div class="stats"><Stats s={st} p={preview} /></div>
+
+  <!-- seçim kartı + tersane deposu -->
+  <section class="dock">
+    {#if selSlot || selTrailer || sel === 'hitch'}
+      <div class="card">
+        {#if selTrailer}
+          {@const t = part(selTrailer.id) as TrailerDef}
+          <div class="ck mono">DORSE · {t.type.toLocaleUpperCase('tr')}</div><h3>{t.model}<small>{BRAND[t.brand] ?? ''}</small></h3>
+          <div class="fx">{#each facts({ ...t, k: 'trailer' }) as f (f)}<span>{f}</span>{/each}</div>
+          <p>{t.special} · Odalar: {t.rooms.join(', ')}</p>
+          <button class="btn ghost small cy" disabled={busy} onclick={() => run({ t: 'detach', k: selTrailer.k }, `${t.model} ayrıldı, depoya döndü`).then(() => pick(null))}>Dorseyi ayır</button>
+        {:else if sel === 'hitch'}
+          <div class="ck mono">DORSE BAĞLANTISI · {chassisOf(doc).trailer_sizes.join('/')}</div><h3>Boş</h3><p>Depodaki uygun dorseler aşağıda. Outrider en fazla {chassisOf(doc).max_trailers} dorse çeker.</p>
+        {:else if selSlot}
+          {@const id = fittedId(selSlot)}
+          <div class="ck mono">{selSlot.owner === 'truck' ? 'TIR' : 'DORSE'} · {selSlot.size} · {selSlot.mount.toLocaleUpperCase('tr')}</div>
+          <h3>{selSlot.label}{#if id}<small>{nameOf(id)}</small>{/if}</h3>
+          {#if id}{@const p = part(id)!}
+            <div class="fx">{#each facts(p) as f (f)}<span>{f}</span>{/each}{#if p.legality !== 'Yasal'}<span class="lg">{p.legality}</span>{/if}</div>
+            <p>{desc(p)}</p>
+            {#if p.k === 'addon'}<button class="btn ghost small cy" disabled={busy} onclick={() => run({ t: 'unfit', slot: selSlot.key }, `${p.model} söküldü, depoya döndü`)}>Sök</button>
+            {:else}<p class="hint">Değiştirmek için depodan başka bir {p.k === 'engine' ? 'motor' : 'çekirdek'} seç; eskisi depoya döner.</p>{/if}
+          {:else}<p class="hint">Boş yuva. Depoda buraya uyan parçalar aşağıda.</p>{/if}
+        {/if}
+      </div>
     {/if}
-  </aside>
+    <div class="inv">
+      <div class="ih">
+        <span class="mono">TERSANE DEPOSU</span>
+        {#if sel && kindFor(sel) && !(kindFor(sel) === 'addon' && doc.fit[sel])}<em class="mono">BU YUVAYA UYANLAR · {list.length}{#if hidden} · {hidden} UYMAYAN GİZLİ{/if}</em>
+        {:else}<div class="flt">{#each CATS as [k, t] (k)}<button class:on={filt === k} onclick={() => (filt = k)}>{t}</button>{/each}</div>{/if}
+      </div>
+      <div class="cards">
+        {#each list as r (r.p.id)}
+          <button class="it" class:bad={!r.f.ok} disabled={busy} onclick={() => equip(r.p.id)} onmouseenter={() => r.f.ok && (prevId = r.p.id)} onmouseleave={() => (prevId = null)} title={r.f.ok ? 'Tıkla: tak' : ''}>
+            <span class="ic">{icon(r.p)}</span>
+            <span class="tx"><b>{r.p.model}{#if r.n > 1}<i class="mono">×{r.n}</i>{/if}</b><small>{r.p.k === 'addon' ? (r.p as Addon).cat : r.p.k === 'engine' ? 'Motor' : r.p.k === 'core' ? ((r.p as Core).tech === 'human' ? 'İnsan reaktörü' : 'Skarn Çekirdeği') : 'Dorse · ' + (r.p as TrailerDef).type} · {facts(r.p).join(' · ')}</small><em>{desc(r.p)}</em></span>
+            {#if !r.f.ok}<span class="no" role="img" aria-label={r.f.msg} onmouseenter={(e) => showTip(e, r.f.msg ?? '')} onmouseleave={() => (tip = null)}>⊘</span>{/if}
+          </button>
+        {:else}<div class="em">{sel && kindFor(sel) ? 'Depoda bu yuvaya uyan parça yok.' : 'Depo boş. DM, DM Paneli → Gemi sekmesinden parça verebilir.'}</div>{/each}
+      </div>
+    </div>
+  </section>
 
-  {#if inside}
-    <section class="plan">
-      <div class="h mono">KABİN İÇ PLANI · YAN KESİT <small>odaya tıkla</small></div>
-      <svg viewBox="0 0 520 156">
-        <path class="hull" d={`M${PX(12.5)},${PY(2.6)} L${PX(12.5)},${PY(7.2)} L${PX(4.6)},${PY(8.1)} L${PX(2.6)},${PY(12)} L${PX(-3.2)},${PY(12.4)} L${PX(-3.6)},${PY(13.2)} L${PX(-8)},${PY(13.2)} L${PX(-8)},${PY(6.4)} L${PX(-12)},${PY(6.4)} L${PX(-12)},${PY(2.6)} Z`} />
-        <line class="deck" x1={PX(-8)} x2={PX(4.6)} y1={PY(7.5)} y2={PY(7.5)} />
-        {#each ROOMS as r (r.id)}
-          <g class="rm" class:on={room?.id === r.id} role="button" tabindex="0" onclick={() => { room = r; sfx.click(); }} onkeydown={(e) => e.key === 'Enter' && (room = r)}>
-            <rect x={PX(r.x0)} y={PY(r.y1)} width={PX(r.x1) - PX(r.x0)} height={PY(r.y0) - PY(r.y1)} />
-            <text x={(PX(r.x0) + PX(r.x1)) / 2} y={(PY(r.y0) + PY(r.y1)) / 2 + 3}>{r.n}</text>
-          </g>
-        {/each}
-        <text class="lbl" x={PX(-8) + 4} y={PY(7.5) - 4}>ÜST GÜVERTE</text><text class="lbl" x={PX(-8) + 4} y={PY(2.6) - 4}>ALT GÜVERTE</text>
-      </svg>
-      {#if room}<div class="rd ph"><button class="th" title="Büyüt" onclick={() => photo(room!.id, room!.n)}><img src={roomImg(room.id)} alt={(ship.name || 'Demir Kervan') + ' · ' + room.n} /></button><div><b>{room.n}</b> {room.d}<small class="mono">FOTOĞRAFA TIKLA · BÜYÜT</small></div></div>{:else}<div class="rd mut">Bir bölmeye tıkla: fotoğrafı ve açıklaması açılır. Hologramdaki bölme etiketleri de tıklanır.</div>{/if}
-    </section>
-  {/if}
-  {#if err}<div class="err mono">{err}</div>{/if}
+  {#if msg}<div class="msg" class:bad={!msg.ok}>{msg.t}</div>{/if}
+  <button class="info mono" onclick={() => (info = !info)} title="Statlar ve kurallar">i</button>
+  {#if info}<Info onclose={() => (info = false)} />{/if}
 </div>
-
-{#snippet bar(l: string, a: number, b: number, cls: string, unit = '')}
-  <div class="st {cls}" class:low={pct(a, b) < 25}>
-    <div class="sl"><span>{l}</span><b class="mono">{fmt(a)} / {fmt(b)}{unit}</b></div>
-    <div class="track"><i style:width="{pct(a, b)}%"></i>{#each Array(10) as _, i (i)}<s style:left="{i * 10}%"></s>{/each}</div>
-  </div>
-{/snippet}
 
 <style>
   .sp{position:absolute;inset:0;overflow:hidden;background:#03060c;color:var(--tx)}
   .gl{position:absolute;inset:0}.ov{position:absolute;inset:0;pointer-events:none;overflow:hidden}
   .vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.65))}
   .scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,240,255,.025) 0 1px,transparent 1px 3px);mix-blend-mode:screen}
-  .ov :global(.sh-lbl){position:absolute;left:0;top:0;font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;color:#ffcf7a;white-space:nowrap;padding:2px 6px;background:rgba(10,8,2,.55);border:1px solid rgba(255,181,71,.35)}
+  .ov :global(.sh-lbl){position:absolute;left:0;top:0;font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;color:#ffcf7a;white-space:nowrap;padding:2px 6px;background:rgba(10,8,2,.55);border:1px solid rgba(255,181,71,.3)}
   .ov :global(.sh-lbl.tr){color:#9ff6ff;border-color:rgba(0,240,255,.35);background:rgba(2,10,14,.55);font-size:12px}
   .ov :global(.sh-lbl.on){color:#fff;border-color:#fff;box-shadow:0 0 10px rgba(0,240,255,.5)}
+  .ov :global(.sh-slot){position:absolute;left:0;top:0;display:none;padding:4px 9px;background:rgba(3,8,14,.9);border:1px solid rgba(255,181,71,.6);border-left:3px solid #ffb547;white-space:nowrap;animation:si .18s ease-out}
+  .ov :global(.sh-slot.full){border-color:rgba(57,255,138,.55);border-left-color:#39ff8a}.ov :global(.sh-slot.on){border-color:var(--ye);border-left-color:var(--ye);box-shadow:0 0 14px rgba(252,238,10,.3)}
+  .ov :global(.sh-slot b){display:block;font-size:13px;color:#fff;font-weight:600}.ov :global(.sh-slot span){font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;color:#cfe}
+  @keyframes si{from{opacity:0;transform:translate(-6px,-50%)}}
   .g{position:relative;display:inline-block}
   .g::before,.g::after{content:attr(data-t);position:absolute;inset:0;pointer-events:none}
   .g::before{color:#ff2a55;clip-path:inset(0 0 55% 0);animation:g1 3.2s steps(1) infinite}
@@ -147,46 +192,45 @@
   .bt{font-family:var(--f-disp);font-size:44px;font-weight:700;letter-spacing:.4em;color:var(--cy);text-shadow:0 0 22px rgba(0,240,255,.6);animation:bz .5s steps(4) 3}
   @keyframes bz{50%{transform:skewX(-8deg) translateX(6px);filter:hue-rotate(90deg)}}
   .bl{font-size:12.5px;letter-spacing:.16em;color:#8fe9ff;min-height:110px;width:min(520px,80vw)}.bl div{animation:fi .2s both}@keyframes fi{from{opacity:0;transform:translateX(-8px)}}
-  .bar{width:min(520px,80vw);height:3px;background:rgba(0,240,255,.15)}.bar i{display:block;height:100%;background:var(--cy);box-shadow:0 0 10px var(--cy);animation:ld 1.8s cubic-bezier(.6,0,.3,1) forwards}@keyframes ld{from{width:0}to{width:100%}}
-  .hd{position:absolute;top:56px;left:22px;z-index:4;pointer-events:none;opacity:0;transition:opacity .8s .2s}
-  .ready .hd,.ready .pan,.ready .plan{opacity:1}
-  .ttl{display:flex;align-items:baseline;gap:14px}.ttl .g{font-family:var(--f-disp);font-weight:700;font-size:30px;letter-spacing:.32em;color:var(--cy);text-shadow:0 0 16px rgba(0,240,255,.45)}
-  .ttl em{font-style:normal;font-size:10.5px;letter-spacing:.2em;color:var(--ye)}
-  .nm{font-size:19px;color:#fff;margin-top:4px}.own{font-size:10.5px;letter-spacing:.16em;color:var(--mut);margin-top:4px}
-  .pan{position:absolute;z-index:4;background:rgba(4,8,14,.78);border:1px solid rgba(0,240,255,.2);backdrop-filter:blur(6px);padding:14px;opacity:0;transition:opacity .8s .35s;
-    clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
-  .left{left:22px;top:170px;width:250px;display:flex;flex-direction:column;gap:6px;max-height:calc(100% - 200px);overflow:auto}
-  .right{right:22px;top:70px;width:330px;max-height:calc(100% - 100px);overflow:auto}
-  .h{font-size:10.5px;letter-spacing:.22em;color:var(--mut);margin:6px 0 2px}.h small{color:#6b7488;letter-spacing:.1em;margin-left:8px}
-  .mod{display:flex;align-items:center;gap:10px;text-align:left;background:rgba(0,240,255,.04);border:1px solid rgba(0,240,255,.14);color:var(--tx);padding:8px 10px;font:inherit;cursor:pointer}
-  .mod b{font-size:11px;color:var(--ye)}.mod span{display:flex;flex-direction:column;font-size:14px}.mod small{font-size:11px;color:var(--mut)}
-  .mod:hover,.mod.hv{border-color:rgba(0,240,255,.5)}.mod.on{border-color:var(--cy);background:rgba(0,240,255,.12);box-shadow:inset 3px 0 0 var(--cy)}
-  .mod.empty{opacity:.45;border-style:dashed;cursor:default}
-  .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px}.seg button{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);color:var(--tx);padding:7px;font:inherit;font-size:13px;cursor:pointer}
-  .seg button.on{border-color:var(--ye);color:var(--ye);background:rgba(252,238,10,.08)}
-  .ovw{margin-top:6px;background:none;border:1px solid rgba(0,240,255,.3);color:var(--cy);padding:7px;font-size:11px;letter-spacing:.2em;cursor:pointer}
-  .dmh{font-size:12px;color:#ff8aa0;margin:8px 0 0;line-height:1.4}
-  .k{font-size:10.5px;letter-spacing:.22em;color:var(--ye)}h2{margin:4px 0 12px;font-size:22px;font-weight:600;color:#fff}
-  .d{font-size:14px;color:#c4cbd8;line-height:1.5;margin:0 0 12px}
-  .st{margin:10px 0}.sl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}.sl b{font-size:12px;color:#fff}
-  .track{position:relative;height:9px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}.track i{position:absolute;inset:0 auto 0 0;transition:width .6s}
-  .track s{position:absolute;top:0;bottom:0;width:1px;background:rgba(0,0,0,.5)}
-  .hp i{background:linear-gradient(90deg,#1fd17a,#7ee787)}.sh i{background:linear-gradient(90deg,#1aa3ff,#6cd6ff)}.fu i{background:linear-gradient(90deg,#ff8a1f,#ffc04d)}.cg i{background:linear-gradient(90deg,#9b6bff,#c9a6ff)}
-  .st.low .track i{background:#ff3355;animation:bl 1s steps(2) infinite}@keyframes bl{50%{opacity:.5}}
-  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}td{padding:6px 0;border-top:1px solid rgba(255,255,255,.06);vertical-align:top}td:first-child{color:var(--mut);width:42%}
-  .good{color:#7ee787;font-weight:500}.bad{color:#ff8a8a;font-weight:500}
-  .rooms{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}.rooms .h{width:100%}.rooms span{font-size:12.5px;border:1px solid rgba(255,181,71,.4);color:#ffcf7a;padding:3px 8px}
-  .note{font-size:13.5px;color:#d6dbe5;line-height:1.5;border-left:2px solid var(--ye);padding-left:10px;margin-top:14px;white-space:pre-wrap}
-  .plan{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:4;width:min(600px,calc(100% - 660px));min-width:420px;background:rgba(4,8,14,.82);border:1px solid rgba(255,181,71,.3);padding:10px 14px;opacity:0;transition:opacity .5s}
-  .plan svg{width:100%;height:auto;display:block}
-  .hull{fill:rgba(0,240,255,.04);stroke:#33e6ff;stroke-width:1.2}.deck{stroke:#33e6ff;stroke-dasharray:4 3;opacity:.6}
-  .rm rect{fill:rgba(255,181,71,.08);stroke:#ffb547;stroke-width:1;cursor:pointer;transition:fill .15s}.rm:hover rect,.rm.on rect{fill:rgba(255,181,71,.3)}
-  .rm text{fill:#ffe2b0;font-size:9.5px;text-anchor:middle;pointer-events:none;font-family:var(--f-mono)}
-  .lbl{fill:#6fc9dc;font-size:7.5px;letter-spacing:.15em;font-family:var(--f-mono)}
-  .rd{font-size:13.5px;color:#e4e8f0;margin-top:6px;line-height:1.45}.rd b{color:#ffcf7a;margin-right:6px}.rd.mut{color:var(--mut)}
-  .err{position:absolute;inset:auto 0 40% 0;text-align:center;color:#ff6b81;letter-spacing:.2em}
-  .ov :global(.sh-lbl.room[data-img]){pointer-events:auto;cursor:pointer}.ov :global(.sh-lbl.room[data-img]:hover){color:#fff;border-color:#ffcf7a;box-shadow:0 0 10px rgba(255,181,71,.5)}
-  .rp{background:rgba(255,181,71,.08);border:1px solid rgba(255,181,71,.35);color:#ffcf7a;padding:3px 8px;margin:0 6px 6px 0;font:inherit;font-size:12px;cursor:pointer}.rp:hover{background:rgba(255,181,71,.2);color:#fff}.rp i{font-style:normal;opacity:.7}
-  .rd.ph{display:flex;gap:12px;align-items:flex-start}.rd .th{flex:0 0 150px;height:84px;padding:0;border:1px solid rgba(255,181,71,.45);background:#000;cursor:zoom-in;overflow:hidden}
-  .rd .th img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}.rd .th:hover img{transform:scale(1.06)}.rd small{display:block;margin-top:4px;font-size:9.5px;letter-spacing:.18em;color:var(--mut)}
+  .bar{width:min(520px,80vw);height:3px;background:rgba(0,240,255,.15)}.bar i{display:block;height:100%;background:var(--cy);box-shadow:0 0 10px var(--cy);animation:ld 2.1s cubic-bezier(.6,0,.3,1) forwards;width:0}@keyframes ld{to{width:100%}}
+  .hd,.pan,.stats,.dock,.info{opacity:0;transition:opacity .6s .2s,transform .6s .2s}.ready .hd,.ready .pan,.ready .stats,.ready .dock,.ready .info{opacity:1;transform:none}
+  .hd{position:absolute;left:24px;top:58px;transform:translateY(-10px);pointer-events:none}
+  .ttl{font-family:var(--f-disp);font-size:13px;letter-spacing:.42em;color:var(--cy);display:flex;flex-direction:column;gap:4px}.ttl em{font-style:normal;font-size:9.5px;letter-spacing:.3em;color:var(--mut)}
+  .nm{font-family:var(--f-disp);font-size:34px;font-weight:700;letter-spacing:.08em;color:#fff;margin-top:6px;text-shadow:0 0 18px rgba(0,240,255,.35)}
+  .own{font-size:10.5px;letter-spacing:.18em;color:#9fe6f5;margin-top:3px}.sync{color:var(--ye)}
+  .pan.left{position:absolute;left:18px;top:178px;bottom:18px;width:272px;overflow:auto;display:flex;flex-direction:column;gap:3px;transform:translateX(-14px);padding-right:4px}
+  .pan .h{display:flex;align-items:center;font-size:9.5px;letter-spacing:.28em;color:var(--ye);margin:10px 0 3px}.lnk{margin-left:auto;background:none;border:none;color:var(--cy);font:inherit;font-size:9.5px;letter-spacing:.2em;cursor:pointer}
+  .slot{position:relative;display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:9px;padding:7px 10px;background:rgba(4,10,18,.72);border:1px solid rgba(255,255,255,.07);color:#dde;font:inherit;text-align:left;cursor:pointer;transition:border-color .18s,background .18s,transform .18s;overflow:hidden}
+  .slot::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(0,240,255,.14),transparent);transform:translateX(-100%);transition:transform .45s}
+  .slot:hover::after{transform:translateX(100%)}
+  .slot:hover,.slot.hv{border-color:rgba(255,255,255,.3);transform:translateX(3px)}.slot.on{border-color:var(--ye);background:rgba(252,238,10,.08)}
+  .dot{width:9px;height:9px;border-radius:50%;border:2px solid #ffb547;box-shadow:0 0 8px rgba(255,181,71,.5)}.full .dot{background:#39ff8a;border-color:#39ff8a;box-shadow:0 0 8px rgba(57,255,138,.6)}.on .dot{border-color:var(--ye);background:var(--ye)}
+  .l{display:flex;flex-direction:column;font-size:13.5px;font-weight:600}.l small{font-size:9.5px;letter-spacing:.15em;color:var(--mut);font-weight:400}
+  .v{font-size:12px;color:#9dffc4;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}.slot:not(.full) .v{color:#ffb547;font-family:var(--f-mono);letter-spacing:.2em;font-size:10px}
+  .ovw{margin-top:10px;background:none;border:1px solid rgba(0,240,255,.3);color:var(--cy);padding:7px;font-size:10.5px;letter-spacing:.25em;cursor:pointer}.ovw:hover{background:rgba(0,240,255,.1)}
+  .stats{position:absolute;right:18px;top:58px;transform:translateX(14px)}
+  .dock{position:absolute;left:310px;right:350px;bottom:16px;display:flex;gap:10px;align-items:flex-end;transform:translateY(14px);pointer-events:none}.dock>*{pointer-events:auto}
+  .card{width:280px;flex:none;padding:11px 13px;background:rgba(4,10,18,.9);border:1px solid rgba(252,238,10,.35);border-top:2px solid var(--ye);animation:ci .25s cubic-bezier(.2,.9,.3,1);display:flex;flex-direction:column;gap:6px}
+  @keyframes ci{from{opacity:0;clip-path:inset(100% 0 0 0)}to{clip-path:inset(0)}}
+  .ck{font-size:9.5px;letter-spacing:.25em;color:var(--ye)}.card h3{margin:0;font-size:19px;color:#fff;display:flex;flex-direction:column}.card h3 small{font-size:13px;color:#9dffc4;font-weight:500}
+  .card p{margin:0;font-size:13px;line-height:1.4;color:#c9d6e2}.hint{color:var(--mut)!important;font-size:12.5px!important}
+  .fx{display:flex;flex-wrap:wrap;gap:4px}.fx span{font-size:11.5px;padding:1px 6px;border:1px solid rgba(0,240,255,.25);color:#cfe}.fx .lg{border-color:var(--rd);color:var(--rd)}
+  .btn.cy{align-self:flex-start}
+  .inv{flex:1;min-width:0;max-height:38vh;display:flex;flex-direction:column;background:rgba(3,8,14,.86);border:1px solid rgba(0,240,255,.25);backdrop-filter:blur(5px)}
+  .ih{display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid rgba(0,240,255,.12)}.ih>span{font-size:9.5px;letter-spacing:.3em;color:var(--cy)}.ih em{font-style:normal;font-size:9.5px;letter-spacing:.2em;color:var(--ye)}
+  .flt{display:flex;gap:2px;flex-wrap:wrap}.flt button{background:none;border:1px solid transparent;color:var(--mut);font:inherit;font-size:12px;padding:1px 7px;cursor:pointer}.flt button:hover{color:#fff}.flt button.on{color:#04050a;background:var(--cy)}
+  .cards{overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;padding:8px}
+  .it{position:relative;display:grid;grid-template-columns:30px 1fr auto;gap:8px;align-items:start;padding:7px 8px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);color:#dde;font:inherit;text-align:left;cursor:pointer;transition:border-color .18s,background .18s,box-shadow .18s}
+  .it:hover:not(:disabled){border-color:var(--cy);background:rgba(0,240,255,.07);box-shadow:inset 3px 0 0 var(--cy)}.it.bad{opacity:.62}.it.bad:hover{border-color:rgba(255,42,85,.5);box-shadow:none;background:rgba(255,42,85,.05)}
+  .ic{width:30px;height:30px;display:grid;place-items:center;font-size:17px;color:var(--cy);border:1px solid rgba(0,240,255,.3);background:rgba(0,240,255,.05)}
+  .tx{display:flex;flex-direction:column;min-width:0}.tx b{font-size:14px;color:#fff}.tx b i{font-style:normal;color:var(--ye);margin-left:6px;font-size:11px}
+  .tx small{font-size:11px;color:#9fd8e6}.tx em{font-style:normal;font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .no{position:relative;color:var(--rd);font-size:15px;line-height:1;cursor:help}.tip{position:absolute;transform:translate(-100%,-100%);width:240px;padding:7px 9px;background:#12050a;border:1px solid var(--rd);color:#ffd6de;font-size:12.5px;line-height:1.4;z-index:5;white-space:normal}
+  .tip{display:block;animation:fi .15s;pointer-events:none;z-index:30}
+  .em{grid-column:1/-1;font-size:13px;color:var(--mut);padding:12px}
+  .msg{position:absolute;left:50%;top:58px;transform:translateX(-50%);padding:8px 16px;background:rgba(2,14,8,.94);border:1px solid #39ff8a;color:#c8ffdc;font-size:14px;z-index:15;animation:mi .3s cubic-bezier(.2,.9,.3,1);max-width:560px}
+  .msg.bad{background:rgba(18,4,8,.95);border-color:var(--rd);color:#ffd6de}
+  @keyframes mi{from{opacity:0;transform:translate(-50%,-10px);clip-path:inset(0 50% 0 50%)}to{clip-path:inset(0)}}
+  .info{position:absolute;right:18px;bottom:18px;width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.3);color:rgba(255,255,255,.45);font-size:13px;cursor:pointer;transition:color .2s,border-color .2s}
+  .info:hover{color:#fff;border-color:var(--cy)}
 </style>

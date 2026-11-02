@@ -173,7 +173,8 @@
     const fs = [...(e.dataTransfer?.files ?? [])]; if (fs.length) { const out = await depot.upload(fs); out.forEach((it, i) => placeDep(it, { x: p.x + i * 40, y: p.y + i * 40 })); }
   }
   // ---------- sahneler ----------
-  async function newScene() { const s: Scene = { id: nid(), name: 'Sahne ' + (scenes.length + 1), w: STAGE.w, h: STAGE.h, order: (scenes.at(-1)?.order ?? 0) + 1, layers: [], imgs: [], at: now() }; scenes = [...scenes, s]; sid = s.id; await saveScene(s); sfx.granted(); }
+  let mkBusy = 0;
+  async function newScene() { if (Date.now() - mkBusy < 1200) return; mkBusy = Date.now(); const n = Math.max(0, ...scenes.map((x) => +(/^Sahne (\d+)$/.exec(x.name)?.[1] ?? 0))) + 1; const s: Scene = { id: nid(), name: 'Sahne ' + n, w: STAGE.w, h: STAGE.h, order: (scenes.at(-1)?.order ?? 0) + 1, layers: [], imgs: [], at: now() }; scenes = [...scenes, s]; sid = s.id; await saveScene(s); sfx.granted(); }
   async function renameScene(s: Scene) { const v = renV.trim().slice(0, 60); renS = ''; if (!v || v === s.name) return; if (sc && sc.id === s.id) { sc.name = v; persist(true); } else await saveScene({ ...clone($state.snapshot(s) as Scene), name: v }); }
   async function delScene(s: Scene) {
     const who = pls.filter((p) => asg[p.uid] === s.id);

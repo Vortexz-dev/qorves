@@ -280,6 +280,20 @@ service cloud.firestore {
         && request.resource.data.kind in ['note', 'shot', 'ping'] && request.resource.data.keys().hasOnly(['id', 'uid', 'name', 'kind', 'title', 'body', 'sid', 'scene', 'src', 'thumb', 'at'])
         && (!('body' in request.resource.data) || request.resource.data.body.size() <= 20000) && (!('thumb' in request.resource.data) || request.resource.data.thumb.size() < 120000);
     }
+    // ---------- Gemi (Docked & Loaded): tek ortak doküman, herkes düzenler (sürüm sayacı + işlem), DM her şeyi ----------
+    match /ship/{id} {
+      allow read: if signedIn();
+      allow create: if isDM() || (signedIn() && id == 'main' && request.resource.data.rev == 1);
+      allow update: if isDM() || (signedIn() && id == 'main' && request.resource.data.rev == resource.data.rev + 1 && request.resource.data.by == request.auth.uid
+        && request.resource.data.keys().hasOnly(['rev', 'at', 'by', 'name', 'chassis', 'engine', 'core', 'skarnit', 'fit', 'trailers', 'inv', 'cargo'])
+        && request.resource.data.name == resource.data.name && request.resource.data.chassis == resource.data.chassis && request.resource.data.skarnit == resource.data.skarnit
+        && request.resource.data.fit is map && request.resource.data.inv is map && request.resource.data.trailers is list && request.resource.data.trailers.size() <= 5 && request.resource.data.cargo is list);
+      allow delete: if isDM();
+    }
+    match /ship_log/{id} {
+      allow read, delete: if isDM();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.keys().hasOnly(['uid', 'name', 'op', 'text', 'at']) && request.resource.data.text is string && request.resource.data.text.size() <= 300;
+    }
     match /config/{id} {
       allow read: if signedIn();
       allow write: if isDM();

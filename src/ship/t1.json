@@ -1,0 +1,2115 @@
+{
+  "version": "0.2-beta",
+  "status": "beta / ayarlanacak — tüm sayılar yer tutucu",
+  "scope": "T1 Outrider (site ilk aşama)",
+  "units": {
+    "mass": "t",
+    "thrust": "t (1 Thrust = 1 t taşınabilir kütle)",
+    "power": "birimsiz",
+    "mobility": "0-100",
+    "delta_v": "endeks",
+    "endurance": "gün",
+    "skarnit": "t"
+  },
+  "glossary": [
+    {
+      "stat": "Mass",
+      "unit": "t",
+      "definition_tr": "Geminin toplam kütlesi: şasi, motor, çekirdek, dorseler, eklentiler, yük ve Skarnit."
+    },
+    {
+      "stat": "Max Mass",
+      "unit": "t",
+      "definition_tr": "Geminin hareket ettirebileceği en büyük kütle; toplam Thrust'a eşittir."
+    },
+    {
+      "stat": "Load",
+      "unit": "%",
+      "definition_tr": "Mass'in Max Mass'e oranı. %100'ü geçemez."
+    },
+    {
+      "stat": "Thrust",
+      "unit": "t",
+      "definition_tr": "İtki. 1 Thrust, 1 ton kütleyi taşır. Skarn Motoru ve itici eklentilerinden gelir."
+    },
+    {
+      "stat": "Power Output",
+      "unit": "—",
+      "definition_tr": "Skarn Çekirdeği'nin (ya da insan reaktörünün) ürettiği güç."
+    },
+    {
+      "stat": "Power Draw",
+      "unit": "—",
+      "definition_tr": "Takılı her şeyin çektiği güç toplamı. Power Output'u geçemez."
+    },
+    {
+      "stat": "Mobility",
+      "unit": "0–100",
+      "definition_tr": "Manevra kabiliyeti. Load arttıkça düşer; itici eklentileri artırır."
+    },
+    {
+      "stat": "Delta-V",
+      "unit": "sayı",
+      "definition_tr": "Yakıtla yapılabilecek toplam hız değişimi göstergesi. Ağır gemide düşer."
+    },
+    {
+      "stat": "Endurance",
+      "unit": "gün",
+      "definition_tr": "Çekirdeğin mevcut Skarnit ile kaç gün güç üretebileceği."
+    },
+    {
+      "stat": "Skarnit",
+      "unit": "t",
+      "definition_tr": "Hem motorun hem çekirdeğin yakıtı. Kütleye sayılır."
+    },
+    {
+      "stat": "Capacity",
+      "unit": "t",
+      "definition_tr": "Bir ambarın taşıyabileceği yük. Hidden Capacity: taramada görünmeyen yük."
+    },
+    {
+      "stat": "Armor",
+      "unit": "sayı",
+      "definition_tr": "Gövde dayanıklılığı; darbeyi azaltır."
+    },
+    {
+      "stat": "Shield",
+      "unit": "sayı",
+      "definition_tr": "Kalkan puanı; Regen, her tur geri dolan miktar."
+    },
+    {
+      "stat": "Damage / Range",
+      "unit": "sayı / Kısa–Orta–Uzun",
+      "definition_tr": "Silahın verdiği hasar ve menzili."
+    },
+    {
+      "stat": "Slot",
+      "unit": "S1–S3",
+      "definition_tr": "Eklenti yuvası. Boyutu (S1 küçük, S2 orta, S3 büyük) ve yeri (Dış ya da İç) vardır."
+    },
+    {
+      "stat": "Tier",
+      "unit": "T1–T4",
+      "definition_tr": "Şasi kademesi. Dorse boyutu da aynı kodla yazılır ve hangi şasiye bağlanacağını gösterir."
+    },
+    {
+      "stat": "Legality",
+      "unit": "Yasal / Lisanslı / Gri / Kaçak",
+      "definition_tr": "Parçanın yasal durumu; denetim ve liman kurallarını etkiler."
+    }
+  ],
+  "size_rules": {
+    "hull_sizes": [
+      "T1",
+      "T2",
+      "T3",
+      "T4"
+    ],
+    "part_sizes": [
+      "S1",
+      "S2",
+      "S3",
+      "S4"
+    ],
+    "smaller_part_fits_larger_slot": true,
+    "mount_rules": {
+      "Silah": [
+        "Dış"
+      ],
+      "İtici": [
+        "Dış"
+      ],
+      "Zırh": [
+        "Dış"
+      ],
+      "Sensör": [
+        "Dış"
+      ],
+      "Kalkan": [
+        "Dış",
+        "İç"
+      ],
+      "EW": [
+        "Dış",
+        "İç"
+      ],
+      "Yardımcı": "eklentinin mount alanına göre"
+    }
+  },
+  "formulas": {
+    "mass": "chassisMass + sum(engine.mass) + sum(core.mass) + sum(trailer.mass) + sum(addon.mass) + sum(cargo.mass) + skarnit",
+    "max_mass": "sum(engine.thrust) + sum(addon.thrust)",
+    "load": "mass / max_mass  (must be <= 1)",
+    "power_draw": "cabPowerDraw + sum(engine.powerDraw) + sum(addon.powerDraw) + sum(trailer.powerDraw)",
+    "power_rule": "power_draw <= sum(core.powerOutput)",
+    "mobility": "clamp(round_half_up(baseMobility * (1 - load^2) + sum(addon.mobility) - trailerMobilityPenalty * trailerCount), 0, 100)",
+    "delta_v": "round_half_up(engine.efficiency * skarnit / mass)",
+    "endurance": "round_half_up(skarnit / sum(core.skarnitPerDay))",
+    "pilot_modifier": "floor((mobility - 50) / 10)"
+  },
+  "constants": {
+    "trailer_mobility_penalty": 5,
+    "warn_load": 0.85,
+    "warn_power": 0.9,
+    "warn_mobility": 19,
+    "mobility_bands": [
+      {
+        "min": 60,
+        "max": 100,
+        "name": "Çevik"
+      },
+      {
+        "min": 40,
+        "max": 59,
+        "name": "Normal"
+      },
+      {
+        "min": 20,
+        "max": 39,
+        "name": "Hantal"
+      },
+      {
+        "min": 1,
+        "max": 19,
+        "name": "Kritik"
+      },
+      {
+        "min": 0,
+        "max": 0,
+        "name": "Kilitli"
+      }
+    ]
+  },
+  "validation_order": [
+    {
+      "order": 1,
+      "code": "TIER_MISMATCH",
+      "rule_tr": "Dorse boyutu şasinin kabul ettiği boyutlardan biri",
+      "message_example_tr": "Bu dorse T2 boyutunda. Outrider şasi yalnız T1 dorse çeker."
+    },
+    {
+      "order": 2,
+      "code": "TRAILER_LIMIT",
+      "rule_tr": "Dorse sayısı şasi sınırının altında",
+      "message_example_tr": "Dorse sınırı dolu (1 / 1). Daha fazlası için Longhaul şasi gerekir."
+    },
+    {
+      "order": 3,
+      "code": "ENGINE_LIMIT",
+      "rule_tr": "Motor adedi ve boyutu şasi kuralına uyuyor",
+      "message_example_tr": "S2 motor için en az Longhaul şasi gerekir."
+    },
+    {
+      "order": 4,
+      "code": "CORE_LIMIT",
+      "rule_tr": "Çekirdek adedi ve boyutu şasi kuralına uyuyor",
+      "message_example_tr": "İkinci çekirdek için en az Longhaul şasi gerekir."
+    },
+    {
+      "order": 5,
+      "code": "MIXED_POWER",
+      "rule_tr": "Gemide yalnız tek güç teknolojisi var",
+      "message_example_tr": "Skarn Çekirdeği ve insan reaktörü birlikte takılamaz (yalnız DM istisnası)."
+    },
+    {
+      "order": 6,
+      "code": "NO_FREE_SLOT",
+      "rule_tr": "Uygun boyut ve yerde boş yuva var",
+      "message_example_tr": "Boş S2 yuvası yok. Bu parça S2 ya da daha büyük bir yuva ister."
+    },
+    {
+      "order": 7,
+      "code": "WRONG_MOUNT",
+      "rule_tr": "Parça yuvanın yerine uygun (Dış / İç)",
+      "message_example_tr": "Silahlar yalnız Dış yuvaya takılır."
+    },
+    {
+      "order": 8,
+      "code": "REQUIREMENT_MISSING",
+      "rule_tr": "Parçanın gereksinimi karşılanıyor",
+      "message_example_tr": "Öneri: Mirror Maze için EW dorsesi ya da netrunner istasyonu gerekir."
+    },
+    {
+      "order": 9,
+      "code": "CAPACITY_FULL",
+      "rule_tr": "Yük hedef ambara sığıyor",
+      "message_example_tr": "Dorse ambarı dolu (80 / 80 t)."
+    },
+    {
+      "order": 10,
+      "code": "MASS_LIMIT",
+      "rule_tr": "Yeni Mass ≤ Max Mass",
+      "message_example_tr": "Takılamaz: Max Mass 3 t aşılıyor (203 / 200 t)."
+    },
+    {
+      "order": 11,
+      "code": "THRUST_TOO_LOW",
+      "rule_tr": "Sökülen motor ya da itici sonrası Mass ≤ Max Mass",
+      "message_example_tr": "Bu itici sökülürse Max Mass aşılır (203 / 200 t). Önce yük boşaltın."
+    },
+    {
+      "order": 12,
+      "code": "POWER_LIMIT",
+      "rule_tr": "Yeni Power Draw ≤ Power Output",
+      "message_example_tr": "Takılamaz: Power 12 aşılıyor (112 / 100)."
+    }
+  ],
+  "brands": [
+    {
+      "id": "gn",
+      "name": "Gnistborn Motor Evi",
+      "canon": false
+    },
+    {
+      "id": "kz",
+      "name": "Kızılörs Dökümevi",
+      "canon": false
+    },
+    {
+      "id": "dk",
+      "name": "Derinkök Kazı Ocağı",
+      "canon": false
+    },
+    {
+      "id": "hd",
+      "name": "Halcyon Dinamik",
+      "canon": false
+    },
+    {
+      "id": "sr",
+      "name": "Sessiz Rıhtım Atölyeleri",
+      "canon": false
+    },
+    {
+      "id": "vm",
+      "name": "Veyra Medikal",
+      "canon": false
+    },
+    {
+      "id": "pc",
+      "name": "Paslı Çapa Hurdacıları",
+      "canon": false
+    },
+    {
+      "id": "wb",
+      "name": "Akkemik Çekirdek Evi",
+      "canon": false
+    },
+    {
+      "id": "ara",
+      "name": "ARASAKA",
+      "canon": true
+    },
+    {
+      "id": "ara_k",
+      "name": "ARASAKA (Konvoy Taşımacılık)",
+      "canon": true
+    },
+    {
+      "id": "ara_p",
+      "name": "ARASAKA (Puding ve Gıda)",
+      "canon": true
+    },
+    {
+      "id": "ara_i",
+      "name": "ARASAKA İlaç",
+      "canon": true
+    },
+    {
+      "id": "mil",
+      "name": "MILISAN",
+      "canon": true
+    },
+    {
+      "id": "mil_o",
+      "name": "MILISAN (Örs Tersaneleri)",
+      "canon": true
+    },
+    {
+      "id": "mil_opt",
+      "name": "MILISAN (Ocak Optik)",
+      "canon": true
+    },
+    {
+      "id": "emt",
+      "name": "EMTEKK",
+      "canon": true
+    },
+    {
+      "id": "emt_m",
+      "name": "EMTEKK (Mercek Atölyeleri)",
+      "canon": true
+    },
+    {
+      "id": "emt_g",
+      "name": "EMTEKK (Göz Güvenlik)",
+      "canon": true
+    },
+    {
+      "id": "emt_y",
+      "name": "EMTEKK (Yanılsama Stüdyoları)",
+      "canon": true
+    },
+    {
+      "id": "ic",
+      "name": "Demir Taç Konsorsiyumu (Iron Crown)",
+      "canon": true
+    },
+    {
+      "id": "kk",
+      "name": "Kırık Kantar Hanesi",
+      "canon": true
+    },
+    {
+      "id": "yf",
+      "name": "Yedi Fener tüccar evleri",
+      "canon": true
+    },
+    {
+      "id": "pyra",
+      "name": "Pyra Kerestecilik",
+      "canon": true
+    },
+    {
+      "id": "ost",
+      "name": "Ostrav Loncası",
+      "canon": true
+    },
+    {
+      "id": "gh",
+      "name": "Gök Hırsızları (kitbash)",
+      "canon": true
+    }
+  ],
+  "chassis": [
+    {
+      "id": "T1",
+      "name": "Outrider",
+      "theme": "tek başına yol alan öncü çekici",
+      "chassis_mass": 45,
+      "base_mobility": 60,
+      "max_trailers": 1,
+      "trailer_sizes": [
+        "T1"
+      ],
+      "engine_rule": "1 × S1",
+      "core_rule": "1 × S1",
+      "slots": "1 × S2 Dış, 2 × S1 Dış, 1 × S1 İç",
+      "max_slot_size": "S2",
+      "cab_armor": 2,
+      "mixed_power": "yok",
+      "carrier": "yok",
+      "upgrade_bk": 0,
+      "reputation": "—",
+      "story": "—",
+      "implemented": true
+    },
+    {
+      "id": "T2",
+      "name": "Longhaul",
+      "theme": "uzun yol, kervan düzeni",
+      "chassis_mass": 80,
+      "base_mobility": 55,
+      "max_trailers": 2,
+      "trailer_sizes": [
+        "T1",
+        "T2"
+      ],
+      "engine_rule": "1 × S2 veya 2 × S1",
+      "core_rule": "1 × S2 veya 2 × S1",
+      "slots": "2 × S2 Dış, 2 × S1 Dış, 2 × S1 İç",
+      "max_slot_size": "S2",
+      "cab_armor": 3,
+      "mixed_power": "yok",
+      "carrier": "yok",
+      "upgrade_bk": 150000,
+      "reputation": "bir fraksiyonda Dost (+21)",
+      "story": "usta tersane + fırsat",
+      "implemented": false
+    },
+    {
+      "id": "T3",
+      "name": "Juggernaut",
+      "theme": "ağır yük, savaşa dayanıklı",
+      "chassis_mass": 140,
+      "base_mobility": 50,
+      "max_trailers": 3,
+      "trailer_sizes": [
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "engine_rule": "1 × S3 veya 2 × S2",
+      "core_rule": "1 × S3 veya 2 × S2",
+      "slots": "1 × S3 Dış, 3 × S2 Dış, 2 × S1 Dış, 2 × S2 İç",
+      "max_slot_size": "S3",
+      "cab_armor": 4,
+      "mixed_power": "yok",
+      "carrier": "yok",
+      "upgrade_bk": 500000,
+      "reputation": "bir fraksiyonda Güvenilir (+51)",
+      "story": "büyük iş / büyük borç",
+      "implemented": false
+    },
+    {
+      "id": "T4",
+      "name": "Leviathan",
+      "theme": "dev; taşıyıcıya köprü",
+      "chassis_mass": 240,
+      "base_mobility": 40,
+      "max_trailers": 5,
+      "trailer_sizes": [
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "engine_rule": "1 × S4 veya 2 × S3",
+      "core_rule": "1 × S4 veya 2 × S3",
+      "slots": "2 × S3 Dış, 4 × S2 Dış, 2 × S1 Dış, 3 × S2 İç",
+      "max_slot_size": "S3",
+      "cab_armor": 6,
+      "mixed_power": "yalnız DM istisnası",
+      "carrier": "var (köprü olarak)",
+      "upgrade_bk": 1500000,
+      "reputation": "bir fraksiyonda Onurlu (+81)",
+      "story": "efsanevi tersane, nadir parça",
+      "implemented": false
+    }
+  ],
+  "starting_ship": {
+    "id": "ship_demir_kervan",
+    "name": "Demir Kervan",
+    "chassis": "T1",
+    "chassis_mass": 45,
+    "cab_hold_capacity": 15,
+    "cab_armor": 2,
+    "base_mobility": 60,
+    "cab_power_draw": 15,
+    "skarnit_tank": 10,
+    "skarnit_start": 10,
+    "engine": "eng_anvilheart_twin",
+    "core": "core_emberhold",
+    "slots": [
+      {
+        "id": "truck_roof",
+        "size": "S2",
+        "mount": "Dış",
+        "label": "Tavan"
+      },
+      {
+        "id": "truck_flank_l",
+        "size": "S1",
+        "mount": "Dış",
+        "label": "Sol yan"
+      },
+      {
+        "id": "truck_flank_r",
+        "size": "S1",
+        "mount": "Dış",
+        "label": "Sağ yan"
+      },
+      {
+        "id": "truck_bay",
+        "size": "S1",
+        "mount": "İç",
+        "label": "Kabin bölmesi"
+      },
+      {
+        "id": "engine_mount",
+        "size": "S1",
+        "mount": "Motor",
+        "label": "Motor bölmesi"
+      },
+      {
+        "id": "core_mount",
+        "size": "S1",
+        "mount": "Çekirdek",
+        "label": "Çekirdek odası"
+      }
+    ],
+    "rooms": [
+      "Kokpit",
+      "Oturma alanı",
+      "Uyku odası",
+      "Tuvalet",
+      "Kabin ambarı",
+      "Motor bölmesi",
+      "Çekirdek odası"
+    ],
+    "fitted_addons": {},
+    "trailers": [],
+    "cargo": []
+  },
+  "starting_inventory": [
+    "wpn_hearthfang",
+    "thr_crosswind",
+    "arm_wolfsteel_plate",
+    "utl_loudlantern"
+  ],
+  "engines": [
+    {
+      "id": "eng_anvilheart_twin",
+      "brand": "gn",
+      "model": "Anvilheart Twin",
+      "size": "S1",
+      "mass": 16,
+      "thrust": 200,
+      "power_draw": 20,
+      "efficiency": 600,
+      "legality": "Yasal",
+      "price": null,
+      "rarity": "Özel",
+      "note": "Avgridt'in custom çift nozullu motoru; tırın iki yanındaki dev iticiler bu motorun nozullarıdır. Başlangıç motoru."
+    },
+    {
+      "id": "eng_stormrider",
+      "brand": "gn",
+      "model": "Stormrider",
+      "size": "S1",
+      "mass": 14,
+      "thrust": 180,
+      "power_draw": 15,
+      "efficiency": 650,
+      "legality": "Yasal",
+      "price": 90000,
+      "rarity": "Seyrek",
+      "note": "hafif ve verimli; daha az itki"
+    },
+    {
+      "id": "eng_ironhowl",
+      "brand": "kz",
+      "model": "Ironhowl",
+      "size": "S1",
+      "mass": 20,
+      "thrust": 240,
+      "power_draw": 25,
+      "efficiency": 550,
+      "legality": "Yasal",
+      "price": 110000,
+      "rarity": "Seyrek",
+      "note": "kaba kuvvet; ağır ve susuz değil"
+    },
+    {
+      "id": "eng_ghostburn",
+      "brand": "kk",
+      "model": "Ghostburn",
+      "size": "S1",
+      "mass": 12,
+      "thrust": 210,
+      "power_draw": 30,
+      "efficiency": 500,
+      "legality": "Kaçak",
+      "price": 60000,
+      "rarity": "Seyrek",
+      "note": "hurdadan toparlanmış; ucuz, güç aç, kayıt numarası kazınmış"
+    }
+  ],
+  "cores": [
+    {
+      "id": "core_emberhold",
+      "brand": "gn",
+      "model": "Emberhold",
+      "size": "S1",
+      "mass": 8,
+      "power_output": 100,
+      "skarnit_per_day": 0.2,
+      "legality": "Yasal",
+      "price": null,
+      "rarity": "Özel",
+      "note": "başlangıç çekirdeği; sağlam ve sade",
+      "tech": "skarn"
+    },
+    {
+      "id": "core_deepforge",
+      "brand": "kz",
+      "model": "Deepforge",
+      "size": "S1",
+      "mass": 12,
+      "power_output": 130,
+      "skarnit_per_day": 0.3,
+      "legality": "Yasal",
+      "price": 95000,
+      "rarity": "Seyrek",
+      "note": "daha fazla güç, daha ağır ve daha çok Skarnit yakar",
+      "tech": "skarn"
+    },
+    {
+      "id": "core_whitebone",
+      "brand": "wb",
+      "model": "Whitebone",
+      "size": "S1",
+      "mass": 7,
+      "power_output": 110,
+      "skarnit_per_day": 0.15,
+      "legality": "Yasal",
+      "price": 140000,
+      "rarity": "Nadir",
+      "note": "Hrothmar işi; hafif ve tutumlu, pahalı",
+      "tech": "skarn"
+    },
+    {
+      "id": "core_sparkjack",
+      "brand": "kk",
+      "model": "Sparkjack",
+      "size": "S1",
+      "mass": 6,
+      "power_output": 140,
+      "skarnit_per_day": 0.4,
+      "legality": "Kaçak",
+      "price": 70000,
+      "rarity": "Seyrek",
+      "note": "sınırı zorlanmış çekirdek; ağır yükte arıza riski (DM)",
+      "tech": "skarn"
+    },
+    {
+      "id": "rx_hearthcore",
+      "brand": "mil",
+      "model": "Hearthcore R1",
+      "size": "S1",
+      "mass": 10,
+      "power_output": 120,
+      "fuel": "füzyon yakıtı (Skarnit değil)",
+      "legality": "Yasal",
+      "price": 100000,
+      "rarity": "Seyrek",
+      "note": "Skarn Çekirdeği yerine takılır; aynı gemide ikisi birden olmaz",
+      "tech": "human"
+    }
+  ],
+  "trailers": [
+    {
+      "id": "trl_harvest_hauler",
+      "type": "Kargo",
+      "brand": "ara_k",
+      "model": "Harvest Hauler",
+      "mass": 18,
+      "capacity": 80,
+      "hidden": 0,
+      "power_draw": 5,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        }
+      ],
+      "rooms": [
+        "Ambar",
+        "Yükleme rampası"
+      ],
+      "legality": "Yasal",
+      "price": 18000,
+      "special": "çok yük, tek yuva",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_bulwark_freight",
+      "type": "Kargo",
+      "brand": "ic",
+      "model": "Bulwark Freight",
+      "mass": 26,
+      "capacity": 55,
+      "hidden": 0,
+      "power_draw": 5,
+      "armor": 2,
+      "slots": [
+        {
+          "size": "S2",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Ambar",
+        "Zırhlı kapı bölmesi"
+      ],
+      "legality": "Yasal",
+      "price": 24000,
+      "special": "zırhlı, orta yük",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_lantern_runner",
+      "type": "Kargo",
+      "brand": "yf",
+      "model": "Lantern Runner",
+      "mass": 12,
+      "capacity": 45,
+      "hidden": 0,
+      "power_draw": 5,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Ambar"
+      ],
+      "legality": "Gri",
+      "price": 16000,
+      "special": "hafif, 4 yuva",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_emberwood_lodge",
+      "type": "Yaşam",
+      "brand": "pyra",
+      "model": "Emberwood Lodge",
+      "mass": 14,
+      "capacity": 5,
+      "hidden": 0,
+      "power_draw": 8,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Kamara (4 yatak)",
+        "Ortak alan"
+      ],
+      "legality": "Yasal",
+      "price": 20000,
+      "special": "yanmaz korağacı iç",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_commissary_block",
+      "type": "Yaşam",
+      "brand": "ara_p",
+      "model": "Commissary Block",
+      "mass": 16,
+      "capacity": 5,
+      "hidden": 0,
+      "power_draw": 10,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Kamara (6 yatak)",
+        "Mutfak",
+        "Kiler"
+      ],
+      "legality": "Yasal",
+      "price": 22000,
+      "special": "30 gün erzak",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_forgefire_bastion",
+      "type": "Silah platformu",
+      "brand": "mil",
+      "model": "Forgefire Bastion",
+      "mass": 28,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 10,
+      "armor": 1,
+      "slots": [
+        {
+          "size": "S2",
+          "mount": "Dış"
+        },
+        {
+          "size": "S2",
+          "mount": "Dış"
+        }
+      ],
+      "rooms": [
+        "Taret kulesi",
+        "Cephanelik"
+      ],
+      "legality": "Lisanslı",
+      "price": 45000,
+      "special": "iki büyük silah yuvası",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_wolfback",
+      "type": "Silah platformu",
+      "brand": "kz",
+      "model": "Wolfback",
+      "mass": 32,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 5,
+      "armor": 3,
+      "slots": [
+        {
+          "size": "S2",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        }
+      ],
+      "rooms": [
+        "Taret kulesi",
+        "Cephanelik"
+      ],
+      "legality": "Yasal",
+      "price": 40000,
+      "special": "kurt çeliği gövde",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_bonespike",
+      "type": "Silah platformu",
+      "brand": "gh",
+      "model": "Bonespike",
+      "mass": 20,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 5,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        }
+      ],
+      "rooms": [
+        "Taret geçidi"
+      ],
+      "legality": "Kaçak",
+      "price": 25000,
+      "special": "5 küçük yuva, zırhsız",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_blindspot",
+      "type": "EW / netrunner",
+      "brand": "emt_g",
+      "model": "Blindspot",
+      "mass": 14,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 25,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S2",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        }
+      ],
+      "rooms": [
+        "Sunucu odası",
+        "Netrunner koltuğu"
+      ],
+      "legality": "Yasal*",
+      "price": 55000,
+      "special": "EW +2",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_nameless",
+      "type": "EW / netrunner",
+      "brand": "kk",
+      "model": "Nameless",
+      "mass": 12,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 20,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Sunucu odası",
+        "Netrunner koltuğu"
+      ],
+      "legality": "Kaçak",
+      "price": 38000,
+      "special": "EW +1, kimlik sahteleme",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_spotlight_studio",
+      "type": "Yayın / Perde",
+      "brand": "emt_y",
+      "model": "Spotlight Studio",
+      "mass": 12,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 20,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S2",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Stüdyo",
+        "Yayın masası"
+      ],
+      "legality": "Yasal*",
+      "price": 40000,
+      "special": "Broadcast +2, hologram stüdyo",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_beacon_voice",
+      "type": "Yayın / Perde",
+      "brand": "yf",
+      "model": "Beacon Voice",
+      "mass": 10,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 12,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Yayın masası",
+        "Görüşme odası"
+      ],
+      "legality": "Yasal",
+      "price": 28000,
+      "special": "Diplomacy +1, uzun menzil",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_molten_river",
+      "type": "Yakıt tankeri",
+      "brand": "gn",
+      "model": "Molten River",
+      "mass": 20,
+      "capacity": 40,
+      "hidden": 0,
+      "power_draw": 10,
+      "armor": 1,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        }
+      ],
+      "rooms": [
+        "Tank erişim koridoru"
+      ],
+      "legality": "Yasal**",
+      "price": 30000,
+      "special": "40 t Skarnit taşır; patlama riski",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_black_drip",
+      "type": "Yakıt tankeri",
+      "brand": "kk",
+      "model": "Black Drip",
+      "mass": 16,
+      "capacity": 30,
+      "hidden": 0,
+      "power_draw": 8,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        }
+      ],
+      "rooms": [
+        "Tank erişim koridoru"
+      ],
+      "legality": "Kaçak",
+      "price": 18000,
+      "special": "30 t vergisiz Skarnit",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_mercy_capsule",
+      "type": "Tıbbi",
+      "brand": "ara_i",
+      "model": "Mercy Capsule",
+      "mass": 14,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 15,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Revir (2 yatak)"
+      ],
+      "legality": "Yasal",
+      "price": 35000,
+      "special": "Healing +2",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_lifeline",
+      "type": "Tıbbi",
+      "brand": "vm",
+      "model": "Lifeline",
+      "mass": 12,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 12,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Revir (1 yatak)",
+        "Kriyo odası"
+      ],
+      "legality": "Yasal",
+      "price": 28000,
+      "special": "Healing +1, 1 kriyo",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_deepdelve_borer",
+      "type": "Madencilik / kurtarma",
+      "brand": "dk",
+      "model": "Deepdelve Borer",
+      "mass": 30,
+      "capacity": 30,
+      "hidden": 0,
+      "power_draw": 20,
+      "armor": 1,
+      "slots": [
+        {
+          "size": "S2",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Kazı odası",
+        "Cevher ambarı"
+      ],
+      "legality": "Yasal",
+      "price": 42000,
+      "special": "Mining +2",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_rake",
+      "type": "Madencilik / kurtarma",
+      "brand": "ost",
+      "model": "The Rake",
+      "mass": 26,
+      "capacity": 40,
+      "hidden": 0,
+      "power_draw": 15,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Kurtarma kolu kabini",
+        "Hurda ambarı"
+      ],
+      "legality": "Yasal",
+      "price": 34000,
+      "special": "Salvage +2",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_carrion_crow",
+      "type": "Madencilik / kurtarma",
+      "brand": "pc",
+      "model": "Carrion Crow",
+      "mass": 18,
+      "capacity": 25,
+      "hidden": 0,
+      "power_draw": 10,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Hurda ambarı"
+      ],
+      "legality": "Gri",
+      "price": 20000,
+      "special": "Salvage +1, 4 yuva",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_false_floor",
+      "type": "Kaçakçılık",
+      "brand": "kk",
+      "model": "False Floor",
+      "mass": 16,
+      "capacity": 30,
+      "hidden": 15,
+      "power_draw": 8,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Ambar",
+        "Gizli bölme"
+      ],
+      "legality": "Kaçak",
+      "price": 30000,
+      "special": "30 t görünür + 15 t gizli",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_blank_ledger",
+      "type": "Kaçakçılık",
+      "brand": "sr",
+      "model": "Blank Ledger",
+      "mass": 14,
+      "capacity": 10,
+      "hidden": 20,
+      "power_draw": 12,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Ambar",
+        "Sahte duvar",
+        "Gizli bölme"
+      ],
+      "legality": "Kaçak",
+      "price": 36000,
+      "special": "sahte tarama izi",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_second_heart",
+      "type": "Yedek kumanda",
+      "brand": "kz",
+      "model": "Second Heart",
+      "mass": 22,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 15,
+      "armor": 3,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Yedek kokpit"
+      ],
+      "legality": "Yasal",
+      "price": 38000,
+      "special": "yedek köprü, zırhlı",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_paper_bridge",
+      "type": "Yedek kumanda",
+      "brand": "mil",
+      "model": "Paper Bridge",
+      "mass": 18,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 5,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S2",
+          "mount": "Dış"
+        }
+      ],
+      "rooms": [
+        "Mekanik yedek kokpit"
+      ],
+      "legality": "Yasal",
+      "price": 30000,
+      "special": "ağsız mekanik kumanda: hacklenemez",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_ravenroost",
+      "type": "Hangar",
+      "brand": "mil_o",
+      "model": "Ravenroost",
+      "mass": 30,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 15,
+      "armor": 1,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Hangar",
+        "Bakım alanı"
+      ],
+      "legality": "Lisanslı",
+      "price": 50000,
+      "special": "1 küçük araç ya da dron",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_shadow_stable",
+      "type": "Hangar",
+      "brand": "sr",
+      "model": "Shadow Stable",
+      "mass": 24,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 10,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Hangar"
+      ],
+      "legality": "Gri",
+      "price": 40000,
+      "special": "1 küçük araç, kayıtsız",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_refraction_lab",
+      "type": "Laboratuvar",
+      "brand": "emt_m",
+      "model": "Refraction Lab",
+      "mass": 16,
+      "capacity": 0,
+      "hidden": 0,
+      "power_draw": 20,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S2",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Laboratuvar",
+        "Örnek dolabı"
+      ],
+      "legality": "Yasal*",
+      "price": 48000,
+      "special": "Analysis +2",
+      "size": "T1",
+      "mobility_penalty": 5
+    },
+    {
+      "id": "trl_atlas_lab",
+      "type": "Laboratuvar",
+      "brand": "hd",
+      "model": "Atlas Lab",
+      "mass": 14,
+      "capacity": 10,
+      "hidden": 0,
+      "power_draw": 12,
+      "armor": 0,
+      "slots": [
+        {
+          "size": "S1",
+          "mount": "Dış"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        },
+        {
+          "size": "S1",
+          "mount": "İç"
+        }
+      ],
+      "rooms": [
+        "Laboratuvar",
+        "Küçük ambar"
+      ],
+      "legality": "Yasal",
+      "price": 32000,
+      "special": "Analysis +1",
+      "size": "T1",
+      "mobility_penalty": 5
+    }
+  ],
+  "addons": [
+    {
+      "id": "wpn_hearthfang",
+      "cat": "Silah",
+      "brand": "mil",
+      "model": "Hearthfang",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 4,
+      "power": 15,
+      "effect": "Damage 10 · Range Kısa · hafif otomatik top",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 12000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "wpn_anvil_maul",
+      "cat": "Silah",
+      "brand": "mil",
+      "model": "Anvil Maul",
+      "size": "S2",
+      "mount": "Dış",
+      "mass": 12,
+      "power": 35,
+      "effect": "Damage 25 · Range Orta · ağır top",
+      "req": "—",
+      "legality": "Lisanslı",
+      "price": 40000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "wpn_aurora_lance",
+      "cat": "Silah",
+      "brand": "gn",
+      "model": "Aurora Lance",
+      "size": "S2",
+      "mount": "Dış",
+      "mass": 8,
+      "power": 30,
+      "effect": "Damage 22 · Range Uzun · kalkanın yarısını yok sayar",
+      "req": "Skarn Çekirdeği",
+      "legality": "Yasal**",
+      "price": 45000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "wpn_wolfjaw_flak",
+      "cat": "Silah",
+      "brand": "kz",
+      "model": "Wolfjaw Flak",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 5,
+      "power": 12,
+      "effect": "Damage 6 · füze ve dron önleme +2",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 14000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "wpn_whisper_rack",
+      "cat": "Silah",
+      "brand": "kk",
+      "model": "Whisper Rack",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 3,
+      "power": 10,
+      "effect": "Damage 14 · 3 salvo, sonra yeniden dolum",
+      "req": "—",
+      "legality": "Kaçak",
+      "price": 15000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "wpn_gutline_harpoon",
+      "cat": "Silah",
+      "brand": "gh",
+      "model": "Gutline Harpoon",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 3,
+      "power": 5,
+      "effect": "Damage 4 · halatla çekme ve abordaj",
+      "req": "—",
+      "legality": "Kaçak",
+      "price": 6000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "shd_lodestone_dome",
+      "cat": "Kalkan",
+      "brand": "gn",
+      "model": "Lodestone Dome",
+      "size": "S2",
+      "mount": "Her ikisi",
+      "mass": 14,
+      "power": 30,
+      "effect": "Shield 40 · Regen 5 / tur · manyetik kubbe",
+      "req": "Skarn Çekirdeği",
+      "legality": "Yasal",
+      "price": 38000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "shd_shutterwall",
+      "cat": "Kalkan",
+      "brand": "mil",
+      "model": "Shutterwall",
+      "size": "S1",
+      "mount": "Her ikisi",
+      "mass": 6,
+      "power": 20,
+      "effect": "Shield 20 · Regen 4 / tur · yön seçmeli",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 18000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "shd_mirage_veil",
+      "cat": "Kalkan",
+      "brand": "emt",
+      "model": "Mirage Veil",
+      "size": "S1",
+      "mount": "Her ikisi",
+      "mass": 4,
+      "power": 22,
+      "effect": "Shield 12 · Regen 3 / tur · hologram yem: isabet −1",
+      "req": "—",
+      "legality": "Yasal*",
+      "price": 26000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "thr_crosswind",
+      "cat": "İtici",
+      "brand": "gn",
+      "model": "Crosswind",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 3,
+      "power": 12,
+      "thrust": 30,
+      "mobility": 5,
+      "effect": "Thrust +30 · Mobility +5",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 10000,
+      "capacity": 0
+    },
+    {
+      "id": "thr_gale_spur",
+      "cat": "İtici",
+      "brand": "gn",
+      "model": "Gale Spur",
+      "size": "S2",
+      "mount": "Dış",
+      "mass": 7,
+      "power": 25,
+      "thrust": 70,
+      "mobility": 6,
+      "effect": "Thrust +70 · Mobility +6",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 26000,
+      "capacity": 0
+    },
+    {
+      "id": "thr_comet_tail",
+      "cat": "İtici",
+      "brand": "hd",
+      "model": "Comet Tail",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 4,
+      "power": 18,
+      "thrust": 40,
+      "mobility": 3,
+      "effect": "Thrust +40 · Mobility +3 · iyon itici",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 14000,
+      "capacity": 0
+    },
+    {
+      "id": "thr_redline_kick",
+      "cat": "İtici",
+      "brand": "kk",
+      "model": "Redline Kick",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 2,
+      "power": 20,
+      "thrust": 10,
+      "mobility": 10,
+      "effect": "Thrust +10 · Mobility +10 · 3 turdan sonra aşırı ısınır",
+      "req": "—",
+      "legality": "Kaçak",
+      "price": 9000,
+      "capacity": 0
+    },
+    {
+      "id": "arm_wolfsteel_plate",
+      "cat": "Zırh",
+      "brand": "kz",
+      "model": "Wolfsteel Plate",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 8,
+      "power": 0,
+      "effect": "Armor +3 · kurt çeliği",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 12000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "arm_emberwood_cladding",
+      "cat": "Zırh",
+      "brand": "pyra",
+      "model": "Emberwood Cladding",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 4,
+      "power": 0,
+      "effect": "Armor +1 · ateşe bağışık (korağacı)",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 9000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "arm_crownguard_bulkhead",
+      "cat": "Zırh",
+      "brand": "ic",
+      "model": "Crownguard Bulkhead",
+      "size": "S2",
+      "mount": "Dış",
+      "mass": 15,
+      "power": 0,
+      "effect": "Armor +5",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 22000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "sen_hearthsight",
+      "cat": "Sensör",
+      "brand": "mil_opt",
+      "model": "Hearthsight",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 1,
+      "power": 8,
+      "effect": "Accuracy +1 · nişan merceği",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 8000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "sen_deepgaze",
+      "cat": "Sensör",
+      "brand": "emt_m",
+      "model": "Deepgaze",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 2,
+      "power": 12,
+      "effect": "Scan +2 · uzun menzil tarayıcı",
+      "req": "—",
+      "legality": "Yasal*",
+      "price": 15000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "sen_auroral_ear",
+      "cat": "Sensör",
+      "brand": "gn",
+      "model": "Auroral Ear",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 2,
+      "power": 6,
+      "effect": "Scan +1 · gizlenmiş motorları sezer",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 11000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "ew_mirror_maze",
+      "cat": "EW",
+      "brand": "emt_g",
+      "model": "Mirror Maze",
+      "size": "S1",
+      "mount": "Her ikisi",
+      "mass": 2,
+      "power": 20,
+      "effect": "EW +2 · sahte iz ve aldatma",
+      "req": "EW dorsesi ya da netrunner istasyonu",
+      "legality": "Yasal*",
+      "price": 24000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "ew_deadwell",
+      "cat": "EW",
+      "brand": "kk",
+      "model": "Deadwell",
+      "size": "S1",
+      "mount": "Her ikisi",
+      "mass": 3,
+      "power": 18,
+      "effect": "EW +1 · bölge sinyal boğucu",
+      "req": "—",
+      "legality": "Kaçak",
+      "price": 20000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "ew_overwatch_spike",
+      "cat": "EW",
+      "brand": "emt_g",
+      "model": "Overwatch Spike",
+      "size": "S2",
+      "mount": "İç",
+      "mass": 5,
+      "power": 35,
+      "effect": "EW +3 · sızma ve hackleme paketi",
+      "req": "EW dorsesi",
+      "legality": "Yasal*",
+      "price": 50000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "utl_loudlantern",
+      "cat": "Yardımcı",
+      "brand": "yf",
+      "model": "Loudlantern",
+      "size": "S1",
+      "mount": "Her ikisi",
+      "mass": 1,
+      "power": 6,
+      "effect": "Comms +2 · iletişim güçlendirici",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 5000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    },
+    {
+      "id": "utl_coldvault",
+      "cat": "Yardımcı",
+      "brand": "ara",
+      "model": "Coldvault",
+      "size": "S1",
+      "mount": "İç",
+      "mass": 3,
+      "power": 10,
+      "capacity": 5,
+      "effect": "Capacity +5 t · soğutmalı, bozulabilir yük",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 7000,
+      "thrust": 0,
+      "mobility": 0
+    },
+    {
+      "id": "utl_stackpod",
+      "cat": "Yardımcı",
+      "brand": "ara_k",
+      "model": "Stackpod",
+      "size": "S1",
+      "mount": "Dış",
+      "mass": 2,
+      "power": 0,
+      "capacity": 10,
+      "effect": "Capacity +10 t · dış yük kafesi",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 4000,
+      "thrust": 0,
+      "mobility": 0
+    },
+    {
+      "id": "utl_hearth_tender",
+      "cat": "Yardımcı",
+      "brand": "mil",
+      "model": "Hearth Tender",
+      "size": "S1",
+      "mount": "İç",
+      "mass": 2,
+      "power": 10,
+      "effect": "çatışma dışında tur başına 5 Armor onarır",
+      "req": "—",
+      "legality": "Yasal",
+      "price": 15000,
+      "thrust": 0,
+      "mobility": 0,
+      "capacity": 0
+    }
+  ],
+  "worked_example": [
+    {
+      "step": "A",
+      "change": "Boş tır: şasi 45 + motor 16 + çekirdek 8 + Skarnit 10",
+      "accepted": true,
+      "reason": "",
+      "mass": 79,
+      "max_mass": 200,
+      "load": 0.395,
+      "load_pct": 40,
+      "power_draw": 35,
+      "power_output": 100,
+      "mobility_raw": 50.63849999999999,
+      "mobility": 51,
+      "delta_v": 76,
+      "endurance": 50
+    },
+    {
+      "step": "B",
+      "change": "Öneri: Harvest Hauler (18 t, Power 5) + Öneri: Hearthfang dorsenin S1 Dış yuvasına (4 t, Power 15) + 50 t dorse yükü + 10 t kabin yükü",
+      "accepted": true,
+      "reason": "",
+      "mass": 161,
+      "max_mass": 200,
+      "load": 0.805,
+      "load_pct": 81,
+      "power_draw": 55,
+      "power_output": 100,
+      "mobility_raw": 16.118499999999997,
+      "mobility": 16,
+      "delta_v": 37,
+      "endurance": 50
+    },
+    {
+      "step": "C",
+      "change": "Dorseye 28 t daha (78 / 80 t)",
+      "accepted": true,
+      "reason": "",
+      "mass": 189,
+      "max_mass": 200,
+      "load": 0.945,
+      "load_pct": 95,
+      "power_draw": 55,
+      "power_output": 100,
+      "mobility_raw": 1.4185000000000025,
+      "mobility": 1,
+      "delta_v": 32,
+      "endurance": 50
+    },
+    {
+      "step": "D",
+      "change": "Öneri: Lodestone Dome tavan S2 yuvasına (14 t, Power 30)",
+      "accepted": false,
+      "reason": "MASS_LIMIT: 3 t fazla",
+      "mass": 203,
+      "max_mass": 200,
+      "load": 1.015,
+      "load_pct": 101,
+      "power_draw": 85,
+      "power_output": 100,
+      "mobility_raw": -6.8134999999999835,
+      "mobility": 0,
+      "delta_v": 30,
+      "endurance": 50
+    },
+    {
+      "step": "E",
+      "change": "Önce Öneri: Crosswind sol yan S1 yuvasına (3 t, Thrust +30, Power 12, Mobility +5)",
+      "accepted": true,
+      "reason": "",
+      "mass": 192,
+      "max_mass": 230,
+      "load": 0.8347826086956521,
+      "load_pct": 83,
+      "power_draw": 67,
+      "power_output": 100,
+      "mobility_raw": 18.188279773156903,
+      "mobility": 18,
+      "delta_v": 31,
+      "endurance": 50
+    },
+    {
+      "step": "F",
+      "change": "Öneri: Lodestone Dome tavana yeniden (14 t, Power 30)",
+      "accepted": true,
+      "reason": "",
+      "mass": 206,
+      "max_mass": 230,
+      "load": 0.8956521739130435,
+      "load_pct": 90,
+      "power_draw": 97,
+      "power_output": 100,
+      "mobility_raw": 11.868431001890357,
+      "mobility": 12,
+      "delta_v": 29,
+      "endurance": 50
+    },
+    {
+      "step": "G",
+      "change": "İkinci Öneri: Hearthfang sağ yan S1 yuvasına (4 t, Power 15)",
+      "accepted": false,
+      "reason": "POWER_LIMIT: 12 fazla",
+      "mass": 210,
+      "max_mass": 230,
+      "load": 0.9130434782608695,
+      "load_pct": 91,
+      "power_draw": 112,
+      "power_output": 100,
+      "mobility_raw": 9.981096408317589,
+      "mobility": 10,
+      "delta_v": 29,
+      "endurance": 50
+    },
+    {
+      "step": "H",
+      "change": "Çekirdek değişimi: Öneri: Emberhold yerine Öneri: Deepforge (12 t, Power Output 130)",
+      "accepted": true,
+      "reason": "",
+      "mass": 210,
+      "max_mass": 230,
+      "load": 0.9130434782608695,
+      "load_pct": 91,
+      "power_draw": 97,
+      "power_output": 130,
+      "mobility_raw": 9.981096408317589,
+      "mobility": 10,
+      "delta_v": 29,
+      "endurance": 33
+    },
+    {
+      "step": "I",
+      "change": "İkinci Öneri: Hearthfang yeniden dene",
+      "accepted": true,
+      "reason": "",
+      "mass": 214,
+      "max_mass": 230,
+      "load": 0.9304347826086956,
+      "load_pct": 93,
+      "power_draw": 112,
+      "power_output": 130,
+      "mobility_raw": 8.057466918714557,
+      "mobility": 8,
+      "delta_v": 28,
+      "endurance": 33
+    }
+  ]
+}
