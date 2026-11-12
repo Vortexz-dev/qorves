@@ -137,7 +137,7 @@ export function layout(doc: ShipDoc): Plan {
     if (two) {
       P.hulls.push({ owner: t.k, f: 1, x: x0, y: 0, w: TL, h: Wt, label: nm + ' · ÜST' });
       const upR = up.map(rr), cb = bot - (CY - IN);
-      R({ id: `${t.k}_land`, name: 'Merdiven sahanlığı', f: 1, x: ix1 - 2.2, y: IN, w: 2.2, h: bot - IN, owner: t.k, kind: 'corridor', img: undefined });
+      R({ id: `${t.k}_land`, name: 'Merdiven sahanlığı', f: 1, x: ix1 - 2.2, y: IN, w: 2.2, h: bot - IN, owner: t.k, kind: 'corridor', img: roomArt(base, 'Merdiven sahanlığı') });
       if (open) row(1, upR, ix0, ix1 - 2.2, IN, bot, null, 'u');
       else { R({ id: `${t.k}_cor1`, name: 'Üst kat koridoru', f: 1, x: ix0, y: cb, w: ix1 - 2.2 - ix0, h: bot - cb, owner: t.k, kind: 'corridor', img: corArt('ust-koridor--' + short) }); row(1, upR, ix0, ix1 - 2.2, IN, cb, cb, 'u'); }
       P.doors.push({ f: 1, x: ix1 - 2.2, y: open ? Wt / 2 : (cb + bot) / 2, v: true, w: 1, kind: 'door' });
