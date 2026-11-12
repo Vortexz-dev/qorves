@@ -4,6 +4,8 @@ import { session } from '../lib/session.svelte';
 export interface Win { id: number; app: string; x: number; y: number; w: number; h: number; z: number; min: boolean; max: boolean; closing?: boolean; arg?: string; title?: string }
 export const wm = $state<{ wins: Win[]; core: string | null; coreClosing: boolean; coreMin: boolean; z: number; focus: number; start: boolean }>(
   { wins: [], core: null, coreClosing: false, coreMin: false, z: 10, focus: -1, start: false });
+// Çekirdek uygulamada bir üst seviyeye dönüş; yoksa sağ üst Geri düğmesi gizlenir.
+export const coreBack = $state<{ go: (() => void) | null }>({ go: null });
 let seq = 1;
 // Başlat menüsü: kullanıcı başına son kullanılan uygulamalar (bu cihazda, localStorage)
 const RKEY = () => 'qv.recent.' + (session.user?.uid ?? '');

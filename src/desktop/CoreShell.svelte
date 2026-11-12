@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { appById } from './apps';
-  import { wm, closeCore, minCore } from './wm.svelte';
+  import { wm, closeCore, minCore, coreBack } from './wm.svelte';
   import { ask } from '../lib/confirm.svelte';
   import CoreIntro from './CoreIntro.svelte';
   let { id }: { id: string } = $props();
@@ -25,8 +25,9 @@
     {#if !intro || go}{#await mod then m}<m.default />{:catch e}<div class="fail"><b>Uygulama açılamadı</b><span>Site az önce güncellenmiş olabilir. Sayfayı yenileyince düzelir.</span><small class="mono">{String((e as Error)?.message ?? e).slice(0, 140)}</small><div><button onclick={() => location.reload()}>Yenile</button><button onclick={() => closeCore()}>Masaüstüne dön</button></div></div>{/await}{/if}
   </div>
   <div class="top">
-    <span class="t">{app.title}</span><span class="mono k">{gods ? 'CANLI · OTOMATİK KAYIT' : 'ESC · ÇIKIŞ'}</span>
+    <span class="t">{app.title}</span><span class="mono k">{gods ? 'CANLI · OTOMATİK KAYIT' : coreBack.go ? 'ESC · GERİ' : 'ESC · ÇIKIŞ'}</span>
     {#if gods}<button class="m" onclick={minCore} aria-label="Küçült" title="Küçült (görev çubuğuna)"><svg viewBox="0 0 12 12"><path d="M2.5 9h7" stroke="currentColor" stroke-width="1.6"/></svg></button>{/if}
+    {#if coreBack.go}<button class="b mono" onclick={() => coreBack.go?.()} aria-label="Geri" title="Geri">‹ Geri</button>{/if}
     <button class="x" onclick={close} aria-label="Kapat"><svg viewBox="0 0 12 12"><path d="m2.5 2.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="1.6"/></svg></button>
   </div>
 </div>
@@ -42,6 +43,7 @@
   .k{font-size:10.5px;color:var(--mut);letter-spacing:.2em;margin-left:auto}
   .x{width:40px;height:32px;display:grid;place-items:center;background:rgba(255,42,85,.1);border:1px solid rgba(255,42,85,.5);color:var(--rd)}
   .m{width:40px;height:32px;display:grid;place-items:center;background:rgba(0,240,255,.08);border:1px solid rgba(0,240,255,.45);color:var(--cy)}.m svg{width:13px;height:13px}.m:hover{background:var(--cy);color:#04050a}
+  .b{height:32px;padding:0 10px;display:grid;place-items:center;background:rgba(0,240,255,.08);border:1px solid rgba(0,240,255,.45);color:var(--cy);font-size:11px;letter-spacing:.14em;text-transform:uppercase}.b:hover{background:var(--cy);color:#04050a}
   .core.min{visibility:hidden;pointer-events:none;animation:none}
   .gods .k{color:#39ff8a}
   .fail{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:10px;text-align:center;color:var(--tx,#cfe3ee)}.fail b{font-family:var(--f-disp);letter-spacing:.2em;color:var(--rd)}.fail small{color:var(--mut);font-size:10px}.fail div{display:flex;gap:10px}.fail button{padding:7px 16px;border:1px solid rgba(0,240,255,.5);background:rgba(0,240,255,.08);color:var(--cy)}.fail button:hover{background:var(--cy);color:#04050a}

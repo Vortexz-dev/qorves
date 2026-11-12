@@ -11,6 +11,7 @@
   import { watchMarkers, watchDoc, type Marker } from '../lib/live';
   import type { WorldEvents } from '../lib/backend';
   import { sfx, ambient } from '../lib/sfx';
+  import { coreBack } from '../desktop/wm.svelte';
   import RichText from '../ui/RichText.svelte';
   import Route from '../starmap/Route.svelte';
   import { tmeta } from '../lib/types';
@@ -121,6 +122,16 @@
     sys2.dispose(); sys2 = null; bsel = null; bhov = null; mode = 'cluster'; sel = id; makeCluster(id); cur = null;
     warp = 2; setTimeout(() => { warp = 0; busy = false; }, 900);
   }
+  /** Bir üst seviye: gezegen bakışı → sistem, sistem → küme. Kümede Geri gizlenir. */
+  function stepUp() {
+    if (busy || mode !== 'system') return;
+    if (bsel) { bsel = null; sys2?.select(null); sys2?.overview(); }
+    else void back();
+  }
+  $effect(() => {
+    coreBack.go = mode === 'system' ? stepUp : null;
+    return () => { if (coreBack.go === stepUp) coreBack.go = null; };
+  });
   /** Geçitten hedef sisteme: kümeye dön, hedefi seç, içine gir. */
   async function jump(to: string) { if (busy) return; await back(); setTimeout(() => { if (!known(to)) return; sel = to; sc?.select(to); setTimeout(enter, 900); }, 950); }
   function selectBody(id: string | null) {
@@ -145,10 +156,17 @@
   onMount(() => {
     let alive = true, timer = 0, stopEv = () => {};
     const u0 = session.user!; const stopMk = watchMarkers(u0.role === 'dm' ? null : u0.uid, (m) => (marks = m));
-    const esc = (e: KeyboardEvent) => { if (e.key !== 'Escape') return;
-      if (lightbox.open) return;
+    const field = (t: EventTarget | null) => !!(t as HTMLElement | null)?.closest?.('input,textarea,select,[contenteditable="true"]');
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' && e.key !== 'Backspace') return;
+      if (field(e.target) || lightbox.open) return;
+      if (e.key === 'Backspace') {
+        if (mode !== 'system') return;
+        e.preventDefault(); e.stopImmediatePropagation();
+        stepUp(); return;
+      }
       if (busy) { e.stopImmediatePropagation(); return; }
-      if (mode === 'system') { e.stopImmediatePropagation(); if (bsel) { bsel = null; sys2?.select(null); sys2?.overview(); } else back(); return; }
+      if (mode === 'system') { e.stopImmediatePropagation(); stepUp(); return; }
       if (sel) { sel = null; sc?.select(null); sc?.overview(); e.stopImmediatePropagation(); } };
     addEventListener('keydown', esc, true); const stopAmb = ambient('starmap');
     (async () => {
