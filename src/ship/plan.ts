@@ -52,19 +52,20 @@ export function layout(doc: ShipDoc): Plan {
   let L = 18, TW = W;
   if (!TT) {
     // ---- T1 tır (belgedeki düzen): alt güverte
+    const art1 = (n: string, fb?: string) => corArt(`tir-t1--${slug(n)}`, fb);
     P.hulls.push({ owner: 'truck', f: 0, x: 0, y: 0, w: 18, h: W, label: 'TIR · ALT GÜVERTE', nose: true, gear: 'craft' }, { owner: 'truck', f: 1, x: 2.4, y: 0, w: 15.6, h: W, label: 'TIR · ÜST GÜVERTE', nose: true });
     R({ id: 'cab_cor', name: 'Servis koridoru', f: 0, x: IN, y: IN, w: 14.6, h: CY - IN, owner: 'truck', kind: 'corridor', img: corArt('servis-koridoru'), lx: 8.75 });
     R({ id: 'cab_eng', name: 'Motor bölmesi', f: 0, x: IN, y: CY, w: 5.2, h: BOT - CY, owner: 'truck' });
     R({ id: 'cab_core', name: 'Çekirdek odası', f: 0, x: 5.6, y: CY, w: 4.6, h: BOT - CY, owner: 'truck' });
-    R({ id: 'cab_hold', name: 'Kabin ambarı', f: 0, x: 10.2, y: CY, w: 4.8, h: BOT - CY, owner: 'truck', hold: 'cab' });
+    R({ id: 'cab_hold', name: 'Kabin ambarı', f: 0, x: 10.2, y: CY, w: 4.8, h: BOT - CY, owner: 'truck', hold: 'cab', img: art1('Kabin ambarı', 'depo') });
     P.mechs.push({ f: 0, x: 15, y: IN, w: 2.6, h: BOT - IN, kind: 'gear', label: 'Ön iniş takımı' });
     P.doors.push({ f: 0, x: 3, y: CY, v: false, w: 1, kind: 'door' }, { f: 0, x: 9.4, y: CY, v: false, w: 1, kind: 'door' }, { f: 0, x: 12.6, y: CY, v: false, w: 1.4, kind: 'door' }, { f: 0, x: IN, y: 1.1, v: true, w: 1, kind: 'hatch' });
     // üst güverte
-    R({ id: 'cab_ckp', name: 'Kokpit', f: 1, x: 13.6, y: IN, w: 4, h: BOT - IN, owner: 'truck' });
-    R({ id: 'cab_lng', name: 'Oturma alanı', f: 1, x: 7.2, y: IN, w: 6.4, h: BOT - IN, owner: 'truck', lx: 1.95 });
+    R({ id: 'cab_ckp', name: 'Kokpit', f: 1, x: 13.6, y: IN, w: 4, h: BOT - IN, owner: 'truck', img: art1('Kokpit', 'kokpit') });
+    R({ id: 'cab_lng', name: 'Oturma alanı', f: 1, x: 7.2, y: IN, w: 6.4, h: BOT - IN, owner: 'truck', lx: 1.95, img: art1('Oturma alanı', 'salon') });
     R({ id: 'cab_cor2', name: 'Koridor', f: 1, x: 2.8, y: 2.4, w: 4.4, h: 1.2, owner: 'truck', kind: 'corridor', img: corArt('kabin-koridoru') });
-    R({ id: 'cab_wc', name: 'Tuvalet', f: 1, x: 2.8, y: IN, w: 2.2, h: 2, owner: 'truck' });
-    R({ id: 'cab_bunk', name: 'Uyku odası', f: 1, x: 2.8, y: 3.6, w: 4.4, h: BOT - 3.6, owner: 'truck' });
+    R({ id: 'cab_wc', name: 'Tuvalet', f: 1, x: 2.8, y: IN, w: 2.2, h: 2, owner: 'truck', img: art1('Tuvalet', 'tuvalet') });
+    R({ id: 'cab_bunk', name: 'Uyku odası', f: 1, x: 2.8, y: 3.6, w: 4.4, h: BOT - 3.6, owner: 'truck', img: art1('Uyku odası', 'ranza') });
     P.mechs.push({ f: 1, x: 5, y: IN, w: 2.2, h: 2, kind: 'locker', label: 'Dolap' });
     P.doors.push({ f: 1, x: 13.6, y: 3, v: true, w: 1.2, kind: 'door' }, { f: 1, x: 7.2, y: 3, v: true, w: 1, kind: 'door' }, { f: 1, x: 3.9, y: 2.4, v: false, w: 0.9, kind: 'door' }, { f: 1, x: 5.4, y: 3.6, v: false, w: 1, kind: 'door' });
     P.stairs.push({ x: 7.3, y: IN + 0.05, w: 1.6, h: 1.3, floors: [0, 1] });
