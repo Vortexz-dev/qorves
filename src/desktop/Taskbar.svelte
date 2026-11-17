@@ -6,6 +6,7 @@
   import { appById } from './apps';
   import { ICONS } from './icons';
   import { wm, toggleTask, openApp, minCore } from './wm.svelte';
+  import { radioLive, fmtTime } from '../lib/radiolive.svelte';
   let now = $state(new Date()), volOpen = $state(false), vol = $state(audio.volume), mvol = $state(audio.music), muted = $state(audio.muted);
   onMount(() => {
     let t: number;
@@ -48,9 +49,17 @@
         <div class="volp">
           <div class="mono">SİSTEM {Math.round(vol * 100)}</div>
           <input type="range" min="0" max="1" step="0.01" bind:value={vol} oninput={() => audio.setVolume(vol)} onchange={() => sfx.click()} />
+          {#if radioLive.has}
+            <div class="np" class:pz={!radioLive.playing}>
+              <div class="npk mono"><i class="eq"><b></b><b></b><b></b></i>{radioLive.playing ? 'ŞU AN ÇALIYOR' : 'DURAKLATILDI'}</div>
+              <div class="npt" title={radioLive.title}>{radioLive.title}</div>
+              <div class="npb"><span style="width:{radioLive.dur ? Math.min(100, (radioLive.pos / radioLive.dur) * 100) : 0}%"></span></div>
+              <div class="npm mono"><span>{fmtTime(radioLive.pos)}</span><span>{radioLive.dur ? fmtTime(radioLive.dur) : '--:--'}</span></div>
+              {#if radioLive.blocked}<div class="npw">Tarayıcı sesi engelledi, bir yere tıkla.</div>{/if}
+            </div>
+          {/if}
           <div class="mono">MÜZİK {Math.round(mvol * 100)}</div>
           <input type="range" min="0" max="1" step="0.01" bind:value={mvol} oninput={() => audio.setMusic(mvol)} />
-          <div class="now" id="qv-radio-now"></div>
           <label class="clickable"><input type="checkbox" bind:checked={muted} onchange={() => audio.setMuted(muted)} /> Sessiz</label>
         </div>
       {/if}
@@ -84,12 +93,20 @@
   .volw{position:relative}
   .vol{width:32px;height:32px;background:none;border:0;color:var(--cy);display:grid;place-items:center}
   .vol svg{width:22px;height:22px}.vol:hover{color:var(--ye)}
-  .volp{position:absolute;bottom:42px;right:-40px;width:220px;padding:14px;background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);
+  .volp{position:absolute;bottom:42px;right:-40px;width:252px;padding:14px;background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);
     display:flex;flex-direction:column;gap:10px;font-size:13px;animation:up .18s both}
   .volp .mono{font-size:11px;color:var(--cy);letter-spacing:.2em}
   .volp input[type=range]{accent-color:var(--ye);width:100%}
   .volp label{display:flex;gap:8px;align-items:center}.volp input[type=checkbox]{accent-color:var(--ye)}
-  .now{font-size:11px;color:var(--mut);min-height:1em;line-height:1.3}
+  .np{border:1px solid rgba(0,240,255,.25);background:linear-gradient(135deg,rgba(0,240,255,.07),rgba(255,214,0,.03));padding:9px 10px 8px;margin-bottom:4px;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%)}
+  .npk{display:flex;align-items:center;gap:7px;font-size:9.5px!important;letter-spacing:.24em;color:var(--ye)!important}
+  .eq{display:inline-flex;gap:2px;align-items:flex-end;height:10px}.eq b{width:2px;background:var(--ye);animation:eqb .9s ease-in-out infinite}.eq b:nth-child(2){animation-delay:-.3s}.eq b:nth-child(3){animation-delay:-.6s}
+  .pz .eq b{animation:none;height:3px}.pz .npk{color:var(--mut)!important}
+  @keyframes eqb{0%,100%{height:3px}50%{height:10px}}
+  .npt{font-size:13px;font-weight:600;color:var(--tx,#e8f4fa);margin:4px 0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .npb{height:3px;background:rgba(255,255,255,.1);position:relative}.npb span{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--cy),var(--ye));box-shadow:0 0 6px var(--cy);transition:width .5s linear}
+  .npm{display:flex;justify-content:space-between;font-size:9.5px!important;color:var(--mut)!important;letter-spacing:.1em!important;margin-top:4px}
+  .npw{font-size:10.5px;color:var(--rd);margin-top:4px}
   @keyframes up{from{opacity:0;transform:translateY(8px)}}
   .ses{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.2em;color:var(--mut);padding:3px 8px;border:1px solid rgba(0,240,255,.25)}.ses b{color:var(--cy);font-size:13px;letter-spacing:.05em}
   .ses i{width:5px;height:5px;background:var(--cy);box-shadow:0 0 6px var(--cy)}

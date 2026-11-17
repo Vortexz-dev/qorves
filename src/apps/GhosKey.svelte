@@ -66,7 +66,8 @@
     }
   }
   // en yeni çıktı her zaman görünür: kullanıcı yukarı kaydırmadıysa alta yapış
-  let follow = true;
+  let follow = true, inp = $state<HTMLInputElement>();
+  $effect(() => { if (inp && phase === 'term') { const t = setTimeout(() => inp?.focus(), 350); return () => clearTimeout(t); } });
   function stick() { tick().then(() => { if (box && follow) box.scrollTop = box.scrollHeight; }); }
   function onScroll() { if (box) follow = box.scrollHeight - box.scrollTop - box.clientHeight < 40; }
   // Tab ile komut tamamlama (birden çok eşleşmede her Tab sıradakine geçer), ↑/↓ geçmiş
@@ -97,8 +98,16 @@
   }
   function find(q: string) { const s = q.trim().toLowerCase(); return nets.find((n) => n.id.toLowerCase() === s || n.name.toLowerCase() === s); }
 
+  // meşgulken yazılan komutlar kaybolmaz: sıraya girer
+  const pending: string[] = []; let draining = false;
   async function run() {
-    const raw = cmd.trim(); cmd = ''; if (!raw || busy) return;
+    const r = cmd.trim(); cmd = ''; if (!r) return;
+    pending.push(r); if (draining) return; draining = true;
+    while (pending.length) { while (busy) await sleep(60); await runOne(pending.shift()!); }
+    draining = false;
+  }
+  async function runOne(raw: string) {
+    if (!raw || busy) return;
     hist = [...hist.slice(-30), raw]; hi = -1; follow = true;
     busy = true; await out('> ' + raw);
     const [a0, ...rest] = raw.split(/\s+/); const a = a0.replace(/^\//, ''); const arg = rest.join(' ');
@@ -238,11 +247,11 @@
       <div class="n dec" class:gx={d.glitch} class:fade={d.fade}><b>{d.shown}</b><small class="mono">{sig(d.signal)} kopuk</small></div>
     {/each}
   </div>
-  <div class="term">
+  <div class="term" role="presentation" onpointerup={() => { if (!getSelection()?.toString()) inp?.focus(); }}>
     <div class="out" bind:this={box} onscroll={onScroll}>{#each lines as l}<div>{l}</div>{/each}</div>
     <form onsubmit={(e) => { e.preventDefault(); run(); }}>
       <span class="mono">root@ghos-key:~#</span>
-      <input class="inp" bind:value={cmd} autocomplete="off" spellcheck="false" onkeydown={onKey} />
+      <input class="inp" bind:this={inp} bind:value={cmd} autocomplete="off" spellcheck="false" onkeydown={onKey} aria-label="Komut" />
     </form>
   </div>
 </div>

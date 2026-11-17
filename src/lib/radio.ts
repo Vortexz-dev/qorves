@@ -1,5 +1,5 @@
 /* DM radyosu: YouTube + Firestore'a parçalı MP3 (Spark, Cloud Storage yok). Senkron play/pause/seek/volume/loop. */
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, onSnapshot, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, onSnapshot, writeBatch, runTransaction } from 'firebase/firestore';
 import { db } from './backend/firebase';
 import { LIVE, nid, now } from './live';
 
@@ -85,6 +85,30 @@ export async function dropMp3(id: string) {
 export async function listMp3(): Promise<{ id: string; name: string; size: number }[]> {
   const s = await getDocs(collection(db, 'radio_files'));
   return s.docs.map((d) => { const x = d.data() as { name: string; size: number }; return { id: d.id, name: x.name, size: x.size }; });
+}
+
+/** Parça bitti: yalnız hâlâ aynı parça çalıyorsa bir kez ilerlet (aynı anda biten tüm istemciler tek yazım yapar). */
+export async function advanceTrack(fromI: number, fromT0: number) {
+  const ref = doc(db, 'world', 'radio');
+  await runTransaction(db, async (tx) => {
+    const s = await tx.get(ref); if (!s.exists()) return;
+    const r = s.data() as RadioState;
+    if (r.i !== fromI || r.t0 !== fromT0 || !r.playing) return;
+    const n = (r.list ?? []).length, t = now();
+    if (r.i + 1 < n) tx.update(ref, { i: r.i + 1, pos: 0, t0: t, playing: true, at: t });
+    else if (r.loop && n) tx.update(ref, { i: 0, pos: 0, t0: t, playing: true, at: t });
+    else tx.update(ref, { playing: false, pos: 0, t0: t, at: t });
+  });
+}
+/** DM: bilinen süreyi kuyruğa işle (oyuncular süreyi oynatıcı yüklenmeden de görsün). */
+export async function noteDuration(i: number, id: string, dur: number) {
+  const ref = doc(db, 'world', 'radio');
+  await runTransaction(db, async (tx) => {
+    const s = await tx.get(ref); if (!s.exists()) return;
+    const list = ((s.data() as RadioState).list ?? []).slice();
+    if (!list[i] || list[i].id !== id || Math.abs((list[i].dur ?? 0) - dur) < 1) return;
+    list[i] = { ...list[i], dur: Math.round(dur) }; tx.update(ref, { list });
+  });
 }
 
 /** Yayındaki gerçek konum (sunucu pos + geçen süre). */
