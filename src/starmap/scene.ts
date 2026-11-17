@@ -24,7 +24,8 @@ export const CAPITALS: Record<string, string> = { 'sys-aerendis': 'Elf İmparato
   'sys-ondrum': 'Ondrûm Krallığı başkenti', 'sys-harrow': 'Ostrav Loncası başkenti (Ostrav · Kotlina)', 'sys-meridian': 'Velmor Cemiyeti başkenti (Velmor · Aldane)', 'sys-imperion': 'Eski imparatorluk başkenti' };
 
 interface SysObj { d: SysData; pos: THREE.Vector3; group: THREE.Group; core: THREE.Sprite; halo: THREE.Sprite; haloOp: number; coreOp: number; extra: THREE.Object3D[]; terr: THREE.Mesh; label: HTMLDivElement; known: boolean; dim: number }
-export interface Hooks { hover: (id: string | null) => void; select: (id: string | null) => void }
+export type PinTip = { kind: string; label: string; sys: string; clickable: boolean };
+export interface Hooks { hover: (id: string | null) => void; select: (id: string | null) => void; pinHover?: (p: PinTip | null) => void; pinClick?: (p: PinTip) => void }
 
 const POINT_VS = `attribute float size; attribute vec3 color; attribute float tw; varying vec3 vC; varying float vT; uniform float uPR; uniform float uTime;
 void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); gl_Position = projectionMatrix * mv; vC = color;
@@ -58,7 +59,7 @@ export class ClusterScene {
   private raf = 0; private clock = new THREE.Clock(); private running = false; private fly: { t0: number; dur: number; fromT: THREE.Vector3; toT: THREE.Vector3; fromP: THREE.Vector3; toP: THREE.Vector3 } | null = null;
   hovered: string | null = null; selected: string | null = null; showLabels = true; showLanes = true; showTerr = true; quality: Quality;
   private down = { x: 0, y: 0 }; private v = new THREE.Vector3();
-  private pinRoot = new THREE.Group(); private pins: { kind: string; obj: THREE.Object3D; ring?: THREE.Sprite }[] = [];
+  private pinRoot = new THREE.Group(); private pins: { kind: string; obj: THREE.Object3D; ring?: THREE.Sprite; tip: PinTip; label?: HTMLDivElement }[] = [];
   constructor(private host: HTMLElement, private overlay: HTMLElement, private data: MapData, private known: (id: string) => boolean, private hooks: Hooks, quality: Quality) {
     this.quality = quality;
     this.renderer = new THREE.WebGLRenderer({ antialias: Q[quality].aa, powerPreference: 'high-performance' });
@@ -75,7 +76,7 @@ export class ClusterScene {
     this.hovRet = this.sprite('ret', '#00f0ff', 0.7); this.hovRet.visible = false; this.scene.add(this.hovRet);
     this.setQuality(quality);
     const el = this.renderer.domElement;
-    el.addEventListener('pointermove', this.onMove); el.addEventListener('pointerdown', this.onDown); el.addEventListener('pointerup', this.onUp);
+    el.addEventListener('pointermove', this.onMove); el.addEventListener('pointerdown', this.onDown); el.addEventListener('pointerup', this.onUp); el.addEventListener('contextmenu', this.onMenu);
     addEventListener('resize', this.resize); document.addEventListener('visibilitychange', this.onVis);
     this.resize(); this.start();
   }
@@ -243,27 +244,54 @@ export class ClusterScene {
       if (pinN) html += `<s class="mi" data-tip="${esc(x!.pins.map((p) => p.label).join(', '))}">◆${pinN > 1 ? pinN : ''}</s>`;
       el.innerHTML = html;
     }
-    this.pinRoot.clear(); this.pins = [];
-    const shipGeo = new THREE.ConeGeometry(1.1, 3.2, 5);
+    this.pinRoot.clear(); this.pins.forEach((p) => p.label?.remove()); this.pins = [];
+    const shipGeo = new THREE.ConeGeometry(2.4, 6.8, 5);
     const shipMat = new THREE.MeshBasicMaterial({ color: 0x39ff8a, transparent: true, opacity: 0.95 });
-    const bodyGeo = new THREE.BoxGeometry(0.7, 0.5, 1.6);
+    const bodyGeo = new THREE.BoxGeometry(1.6, 1.1, 3.6);
+    const wingGeo = new THREE.BoxGeometry(4.2, 0.25, 1.4);
     for (const o of this.sys.values()) {
       const x = m.get(o.d.id); if (!x) continue;
       x.ships.forEach((lab, i) => {
         const g = new THREE.Group();
         const a = i * 1.15 + o.pos.x * 0.01;
-        g.position.set(o.pos.x + Math.cos(a) * 9, o.pos.y + 3.5, o.pos.z + Math.sin(a) * 9);
-        const nose = new THREE.Mesh(shipGeo, shipMat); nose.rotation.x = Math.PI / 2; nose.position.z = 1.2;
-        const body = new THREE.Mesh(bodyGeo, shipMat.clone()); g.add(nose, body); g.lookAt(o.pos);
-        this.pinRoot.add(g); this.pins.push({ kind: 'ship', obj: g });
+        g.position.set(o.pos.x + Math.cos(a) * 14, o.pos.y + 5, o.pos.z + Math.sin(a) * 14);
+        const nose = new THREE.Mesh(shipGeo, shipMat); nose.rotation.x = Math.PI / 2; nose.position.z = 2.4;
+        const body = new THREE.Mesh(bodyGeo, shipMat.clone());
+        const wing = new THREE.Mesh(wingGeo, new THREE.MeshBasicMaterial({ color: 0x7dffb0, transparent: true, opacity: 0.9 }));
+        g.add(nose, body, wing); g.lookAt(o.pos);
+        const tip = { kind: 'ship', label: lab, sys: o.d.id, clickable: false };
+        this.pinRoot.add(g); this.pins.push({ kind: 'ship', obj: g, tip });
       });
       x.pins.forEach((p, i) => {
         const col = p.kind === 'alert' ? '#ff2a55' : p.kind === 'objective' ? '#fcee0a' : p.kind === 'poi' ? '#00f0ff' : '#ff9b2f';
         const ring = this.sprite('ring', col, 0.85);
-        ring.position.set(o.pos.x, 0.3, o.pos.z); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(14 + i);
-        this.pinRoot.add(ring); this.pins.push({ kind: p.kind, obj: ring, ring });
+        ring.position.set(o.pos.x, 0.3, o.pos.z); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(18 + i * 4);
+        const tip = { kind: p.kind, label: p.label, sys: o.d.id, clickable: p.kind !== 'ship' };
+        this.pinRoot.add(ring); this.pins.push({ kind: p.kind, obj: ring, ring, tip });
       });
     }
+  }
+  groundHit(cx: number, cy: number) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, this.camera);
+    const hit = new THREE.Vector3(); if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit)) return null;
+    return { x: hit.x, y: hit.y, z: hit.z };
+  }
+  nearestSys(pt: { x: number; y: number; z: number } | null, cx?: number, cy?: number) {
+    let best: string | null = null, bd = Infinity;
+    if (pt) { for (const o of this.sys.values()) { const d = o.pos.distanceTo(new THREE.Vector3(pt.x, o.pos.y, pt.z)); if (d < bd) { bd = d; best = o.d.id; } } }
+    else if (cx != null && cy != null) { best = this.pick(cx, cy); }
+    return best;
+  }
+  pickPin(cx: number, cy: number) {
+    const r = this.renderer.domElement.getBoundingClientRect(); let best: typeof this.pins[number] | null = null, bd = 36;
+    for (const p of this.pins) {
+      this.v.copy(p.obj.position).project(this.camera); if (this.v.z > 1) continue;
+      const x = (this.v.x * 0.5 + 0.5) * r.width + r.left, y = (-this.v.y * 0.5 + 0.5) * r.height + r.top, d = Math.hypot(x - cx, y - cy);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
   }
   flyTo(id: string, dist = 85, dur = 1400) {
     const o = this.sys.get(id); if (!o) return;
@@ -283,9 +311,22 @@ export class ClusterScene {
       const x = (this.v.x * 0.5 + 0.5) * r.width + r.left, y = (-this.v.y * 0.5 + 0.5) * r.height + r.top, d = Math.hypot(x - cx, y - cy); if (d < bd) { bd = d; best = o.d.id; } }
     return best;
   }
-  private onMove = (e: PointerEvent) => { const id = e.buttons ? null : this.pick(e.clientX, e.clientY); if (id !== this.hovered) { this.hovered = id; this.hooks.hover(id); this.renderer.domElement.style.cursor = id ? 'pointer' : ''; } };
+  private onMove = (e: PointerEvent) => {
+    if (e.buttons) { this.hooks.pinHover?.(null); return; }
+    const pin = this.pickPin(e.clientX, e.clientY);
+    if (pin) { this.hooks.pinHover?.(pin.tip); this.renderer.domElement.style.cursor = 'pointer'; if (this.hovered) { this.hovered = null; this.hooks.hover(null); } return; }
+    this.hooks.pinHover?.(null);
+    const id = this.pick(e.clientX, e.clientY); if (id !== this.hovered) { this.hovered = id; this.hooks.hover(id); this.renderer.domElement.style.cursor = id ? 'pointer' : ''; }
+  };
   private onDown = (e: PointerEvent) => { this.down = { x: e.clientX, y: e.clientY }; this.fly = null; };
-  private onUp = (e: PointerEvent) => { if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 5) return; const id = this.pick(e.clientX, e.clientY); if (id) { this.select(id); this.flyTo(id); } };
+  private onUp = (e: PointerEvent) => {
+    if (e.button === 2) return;
+    if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 5) return;
+    const pin = this.pickPin(e.clientX, e.clientY);
+    if (pin) { this.hooks.pinClick?.(pin.tip); if (pin.tip.clickable) return; }
+    const id = this.pick(e.clientX, e.clientY); if (id) { this.select(id); this.flyTo(id); }
+  };
+  private onMenu = (e: MouseEvent) => { e.preventDefault(); };
   private resize = () => {
     const w = this.host.clientWidth, h = this.host.clientHeight; if (!w || !h) return;
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, h, false);
@@ -329,7 +370,7 @@ export class ClusterScene {
       l.label.style.transform = `translate3d(${(this.v.x * 0.5 + 0.5) * w}px,${(-this.v.y * 0.5 + 0.5) * h}px,0)`;
     }
     for (const p of this.pins) {
-      if (p.kind === 'ship') { p.obj.position.y = 3.5 + Math.sin(t * 1.6 + p.obj.position.x) * 0.5; p.obj.rotateY(0.01); }
+      if (p.kind === 'ship') { p.obj.position.y = 5 + Math.sin(t * 0.7 + p.obj.position.x) * 0.45; p.obj.rotation.y = t * 0.25; }
       else if (p.ring) { const s = 12 + (Math.sin(t * 2.2) * 0.5 + 0.5) * 10; p.ring.scale.setScalar(s); p.ring.material.opacity = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(t * 2.2)); }
     }
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
@@ -337,7 +378,7 @@ export class ClusterScene {
   sysScreen(id: string) { const o = this.sys.get(id); if (!o) return null; this.v.copy(o.pos).project(this.camera); return { x: (this.v.x * 0.5 + 0.5) * this.host.clientWidth, y: (-this.v.y * 0.5 + 0.5) * this.host.clientHeight }; }
   dispose() {
     this.stop(); const el = this.renderer.domElement;
-    el.removeEventListener('pointermove', this.onMove); el.removeEventListener('pointerdown', this.onDown); el.removeEventListener('pointerup', this.onUp);
+    el.removeEventListener('pointermove', this.onMove); el.removeEventListener('pointerdown', this.onDown); el.removeEventListener('pointerup', this.onUp); el.removeEventListener('contextmenu', this.onMenu);
     removeEventListener('resize', this.resize); document.removeEventListener('visibilitychange', this.onVis);
     this.controls.dispose();
     this.scene.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose(); const mat = m.material as THREE.Material | THREE.Material[] | undefined; if (Array.isArray(mat)) mat.forEach((x) => x.dispose()); else mat?.dispose(); });

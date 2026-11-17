@@ -8,7 +8,7 @@
   const app = $derived(appById(id));
   const mod = $derived(app.load());
   // giriş animasyonu bitene kadar ağır uygulama kurulmaz; böylece giriş takılmadan oynar
-  const intro = $derived(id === 'timeline' || id === 'codex' || id === 'starmap' || id === 'gods' || id === 'persona' || id === 'ghoskey');
+  const intro = $derived(id === 'timeline' || id === 'codex' || id === 'starmap' || id === 'gods' || id === 'persona' || id === 'ghoskey' || id === 'ship');
   const gods = $derived(id === 'gods');
   const canMin = $derived(id === 'gods' || id === 'ghoskey');
   async function close() { if (gods) { if (await ask('Emin misin?', "God's Eye kapanacak. Sahne kaybolmaz; yeniden açınca kaldığın yerden devam eder. Yalnızca gizlemek için küçült düğmesini kullanabilirsin.", 'Kapat', false)) closeCore(); } else closeCore(); }
@@ -21,7 +21,7 @@
 </script>
 
 <div class={'core ' + id} class:closing={wm.coreClosing} class:min={wm.coreMin}>
-  {#if intro}{#key id}<CoreIntro id={id as 'gods'} ondone={() => (go = true)} />{/key}{:else}<div class="fx"></div>{/if}
+  {#if intro}{#key id}<CoreIntro id={id as 'ship'} ondone={() => (go = true)} />{/key}{:else}<div class="fx"></div>{/if}
   <div class="stage">
     {#if !intro || go}{#await mod then m}<m.default />{:catch e}<div class="fail"><b>Uygulama açılamadı</b><span>Site az önce güncellenmiş olabilir. Sayfayı yenileyince düzelir.</span><small class="mono">{String((e as Error)?.message ?? e).slice(0, 140)}</small><div><button onclick={() => location.reload()}>Yenile</button><button onclick={() => closeCore()}>Masaüstüne dön</button></div></div>{/await}{/if}
   </div>
@@ -36,7 +36,7 @@
 <style>
   .core{position:fixed;inset:0;z-index:9500;background:#04050a;overflow:hidden}
   .stage{position:absolute;inset:0;animation:st .7s .35s both}
-  .timeline .stage,.codex .stage,.starmap .stage,.gods .stage,.persona .stage,.ghoskey .stage{animation-delay:.85s}
+  .timeline .stage,.codex .stage,.starmap .stage,.gods .stage,.persona .stage,.ghoskey .stage,.ship .stage{animation-delay:.85s}
   @keyframes st{from{opacity:0;transform:scale(1.04);filter:blur(8px)}}
   .top{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:14px;padding:0 10px 0 22px;z-index:5;
     background:linear-gradient(rgba(4,5,10,.85),transparent);animation:fd .4s .6s both}

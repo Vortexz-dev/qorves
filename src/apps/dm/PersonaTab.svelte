@@ -5,13 +5,14 @@
   import { sfx } from '../../lib/sfx';
   import { FACTIONS, CHROME_TIERS } from '../../lib/data/character';
   import { ask } from '../../lib/confirm.svelte';
+  import { setProfileField } from '../../lib/live';
   import {
-    watchSheet, watchChrome, watchQuests, watchBounties, watchRels, ensureSheet, saveSheet, saveChrome, dropChrome,
-    saveQuest, dropQuest, saveBounty, dropBounty, saveRel, dropRel, resetStats, nid, now, blankSheet,
-    CHROME_SLOTS, QUEST_KINDS, chromeSlots, type Sheet, type ChromePiece, type Quest, type Bounty, type NpcRel, type StatusFx,
+    watchSheet, watchChrome, watchInv, watchQuests, watchBounties, watchRels, ensureSheet, saveSheet, saveChrome, dropChrome,
+    saveItem, dropItem, saveQuest, dropQuest, saveBounty, dropBounty, saveRel, dropRel, resetStats, nid, now, blankSheet,
+    CHROME_SLOTS, QUEST_KINDS, ITEM_TYPES, chromeSlots, type Sheet, type ChromePiece, type InvItem, type Quest, type Bounty, type NpcRel, type StatusFx,
   } from '../../lib/persona';
-  let sub = $state<'sheet' | 'chrome' | 'log'>('sheet'), msg = $state('');
-  let sheet = $state<Sheet | null>(null), chrome = $state<ChromePiece[]>([]);
+  let sub = $state<'sheet' | 'chrome' | 'inv' | 'log'>('sheet'), msg = $state('');
+  let sheet = $state<Sheet | null>(null), chrome = $state<ChromePiece[]>([]), inv = $state<InvItem[]>([]), edI = $state<InvItem | null>(null);
   let quests = $state<Quest[]>([]), bounties = $state<Bounty[]>([]), rels = $state<NpcRel[]>([]);
   let edC = $state<ChromePiece | null>(null), edQ = $state<Quest | null>(null), edB = $state<Bounty | null>(null), edR = $state<NpcRel | null>(null);
   let fxn = $state(''), fxd = $state(''), fxk = $state<StatusFx['kind']>('cond');
@@ -27,12 +28,13 @@
   $effect(() => {
     const id = dm.pid;
     if (!id || !dm.loaded) return;
-    let stop1 = () => {}, stop2 = () => {};
+    let stop1 = () => {}, stop2 = () => {}, stop3 = () => {};
     const lv = dm.users.find((x) => x.uid === id)?.character?.level ?? 1;
     ensureSheet(id, lv).then((s) => (sheet = s)).catch(() => {});
     stop1 = watchSheet(id, (s) => { if (s) sheet = s; });
     stop2 = watchChrome(id, (xs) => (chrome = xs));
-    return () => { stop1(); stop2(); };
+    stop3 = watchInv(id, (xs) => (inv = xs));
+    return () => { stop1(); stop2(); stop3(); };
   });
   async function putSheet(p: Partial<Sheet>) { if (!dm.pid || !sheet) return; await saveSheet(dm.pid, p); flash('Kaydedildi.'); sfx.granted(); }
   async function addFx() { if (!sheet || !fxn.trim()) return; const s: StatusFx = { id: nid(), name: fxn.trim(), desc: fxd, kind: fxk, at: now() }; await putSheet({ status: [...(sheet.status ?? []), s] }); fxn = ''; fxd = ''; }
@@ -45,7 +47,7 @@
   }
 </script>
 <div class="pp">
-  <div class="side"><PlayerPick /><div class="sub">{#each [['sheet','Kağıt'],['chrome','Krom'],['log','Günlük']] as [k,l]}<button class:on={sub===k} onclick={() => (sub = k as typeof sub)}>{l}</button>{/each}</div></div>
+  <div class="side"><PlayerPick /><div class="sub">{#each [['sheet','Kağıt'],['chrome','Krom'],['inv','Envanter'],['log','Günlük']] as [k,l]}<button class:on={sub===k} onclick={() => (sub = k as typeof sub)}>{l}</button>{/each}</div></div>
   <div class="mn">
     {#if !u}<p class="none">Oyuncu seç.</p>
     {:else if sub === 'sheet' && sheet}
@@ -76,7 +78,15 @@
         <label class="field"><span>{f.label}</span><input class="inp" type="number" min="0" max="5" value={sheet.wanted[f.id] ?? 0} onchange={(e) => putSheet({ wanted: { ...sheet!.wanted, [f.id]: +(e.currentTarget as HTMLInputElement).value } })} /></label>
       {/each}</div>
     {:else if sub === 'chrome'}
-      <p class="nt">Çip: {CHROME_TIERS.find((t) => t.id === String(u?.character?.chrome ?? '0'))?.label} · yuva {chrome.length}/{chromeSlots(String(u?.character?.chrome ?? '0'))}. Çip yoksa oyuncu sekmesi kilitli kalır.</p>
+      <p class="nt">Yuvalar {chrome.length}/{chromeSlots(String(u?.character?.chrome ?? '0'))}. Çip yoksa oyuncu Krom sekmesi kilitli kalır.</p>
+      <label class="field"><span>Çip kademesi</span>
+        <select class="inp" value={String(u?.character?.chrome ?? '0')} onchange={async (e) => {
+          if (!u?.character) return;
+          const chromeId = (e.currentTarget as HTMLSelectElement).value;
+          await setProfileField(u.uid, { character: { ...u.character, chrome: chromeId } });
+          flash('Çip güncellendi.'); sfx.granted();
+        }}>{#each CHROME_TIERS as t}<option value={t.id}>{t.label}</option>{/each}</select>
+      </label>
       {#if edC}
         <label class="field"><span>Ad</span><input class="inp" bind:value={edC.name} /></label>
         <label class="field"><span>Yuva</span><select class="inp" bind:value={edC.slot}>{#each CHROME_SLOTS as s}<option value={s.id}>{s.label}</option>{/each}</select></label>
@@ -90,6 +100,22 @@
           <div class="it"><b>{c.name}</b> <em>{CHROME_SLOTS.find((s) => s.id === c.slot)?.label}</em>
             <button class="btn ghost small" onclick={() => (edC = { ...c })}>Düzenle</button>
             <button class="btn red small" onclick={() => dropChrome(dm.pid, c.id)}>Kaldır</button></div>
+        {/each}
+      {/if}
+    {:else if sub === 'inv'}
+      <h4 class="mono">ENVANTER</h4>
+      {#if edI}
+        <input class="inp" placeholder="Ad" bind:value={edI.name} />
+        <select class="inp" bind:value={edI.type}>{#each ITEM_TYPES as k}<option value={k.id}>{k.label}</option>{/each}</select>
+        <label class="field"><span>Kg</span><input class="inp" type="number" step="0.1" bind:value={edI.kg} /></label>
+        <label class="field"><span>Adet</span><input class="inp" type="number" min="1" bind:value={edI.qty} /></label>
+        <div class="row"><button class="btn" onclick={async () => { if (!dm.pid || !edI?.name.trim()) return; await saveItem(dm.pid, { ...edI, at: Date.now() }); edI = null; sfx.granted(); flash('Eşya kaydedildi.'); }}>Kaydet</button><button class="btn ghost" onclick={() => (edI = null)}>Vazgeç</button></div>
+      {:else}
+        <button class="btn" onclick={() => (edI = { id: nid(), name: '', type: 'misc', kg: 1, qty: 1, at: Date.now() })}>+ Eşya</button>
+        {#each inv as it (it.id)}
+          <div class="it"><b>{it.name}</b> <em>{it.qty} × {it.kg} kg · {ITEM_TYPES.find((x) => x.id === it.type)?.label}</em>
+            <button class="btn ghost small" onclick={() => (edI = { ...it })}>Düzenle</button>
+            <button class="btn red small" onclick={() => dropItem(dm.pid, it.id)}>Sil</button></div>
         {/each}
       {/if}
     {:else}

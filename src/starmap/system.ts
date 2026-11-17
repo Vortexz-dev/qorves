@@ -14,7 +14,8 @@ import { glowTex, softTex, nebulaTex, reticleTex } from './textures';
 import { lookOf } from './looks';
 import { STAR_VS, STAR_FS, CORONA_VS, CORONA_FS, PLANET_VS, PLANET_FS, RING_VS, RING_FS, DISK_FS, LENS_FS, BEAM_VS, BEAM_FS, FLOW_VS, FLOW_FS, WORM_FS } from './shaders';
 
-export interface SysHooks { hover: (id: string | null) => void; select: (id: string | null) => void }
+export type SysPin = { kind: string; label: string; body?: string; clickable: boolean };
+export interface SysHooks { hover: (id: string | null) => void; select: (id: string | null) => void; pinHover?: (p: SysPin | null) => void; pinClick?: (p: SysPin) => void }
 /** Hat geçidi: kümedeki gerçek yöne göre sistemin kıyısında (lore'da AB verilen geçitlerde o uzaklıkta). */
 export interface LaneGate { id: string; name: string; ang: number; status: string; color: string; canon?: string; au?: number; host?: 'B' }
 export interface SysOpts { intro?: boolean; gates?: LaneGate[] }
@@ -47,7 +48,7 @@ export class SystemScene {
   showLabels = true; showOrbits = true; moving = true; extent = 120;
   private tex: Record<string, THREE.Texture> = {}; private star!: O; private starDef: StarDef; private timeMats: THREE.ShaderMaterial[] = [];
   private raf = 0; private clock = new THREE.Clock(); private running = false; private t = 0; private v = new THREE.Vector3(); private down = { x: 0, y: 0 };
-  private pinRoot = new THREE.Group(); private pins: { obj: THREE.Object3D; ring?: THREE.Sprite; follow?: O }[] = [];
+  private pinRoot = new THREE.Group(); private pins: { obj: THREE.Object3D; ring?: THREE.Sprite; follow?: O; tip: SysPin; label: HTMLDivElement }[] = [];
   private fly: { t0: number; dur: number; fromT: THREE.Vector3; fromP: THREE.Vector3; o: O | null; offT: THREE.Vector3; offP: THREE.Vector3; done?: () => void } | null = null;
   private follow: O | null = null; private lastFollow = new THREE.Vector3(); private reticle: THREE.Sprite; private snapReq: { id: string; res: (u: string[]) => void } | null = null; private snapping = false;
   constructor(private host: HTMLElement, private overlay: HTMLElement, private sys: SysData, bodies: Body[], private hooks: SysHooks, quality: Quality, private opts: SysOpts = {}) {
@@ -67,7 +68,7 @@ export class SystemScene {
     this.reticle.visible = false; this.reticle.renderOrder = 9; this.scene.add(this.reticle); this.scene.add(this.pinRoot);
     this.setQuality(quality);
     const el = this.renderer.domElement;
-    el.addEventListener('pointermove', this.onMove); el.addEventListener('pointerdown', this.onDown); el.addEventListener('pointerup', this.onUp);
+    el.addEventListener('pointermove', this.onMove); el.addEventListener('pointerdown', this.onDown); el.addEventListener('pointerup', this.onUp); el.addEventListener('contextmenu', this.onMenu);
     addEventListener('resize', this.resize); document.addEventListener('visibilitychange', this.onVis);
     this.resize(); this.update(0);
     // giriş: uzaktan içeri süzülme
@@ -493,9 +494,22 @@ export class SystemScene {
       if (d < lim && d < bd) { bd = d; best = o.id; } }
     return best;
   }
-  private onMove = (e: PointerEvent) => { const id = e.buttons ? null : this.pick(e.clientX, e.clientY); if (id !== this.hovered) { this.hovered = id; this.hooks.hover(id); this.renderer.domElement.style.cursor = id ? 'pointer' : ''; } };
+  private onMenu = (e: MouseEvent) => { e.preventDefault(); };
+  private onMove = (e: PointerEvent) => {
+    if (e.buttons) { this.hooks.pinHover?.(null); return; }
+    const pin = this.pickPin(e.clientX, e.clientY);
+    if (pin) { this.hooks.pinHover?.(pin.tip); this.renderer.domElement.style.cursor = pin.tip.clickable ? 'pointer' : 'help'; if (this.hovered) { this.hovered = null; this.hooks.hover(null); } return; }
+    this.hooks.pinHover?.(null);
+    const id = this.pick(e.clientX, e.clientY); if (id !== this.hovered) { this.hovered = id; this.hooks.hover(id); this.renderer.domElement.style.cursor = id ? 'pointer' : ''; }
+  };
   private onDown = (e: PointerEvent) => { this.down = { x: e.clientX, y: e.clientY }; if (this.fly && !this.fly.done) this.fly = null; };
-  private onUp = (e: PointerEvent) => { if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 5) return; const id = this.pick(e.clientX, e.clientY); if (id) this.focus(id); };
+  private onUp = (e: PointerEvent) => {
+    if (e.button === 2) return;
+    if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 5) return;
+    const pin = this.pickPin(e.clientX, e.clientY);
+    if (pin) { this.hooks.pinClick?.(pin.tip); if (pin.tip.clickable) return; }
+    const id = this.pick(e.clientX, e.clientY); if (id) this.focus(id);
+  };
   private resize = () => { const w = this.host.clientWidth, hh = this.host.clientHeight; if (!w || !hh) return; this.camera.aspect = w / hh; this.camera.updateProjectionMatrix(); this.renderer.setSize(w, hh, false); this.composer?.setSize(w, hh); this.composer?.setPixelRatio(this.renderer.getPixelRatio()); };
   private onVis = () => { if (document.hidden) this.stop(); else this.start(); };
   start() { if (this.running) return; this.running = true; this.clock.getDelta(); this.raf = requestAnimationFrame(this.frame); }
@@ -520,7 +534,17 @@ export class SystemScene {
   private frame = () => {
     if (!this.running) return; this.raf = requestAnimationFrame(this.frame);
     const dt = Math.min(this.clock.getDelta(), 0.1); if (this.moving) this.t += dt; const t = this.t, rt = this.clock.elapsedTime;
-    for (const p of this.pins) { if (p.follow) p.obj.position.copy(p.follow.pos); if (p.ring) { const s = (p.follow ? p.follow.r * 6 + 3 : 8) * (1 + 0.25 * Math.sin(rt * 2.5)); p.ring.scale.setScalar(s); p.ring.material.opacity = 0.4 + 0.4 * (0.5 + 0.5 * Math.sin(rt * 2.5)); } }
+    const pw = this.host.clientWidth, ph = this.host.clientHeight;
+    for (const p of this.pins) {
+      if (p.follow) p.obj.position.copy(p.follow.pos);
+      if (p.tip.kind === 'ship') p.obj.rotation.y = rt * 0.28;
+      if (p.ring) { const s = (p.follow ? p.follow.r * 6 + 3 : 8) * (1 + 0.25 * Math.sin(rt * 2.5)); p.ring.scale.setScalar(s); p.ring.material.opacity = 0.4 + 0.4 * (0.5 + 0.5 * Math.sin(rt * 2.5)); }
+      this.v.copy(p.obj.position).project(this.camera);
+      const on = this.v.z <= 1;
+      p.label.style.opacity = on ? '1' : '0';
+      p.label.style.visibility = on ? 'visible' : 'hidden';
+      if (on) p.label.style.transform = `translate3d(${(this.v.x * 0.5 + 0.5) * pw}px,${(-this.v.y * 0.5 + 0.5) * ph - 18}px,0)`;
+    }
     const prev = this.follow ? this.follow.pos.clone() : null;
     this.update(t);
     if (this.fly) { const f = this.fly, k = Math.min(1, (performance.now() - f.t0) / f.dur), e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
@@ -552,17 +576,24 @@ export class SystemScene {
   };
   screenOf(id: string) { const o = this.byId.get(id); if (!o) return null; this.v.copy(o.pos).project(this.camera); return { x: (this.v.x * 0.5 + 0.5) * this.host.clientWidth, y: (-this.v.y * 0.5 + 0.5) * this.host.clientHeight }; }
   setPins(ms: { kind: string; label: string; body?: string; x?: number; y?: number; z?: number }[]) {
-    this.pinRoot.clear(); this.pins = [];
+    this.pins.forEach((p) => p.label.remove()); this.pinRoot.clear(); this.pins = [];
     const shipMat = new THREE.MeshBasicMaterial({ color: 0x39ff8a });
-    const shipGeo = new THREE.ConeGeometry(0.6, 1.8, 5);
+    const shipGeo = new THREE.ConeGeometry(1.4, 4.2, 5);
+    const bodyGeo = new THREE.BoxGeometry(1.1, 0.7, 2.6);
+    const wingGeo = new THREE.BoxGeometry(3.2, 0.18, 1.1);
     for (const m of ms) {
       const bid = m.body; const follow = bid ? this.objs.find((o) => o.id === bid || o.name.toLocaleLowerCase('tr') === bid.toLocaleLowerCase('tr')) : undefined;
       const g = new THREE.Group();
+      const tip: SysPin = { kind: m.kind, label: m.label, body: m.body, clickable: m.kind !== 'ship' };
+      const lab = document.createElement('div');
+      lab.className = 'sb-lbl pin-lbl';
+      lab.innerHTML = `<b>${m.label.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))}</b><i>${m.kind === 'ship' ? 'GEMİ' : m.kind === 'mission' ? 'GÖREV' : m.kind === 'objective' ? 'HEDEF' : m.kind === 'alert' ? 'UYARI' : 'NOKTA'}</i>`;
+      this.overlay.appendChild(lab);
       if (m.kind === 'ship') {
-        const nose = new THREE.Mesh(shipGeo, shipMat); nose.rotation.x = Math.PI / 2;
-        g.add(nose);
+        const nose = new THREE.Mesh(shipGeo, shipMat); nose.rotation.x = Math.PI / 2; nose.position.z = 1.6;
+        g.add(nose, new THREE.Mesh(bodyGeo, shipMat.clone()), new THREE.Mesh(wingGeo, new THREE.MeshBasicMaterial({ color: 0x7dffb0 })));
         const edge = this.extent * 0.85;
-        g.position.set(m.x ?? edge, m.y ?? 2, m.z ?? 0);
+        g.position.set(m.x ?? edge, m.y ?? 3, m.z ?? 0);
       } else {
         const col = m.kind === 'alert' ? '#ff2a55' : m.kind === 'objective' ? '#fcee0a' : m.kind === 'poi' ? '#00f0ff' : '#ff9b2f';
         const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.ret, color: C(col), transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -571,12 +602,20 @@ export class SystemScene {
         if (m.x != null) g.position.set(m.x, m.y ?? 0, m.z ?? 0);
         else if (follow) g.position.copy(follow.pos);
         else g.position.set(this.extent * 0.4, 0, 0);
-        this.pins.push({ obj: g, ring, follow });
-        this.pinRoot.add(g);
-        continue;
+        this.pins.push({ obj: g, ring, follow, tip, label: lab }); this.pinRoot.add(g); continue;
       }
-      this.pins.push({ obj: g, follow }); this.pinRoot.add(g);
+      this.pins.push({ obj: g, follow, tip, label: lab }); this.pinRoot.add(g);
     }
+  }
+  pickPin(cx: number, cy: number) {
+    const r = this.renderer.domElement.getBoundingClientRect(); let best: typeof this.pins[number] | null = null, bd = 36;
+    const v = new THREE.Vector3();
+    for (const p of this.pins) {
+      v.copy(p.obj.position).project(this.camera); if (v.z > 1) continue;
+      const x = (v.x * 0.5 + 0.5) * r.width + r.left, y = (-v.y * 0.5 + 0.5) * r.height + r.top, d = Math.hypot(x - cx, y - cy);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
   }
   groundHit(cx: number, cy: number) {
     const r = this.renderer.domElement.getBoundingClientRect();
@@ -588,7 +627,7 @@ export class SystemScene {
   }
   dispose() {
     this.stop(); const el = this.renderer.domElement;
-    el.removeEventListener('pointermove', this.onMove); el.removeEventListener('pointerdown', this.onDown); el.removeEventListener('pointerup', this.onUp);
+    el.removeEventListener('pointermove', this.onMove); el.removeEventListener('pointerdown', this.onDown); el.removeEventListener('pointerup', this.onUp); el.removeEventListener('contextmenu', this.onMenu);
     removeEventListener('resize', this.resize); document.removeEventListener('visibilitychange', this.onVis); this.controls.dispose();
     this.scene.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose(); const mat = m.material as THREE.Material | THREE.Material[] | undefined; if (Array.isArray(mat)) mat.forEach((x) => x.dispose()); else mat?.dispose(); });
     Object.values(this.tex).forEach((t) => t.dispose()); this.composer?.dispose(); this.bloom?.dispose();

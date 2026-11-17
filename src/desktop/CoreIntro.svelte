@@ -2,7 +2,7 @@
   // Timeline / Codex / Starmap / God's Eye açılış girişi (~1,6 sn). Tıkla ya da bir tuşa bas: atlanır.
   import { onMount } from 'svelte';
   import { sfx } from '../lib/sfx';
-  let { id, ondone }: { id: 'timeline' | 'codex' | 'starmap' | 'gods' | 'persona' | 'ghoskey'; ondone?: () => void } = $props();
+  let { id, ondone }: { id: 'timeline' | 'codex' | 'starmap' | 'gods' | 'persona' | 'ghoskey' | 'ship'; ondone?: () => void } = $props();
   const C = {
     timeline: { t: 'QORVES TIMELINE', k: 'KRONOLOJİ ÇEKİRDEĞİ', l: ['ZAMAN EKSENİ HİZALANIYOR', 'ÇAĞLAR İNDEKSLENDİ', 'SS 224 · ŞİMDİ'] },
     codex: { t: 'QORVES CODEX', k: 'KÜME BİLGİ BANKASI', l: ['ARŞİV ŞİFRESİ ÇÖZÜLÜYOR', 'KAYITLAR EŞLENİYOR', 'ERİŞİM İZNİ DOĞRULANDI'] },
@@ -10,6 +10,7 @@
     starmap: { t: 'QORVES STARMAP', k: 'NAVİGASYON AĞI', l: ['SENSÖR DİZİSİ AÇILIYOR', 'HİPERHATLAR TARANIYOR', 'KÜME KONUMU KİLİTLENDİ'] },
     persona: { t: 'PERSONA.ID', k: 'KİMLİK ÇEKİRDEĞİ', l: ['BİYOMETRİ OKUNUYOR', 'KAĞIT EŞLENİYOR', 'KİMLİK KİLİDİ AÇILDI'] },
     ghoskey: { t: 'ghOS-KEY', k: 'KAYIT DIŞI SIZMA', l: ['RÖLE ZİNCİRİ KURULUYOR', 'İZ SİLİCİ ETKİN', 'ANAHTAR TAKILDI'] },
+    ship: { t: 'DOCKED & LOADED', k: 'TERSANE BAĞLANTISI', l: ['İSKELE KİLİDİ ALINDI', 'HOLOGRAM KALİBRE', 'GEMİ AĞI AÇIK'] },
   }[id];
   let on = $state(true), out = $state(false), n = $state(0);
   const YEARS = ['−1.000.000', '−120.000', '−12.000', '−3.400', '−900', '−210', '0', 'SS 100', 'SS 224'];
@@ -19,7 +20,7 @@
   let hx = $state(hex());
   function skip() { if (!out) { out = true; ondone?.(); setTimeout(() => (on = false), 300); } }
   onMount(() => {
-    sfx.glitch(); id === 'starmap' ? sfx.ping() : sfx.open();
+    if (id === 'ghoskey') { sfx.glitch(); sfx.rattle(); } else if (id === 'starmap') { sfx.ping(); } else if (id === 'ship') { sfx.boot(); } else { sfx.glitch(); sfx.open(); }
     const ts = [setTimeout(() => { n = 1; sfx.key(); }, 265), setTimeout(() => { n = 2; sfx.key(); }, 565), setTimeout(() => { n = 3; sfx.key(); id === 'codex' ? sfx.granted() : sfx.ping(); }, 865), setTimeout(skip, 1300)];
     const hi = setInterval(() => (hx = hex()), 70);
     const k = (e: KeyboardEvent) => { if (e.key !== 'Escape') skip(); };
@@ -33,10 +34,16 @@
   <div class="bg"></div>
   {#if id === 'timeline'}
     <div class="axis"><i></i>{#each YEARS as y, i (y)}<span style:left="{6 + i * 11}%" style:animation-delay="{0.14 + i * 0.06}s"><b></b>{y}</span>{/each}</div>
-  {:else if id === 'codex' || id === 'persona'}
+  {:else if id === 'codex'}
     <div class="cells">{#each cells as c (c.i)}<i class:w={c.w} style:animation-delay="{c.d}s"></i>{/each}</div>
+  {:else if id === 'persona'}
+    <div class="idsc"><i class="ring a"></i><i class="ring b"></i><i class="chip"></i><i class="scanl"></i>{#each Array(8) as _, i (i)}<b style:--i={i}></b>{/each}</div>
   {:else if id === 'gods'}
     <div class="eye"><i class="lid"></i><i class="ir i1"></i><i class="ir i2"></i><i class="pu"></i><i class="hz"></i><i class="vt"></i>{#each Array(12) as _, i (i)}<b style:transform="rotate({i * 30}deg)" style:animation-delay="{0.1 + i * 0.03}s"></b>{/each}</div>
+  {:else if id === 'ghoskey'}
+    <div class="keyn">{#each Array(28) as _, i (i)}<span class="hxrow" style:left="{(i*3.6)%100}%" style:animation-delay="{(i%9)*0.05}s">{hx}</span>{/each}<div class="keyhole"><i></i><b></b></div></div>
+  {:else if id === 'ship'}
+    <div class="dock"><i class="sil"></i><i class="d1"></i><i class="d2"></i><i class="beam"></i></div>
   {:else}
     <div class="radar"><i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="sw"></i>{#each stars as s, i (i)}<b style:left="{s.x}%" style:top="{s.y}%" style:width="{s.s}px" style:height="{s.s}px" style:animation-delay="{s.d}s"></b>{/each}</div>
   {/if}
@@ -55,7 +62,7 @@
 
 <style>
   .ci{position:absolute;inset:0;z-index:7;display:grid;place-items:center;cursor:pointer;--c:#00f0ff;--c2:#fcee0a;overflow:hidden}
-  .ci.codex{--c:#fcee0a;--c2:#00f0ff}.ci.gods{--c:#ff2a55;--c2:#00f0ff}.ci.starmap{--c:#7df9ff;--c2:#ff2a55}.ci.persona{--c:#fcee0a;--c2:#00f0ff}.ci.ghoskey{--c:#39ff8a;--c2:#ff2a55}
+  .ci.codex{--c:#fcee0a;--c2:#00f0ff}.ci.gods{--c:#ff2a55;--c2:#00f0ff}.ci.starmap{--c:#7df9ff;--c2:#ff2a55}.ci.persona{--c:#fcee0a;--c2:#ff9b2f}.ci.ghoskey{--c:#39ff8a;--c2:#ff2a55}.ci.ship{--c:#ff9b2f;--c2:#00f0ff}
   .ci.out{animation:co .3s cubic-bezier(.7,0,.3,1) forwards}
   @keyframes co{0%{opacity:1;filter:none}40%{filter:hue-rotate(70deg) brightness(1.8);transform:skewX(-4deg)}100%{opacity:0;clip-path:inset(48% 0 48% 0);transform:none}}
   .bg{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(4,10,18,.88),rgba(2,3,8,.97) 70%)}
@@ -118,4 +125,26 @@
   @keyframes spin{to{rotate:360deg}}
   @keyframes hz{0%{transform:translateY(-30vh);opacity:0}20%{opacity:1}100%{transform:translateY(30vh);opacity:0}}
   @keyframes vt{0%{transform:translateX(-40vw);opacity:0}25%{opacity:1}100%{transform:translateX(40vw);opacity:0}}
+
+  /* persona — kimlik taraması */
+  .idsc{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+  .idsc .ring{position:absolute;left:50%;top:50%;border:1px solid rgba(252,238,10,.45);border-radius:50%;transform:translate(-50%,-50%) scale(.2);animation:irs 1s cubic-bezier(.2,.8,.3,1) forwards}
+  .idsc .ring.a{width:36vmin;height:36vmin}.idsc .ring.b{width:22vmin;height:22vmin;border-color:rgba(255,155,47,.6);border-style:dashed;animation:irs 1s forwards,spin 8s linear infinite}
+  .idsc .chip{width:10vmin;height:14vmin;margin:-7vmin 0 0 -5vmin;position:absolute;left:50%;top:50%;border:2px solid var(--c);border-radius:2px;background:rgba(252,238,10,.08);box-shadow:0 0 24px rgba(252,238,10,.2);animation:fi .4s .2s both}
+  .idsc .scanl{position:absolute;left:50%;top:50%;width:16vmin;height:2px;margin-left:-8vmin;background:var(--c);box-shadow:0 0 12px var(--c);animation:pscan 1.2s ease-in-out infinite}
+  .idsc b{position:absolute;left:50%;top:50%;width:2px;height:4vmin;margin:-20vmin 0 0 -1px;transform-origin:1px 20vmin;background:var(--c2);opacity:0;animation:fi .25s forwards;transform:rotate(calc(var(--i) * 45deg))}
+  @keyframes pscan{0%,100%{transform:translateY(-6vmin);opacity:.2}50%{transform:translateY(6vmin);opacity:1}}
+  /* ghoskey — kaçak anahtar */
+  .keyn{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+  .hxrow{position:absolute;top:-10%;font-family:var(--f-mono);font-size:11px;letter-spacing:.2em;color:rgba(57,255,138,.35);animation:fall 1.4s linear forwards;white-space:nowrap}
+  @keyframes fall{to{top:110%;opacity:0}}
+  .keyhole{position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);width:18vmin;height:24vmin}
+  .keyhole i{position:absolute;left:50%;top:0;width:12vmin;height:12vmin;margin-left:-6vmin;border:2px solid #39ff8a;border-radius:50%;box-shadow:0 0 24px rgba(57,255,138,.35);animation:irs .7s both}
+  .keyhole b{position:absolute;left:50%;top:10vmin;width:5vmin;height:11vmin;margin-left:-2.5vmin;background:rgba(57,255,138,.15);border:2px solid #39ff8a;clip-path:polygon(0 0,100% 0,80% 100%,20% 100%);animation:fi .4s .3s both}
+  /* ship — iskele */
+  .dock{position:absolute;inset:0;pointer-events:none}
+  .dock .sil{position:absolute;left:50%;top:52%;width:48vmin;height:14vmin;margin:-7vmin 0 0 -24vmin;background:linear-gradient(90deg,transparent,rgba(255,155,47,.15) 20%,rgba(255,155,47,.5) 50%,rgba(255,155,47,.15) 80%,transparent);clip-path:polygon(0 60%,18% 40%,35% 45%,55% 20%,78% 40%,100% 55%,92% 80%,20% 85%);animation:fi .5s .1s both;filter:drop-shadow(0 0 16px rgba(255,155,47,.4))}
+  .dock .d1,.dock .d2{position:absolute;left:50%;top:52%;border:1px solid rgba(255,155,47,.4);border-radius:50%;transform:translate(-50%,-50%) scale(.2);animation:irs 1s forwards}
+  .dock .d1{width:40vmin;height:22vmin}.dock .d2{width:64vmin;height:34vmin;animation-delay:.1s}
+  .dock .beam{position:absolute;left:50%;top:0;width:2px;height:52%;background:linear-gradient(transparent,rgba(0,240,255,.7));box-shadow:0 0 12px var(--c2);animation:fi .4s .2s both}
 </style>

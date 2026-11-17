@@ -8,7 +8,7 @@
 
   const u = session.user!;
   let nets = $state<Net[]>([]), known = $state<Record<string, { scanned: boolean; preview?: GameId }>>({});
-  let lines = $state<string[]>(['ghOS-Key 0.9 · kayıt dışı düğüm', 'yaz /help']), cmd = $state('');
+  let lines = $state<string[]>(['ghOS-Key 0.9 · kayıt dışı düğüm', 'yaz help']), cmd = $state('');
   let phase = $state<'term' | 'load' | 'scare' | 'play'>('term');
   let loadN = $state(0), loadTxt = $state<string[]>([]);
   let target = $state<Net | null>(null), game = $state<GameId>('breach'), diff = $state(2);
@@ -17,7 +17,7 @@
   const sig = (n: number) => '▁▂▃▄▅'.slice(0, n) + '▁▂▃▄▅'.slice(n).replace(/./g, '·');
 
   const HELP = [
-    '/help                  bu liste',
+    'help                   bu liste',
     'scan <ad|id>           ağ kimliği ve sinyal',
     'info <id>              ayrıntı (önce scan)',
     'preview <id>           minioyun türü',
@@ -25,48 +25,89 @@
     'nets                   görünen ağlar',
     'clear                  ekranı temizle',
     'whoami                 düğüm kimliği',
+    'pwd                    çalışma yolu',
+    'date                   düğüm saati',
+    'uname                  çekirdek bilgisi',
+    'ping <ad>              gecikme ölç',
+    'echo <metin>           geri yaz',
+    'history                son komutlar',
+    'uptime                 oturum süresi',
+    'motd                   günlük sızıntı',
+    'sudo <komut>           (yok)',
   ];
-
-  function out(...xs: string[]) { lines = [...lines, ...xs]; tick().then(() => box && (box.scrollTop = box.scrollHeight)); }
+  let hist = $state<string[]>([]), busy = $state(false), flicker = $state(false);
+  const t0 = Date.now();
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  async function out(...xs: string[]) {
+    for (const x of xs) {
+      let s = '';
+      lines = [...lines, ''];
+      const i = lines.length - 1;
+      const step = x.length > 80 ? 4 : 2;
+      for (let k = 0; k < x.length; k += step) {
+        s = x.slice(0, k + step);
+        lines[i] = s; lines = lines;
+        await sleep(7);
+      }
+      lines[i] = x; lines = lines;
+      await tick(); if (box) box.scrollTop = box.scrollHeight;
+    }
+  }
   function find(q: string) { const s = q.trim().toLowerCase(); return nets.find((n) => n.id.toLowerCase() === s || n.name.toLowerCase() === s); }
 
   async function run() {
-    const raw = cmd.trim(); cmd = ''; if (!raw) return;
-    out('> ' + raw); sfx.key();
-    const [a, ...rest] = raw.split(/\s+/); const arg = rest.join(' ');
-    if (a === '/help' || a === 'help') { out(...HELP); return; }
-    if (a === 'clear') { lines = []; return; }
-    if (a === 'whoami') { out(u.username + ' · uid kırıntısı ' + u.uid.slice(0, 8) + '…'); return; }
+    const raw = cmd.trim(); cmd = ''; if (!raw || busy) return;
+    hist = [...hist.slice(-30), raw];
+    busy = true; await out('> ' + raw);
+    const [a0, ...rest] = raw.split(/\s+/); const a = a0.replace(/^\//, ''); const arg = rest.join(' ');
+    if (a === 'help') { await out(...HELP); busy = false; return; }
+    if (a === 'clear') { lines = []; busy = false; return; }
+    if (a === 'whoami') { await out(u.username + ' · uid kırıntısı ' + u.uid.slice(0, 8) + '…'); busy = false; return; }
+    if (a === 'pwd') { await out('/root/.ghos/key'); busy = false; return; }
+    if (a === 'date') { await out(new Date().toISOString().replace('T', ' ').slice(0, 19) + '  ·  SS düğüm saati kaymış olabilir'); busy = false; return; }
+    if (a === 'uname') { await out('ghOS-Key 0.9-illegal  tty0  x86_64  no-selinux'); busy = false; return; }
+    if (a === 'echo') { await out(arg || ''); busy = false; return; }
+    if (a === 'history') { await out(...(hist.length ? hist.map((h, i) => `${String(i + 1).padStart(3, ' ')}  ${h}`) : ['(boş)'])); busy = false; return; }
+    if (a === 'uptime') { await out('up ' + Math.max(1, Math.round((Date.now() - t0) / 1000)) + 's  ·  1 user  ·  load 0.9 ' + (Math.random()*2).toFixed(2)); busy = false; return; }
+    if (a === 'motd') { await out('bugün: iz sürme düşük.', 'hatırlatma: saldırı loglanır. DM görür.', 'kedi: sudo yok.'); busy = false; return; }
+    if (a === 'sudo') { await out('sudo: bu düğümde yetki yok. zaten root@ghos-key değilsin, öyle görünüyorsun.'); busy = false; return; }
+    if (a === 'ping') {
+      const n = find(arg); await out('PING ' + (arg || '0.0.0.0'));
+      if (!n) { await out('zaman aşımı.'); busy = false; return; }
+      const ms = 40 + Math.round((5 - n.signal) * 35 + Math.random() * 20);
+      await out(`64 byte  zaman=${ms}ms  ttl=${40 + n.signal * 8}  (sinyal ${n.signal}/5)`); busy = false; return;
+    }
     if (a === 'nets' || a === 'ifconfig' || a === 'ls') {
-      if (!nets.length) out('aktif hedef yok. (DM ağ ekler)');
-      else out(...nets.map((n) => `${n.id.slice(0, 8)}  sig:${n.signal}  ${n.name}`));
-      out(...deco.map((d) => `????      sig:${d.signal}  ${d.name}  [erişilemez]`));
-      return;
+      if (!nets.length) await out('aktif hedef yok. (DM ağ ekler)');
+      else await out(...nets.map((n) => `${n.id.slice(0, 8)}  sig:${n.signal}  ${n.name}`));
+      await out(...deco.map((d) => `????      sig:${d.signal}  ${d.name}  [erişilemez]`));
+      busy = false; return;
     }
     if (a === 'scan') {
-      const n = find(arg); if (!n) { out('ağ bulunamadı.'); return; }
+      const n = find(arg); if (!n) { await out('ağ bulunamadı.'); busy = false; return; }
       known[n.id] = { ...(known[n.id] ?? { scanned: true }), scanned: true };
       known = { ...known };
-      out(`SCAN OK  id=${n.id}`, `ad="${n.name}"  sinyal=${n.signal}/5  zorluk≈${effectiveDiff(n.diff, n.signal)}`, n.note ? 'not: ' + n.note : 'not yok');
-      return;
+      await out(`SCAN OK  id=${n.id}`, `ad="${n.name}"  sinyal=${n.signal}/5  zorluk≈${effectiveDiff(n.diff, n.signal)}`, n.note ? 'not: ' + n.note : 'not yok');
+      busy = false; return;
     }
     if (a === 'info') {
-      const n = find(arg); if (!n || !known[n.id]?.scanned) { out('önce scan <ad> ile kimliği al.'); return; }
-      out(`id=${n.id}`, `sinyal ${n.signal}/5 · taban zorluk ${n.diff}`, 'saldırı için: attack ' + n.id);
-      return;
+      const n = find(arg); if (!n || !known[n.id]?.scanned) { await out('önce scan <ad> ile kimliği al.'); busy = false; return; }
+      await out(`id=${n.id}`, `sinyal ${n.signal}/5 · taban zorluk ${n.diff}`, 'saldırı için: attack ' + n.id);
+      busy = false; return;
     }
     if (a === 'preview') {
-      const n = find(arg); if (!n || !known[n.id]?.scanned) { out('önce scan ile kimliği al.'); return; }
+      const n = find(arg); if (!n || !known[n.id]?.scanned) { await out('önce scan ile kimliği al.'); busy = false; return; }
       const g = (n.game || randGame()) as GameId;
       known[n.id] = { ...known[n.id], scanned: true, preview: g }; known = { ...known };
-      out('önizleme · minioyun: ' + gameLabel(g) + (n.game ? ' (sabit)' : ' (bu seans, rastgele)'));
-      return;
+      await out('önizleme · minioyun: ' + gameLabel(g) + (n.game ? ' (sabit)' : ' (bu seans, rastgele)'));
+      busy = false; return;
     }
     if (a === 'attack') {
-      const n = find(arg); if (!n || !known[n.id]?.scanned) { out('saldırı için önce scan ile id al.'); return; }
-      begin(n); return;
+      const n = find(arg); if (!n || !known[n.id]?.scanned) { await out('saldırı için önce scan ile id al.'); busy = false; return; }
+      busy = false; begin(n); return;
     }
-    out('bilinmeyen komut. /help');
+    await out('bilinmeyen komut. help');
+    busy = false;
   }
 
   function begin(n: Net) {
@@ -101,16 +142,18 @@
   onMount(() => {
     const stopAmb = ambient('ghoskey');
     const stop = watchNets(u.role === 'dm' ? null : u.uid, (xs) => (nets = xs.filter((n) => !n.decoy)));
-    return () => { stopAmb(); stop(); };
+    const iv = setInterval(() => { flicker = true; setTimeout(() => (flicker = false), 140); }, 4800 + Math.random() * 2600);
+    return () => { stopAmb(); stop(); clearInterval(iv); };
   });
 </script>
 
-<div class="gk" class:glitch={target && target.signal < 3 && phase !== 'term'}>
+<div class="gk" class:glitch={(target && target.signal < 3 && phase !== 'term') || flicker}>
+  <div class="scan"></div>
   <div class="nets">
     <div class="mono h">GÖRÜNÜR AĞLAR</div>
     {#each nets as n (n.id)}
       <button class="n" onclick={() => { cmd = 'scan ' + n.id; sfx.click(); }}>
-        <b>{n.name}</b>
+        <b class:fx={flicker}>{n.name}</b>
         <small class="mono">{sig(n.signal)} {n.signal}/5</small>
       </button>
     {:else}<div class="none mono">hedef yok</div>{/each}
@@ -122,7 +165,7 @@
     <div class="out" bind:this={box}>{#each lines as l}<div>{l}</div>{/each}</div>
     <form onsubmit={(e) => { e.preventDefault(); run(); }}>
       <span class="mono">root@ghos-key:~#</span>
-      <input class="inp" bind:value={cmd} autocomplete="off" spellcheck="false" />
+      <input class="inp" bind:value={cmd} autocomplete="off" spellcheck="false" onkeydown={() => sfx.key()} />
     </form>
   </div>
 </div>
@@ -135,15 +178,18 @@
 
 <style>
   .gk{position:absolute;inset:0;display:grid;grid-template-columns:280px 1fr;background:#020805;color:#9f6;font-family:var(--f-mono);padding-top:46px}
-  .nets{border-right:1px solid #1a3;padding:16px 12px;overflow:auto;background:rgba(0,20,10,.4)}
-  .h{letter-spacing:.22em;color:#39ff8a;font-size:10.5px;margin-bottom:10px}
+  .scan{position:absolute;inset:0;pointer-events:none;z-index:1;background:repeating-linear-gradient(0deg,rgba(0,255,80,.035) 0 1px,transparent 1px 3px);mix-blend-mode:screen;opacity:.5}
+  .nets{border-right:1px solid #1a3;padding:16px 12px;overflow:auto;background:rgba(0,20,10,.4);position:relative;z-index:2}
+  .h{letter-spacing:.22em;color:#39ff8a;font-size:10.5px;margin-bottom:10px;text-shadow:0 0 8px #39ff8a}
   .n{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;background:none;border:1px solid #163;color:inherit;padding:8px;margin-bottom:6px;font:inherit}
-  .n:hover{border-color:#39ff8a}.n b{color:#cfe}.dec{opacity:.45;pointer-events:none;filter:grayscale(.4)}
-  .none{color:#365;padding:8px}.term{display:flex;flex-direction:column;min-width:0}
-  .out{flex:1;overflow:auto;padding:14px;font-size:13px;line-height:1.55;white-space:pre-wrap}
-  form{display:flex;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid #1a3}
-  form .inp{flex:1;background:none;border:0;color:#9f6;font:inherit;outline:none}
+  .n:hover{border-color:#39ff8a;box-shadow:0 0 10px rgba(57,255,138,.2)}.n b{color:#cfe}.n b.fx{animation:tx .12s steps(2)}
+  @keyframes tx{50%{opacity:.4;transform:translateX(2px);color:#f22}}
+  .dec{opacity:.45;pointer-events:none;filter:grayscale(.4)}
+  .none{color:#365;padding:8px}.term{display:flex;flex-direction:column;min-width:0;position:relative;z-index:2}
+  .out{flex:1;overflow:auto;padding:14px;font-size:13px;line-height:1.55;white-space:pre-wrap;text-shadow:0 0 4px rgba(57,255,138,.25)}
+  form{display:flex;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid #1a3;background:rgba(0,20,8,.5)}
+  form .inp{flex:1;background:none;border:0;color:#9f6;font:inherit;outline:none;caret-color:#39ff8a}
   .ld{position:absolute;inset:0;z-index:7;background:#020805;color:#39ff8a;display:grid;place-content:center;justify-items:stretch;padding:40px;font-family:var(--f-mono)}
   .ld pre{min-height:10em;font-size:13px}.bar{height:8px;background:#123;margin:12px 0}.bar i{display:block;height:100%;background:#39ff8a;box-shadow:0 0 8px #39ff8a}
-  .glitch{animation:g .12s steps(2) infinite}@keyframes g{50%{filter:hue-rotate(30deg) saturate(1.4);transform:translateX(1px)}}
+  .glitch{animation:g .12s steps(2) infinite}@keyframes g{50%{filter:hue-rotate(50deg) saturate(1.5) contrast(1.2);transform:translateX(1px)}}
 </style>

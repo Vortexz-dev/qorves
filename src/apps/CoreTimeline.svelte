@@ -231,7 +231,7 @@
 
 <style>
   .tl{position:absolute;inset:0;overflow:hidden;background:#04050a}
-  .tf{position:absolute;left:18px;top:18px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;background:rgba(4,5,10,.88);border:1px solid var(--line);max-width:min(640px,58vw)}
+  .tf{position:absolute;left:18px;top:56px;z-index:12;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;background:rgba(4,5,10,.94);border:1px solid rgba(0,240,255,.45);max-width:min(720px,56vw);pointer-events:auto;box-shadow:0 8px 24px rgba(0,0,0,.45)}
   .tf .k{font-size:10px;letter-spacing:.3em;color:var(--mut);margin-right:4px}
   .tf button{background:none;border:1px solid var(--line);color:var(--mut);padding:3px 9px;font:inherit;font-size:12px}
   .tf button.on{border-color:var(--cy);color:var(--cy);box-shadow:0 0 8px rgba(0,240,255,.25)}
@@ -240,7 +240,7 @@
   .tf .jmp button{border-color:var(--ye);color:var(--ye)}
   .bg{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,240,255,.08),transparent 60%),
     repeating-linear-gradient(0deg,rgba(0,240,255,.035) 0 1px,transparent 1px 60px),repeating-linear-gradient(90deg,rgba(0,240,255,.025) 0 1px,transparent 1px 60px)}
-  .sc{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(0,240,255,.35) transparent}
+  .sc{position:absolute;inset:0;z-index:1;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(0,240,255,.35) transparent}
   .inner{position:relative}
   .spine{position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-1px);background:linear-gradient(rgba(0,240,255,.0),rgba(0,240,255,.22) 200px,rgba(0,240,255,.22))}
   .head{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
@@ -281,7 +281,7 @@
   .full h4{font-size:10px;letter-spacing:.3em;color:var(--rc);margin:10px 0 2px}
   .tag{margin-top:12px;background:none;border:1px solid var(--line);color:var(--cy);padding:5px 12px;font-size:10.5px;letter-spacing:.2em}
   .orb{position:absolute;inset:0;pointer-events:none;z-index:2}
-  .hud{position:absolute;left:24px;top:60px;z-index:3;display:flex;flex-direction:column;gap:2px;pointer-events:none}
+  .hud{position:absolute;left:24px;top:114px;z-index:8;display:flex;flex-direction:column;gap:2px;pointer-events:none}
   .hud small{font-size:10px;letter-spacing:.3em;color:var(--mut)}.hud b{font-size:22px;color:var(--cy);text-shadow:0 0 12px rgba(0,240,255,.6);letter-spacing:.08em}
   .mini{position:absolute;right:18px;top:70px;bottom:30px;width:150px;z-index:3;border-right:1px solid rgba(0,240,255,.25)}
   .mini button{position:absolute;right:-5px;display:flex;align-items:center;gap:8px;flex-direction:row-reverse;background:none;border:0;padding:0;color:var(--mut);transform:translateY(-50%)}

@@ -22,11 +22,12 @@ export function viewsOf(key: string) {
   return 1_200_000 + (h % 48_800_000);
 }
 
-const PHONE = ['riot', 'dock', 'lane', 'street', 'flare', 'yard'] as const;
+const PHONE = ['riot', 'dock', 'lane', 'street', 'flare', 'yard', 'ion', 'nebula', 'debris', 'magnetar', 'corona', 'rift', 'rune', 'pollen', 'quarantine', 'foundry', 'raid', 'quake'] as const;
 export function phoneImg(key: string, sev: number) {
   if (sev < 2 && (fnv(key) & 3) !== 0) return '';
   return PHONE[fnv(key + '|img') % PHONE.length];
 }
+export const eventImg = (tplId: string) => `img/times/ev/${tplId}.webp`;
 
 export function fromEvent(e: ActiveEvent, evd: EvData | null, sysName: (id: string) => string): News {
   const loc = sysName(e.sys);
@@ -34,10 +35,9 @@ export function fromEvent(e: ActiveEvent, evd: EvData | null, sysName: (id: stri
   const sev = evd?.sev[e.tpl.sev]?.label ?? '';
   const kicker = [sev, cat].filter(Boolean).join(' · ');
   const body = [e.tpl.msg, e.tpl.effect && `Etkisi: ${e.tpl.effect}`, loc && `Konum: ${loc}.`, e.lane && 'Hiperhat üzerinde hareket kısıtı bildirildi.'].filter(Boolean).join(' ');
-  const img = phoneImg(e.key, e.tpl.sev);
   return {
     id: 'ev:' + e.key, kind: 'event', title: e.tpl.name, body, kicker, by: e.tpl.by || 'Saha muhabiri',
-    img: img ? `img/times/${img}.webp` : undefined, views: viewsOf(e.key), at: e.start, ev: e.key,
+    img: eventImg(e.tpl.id), views: viewsOf(e.key), at: e.start, ev: e.key,
   };
 }
 

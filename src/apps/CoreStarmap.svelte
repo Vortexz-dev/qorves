@@ -2,8 +2,8 @@
   // Qorves Starmap — küme görünümü. Sahne starmap/scene.ts; olay motoru lib/events.ts.
   import { onMount, untrack } from 'svelte';
   import { openImage, lightbox } from '../lib/lightbox.svelte';
-  import { ClusterScene, STAR_COLOR, LANE_COLOR, CAPITALS, type MapData, type Quality, type LaneData } from '../starmap/scene';
-  import { SystemScene, type LaneGate } from '../starmap/system';
+  import { ClusterScene, STAR_COLOR, LANE_COLOR, CAPITALS, type MapData, type Quality, type LaneData, type PinTip } from '../starmap/scene';
+  import { SystemScene, type LaneGate, type SysPin } from '../starmap/system';
   import { kb, loadKb, getEntry, childrenOf, bodiesOf, type Body } from '../lib/kb.svelte';
   import { session } from '../lib/session.svelte';
   import { openTag } from '../lib/tags.svelte';
@@ -121,9 +121,39 @@
     sc?.setEvents(ss, ls, evd.sev);
   }
   function selectSys(id: string) { sfx.click(); sel = id; sc?.select(id); sc?.flyTo(id); }
-  const sysHooks = { hover: (id: string | null) => (bhov = id), select: (id: string | null) => selectBody(id) };
+  let tip = $state<{ t: string; x: number; y: number } | null>(null);
+  let inspect = $state<Marker | null>(null);
+  const KL: Record<string, string> = { ship: 'Gemi', mission: 'Görev', objective: 'Hedef', poi: 'Nokta', alert: 'Uyarı' };
+  function onPinHover(p: { kind: string; label: string } | null, ev?: PointerEvent) {
+    if (!p) { tip = null; return; }
+    const k = KL[p.kind] ?? p.kind;
+    tip = { t: k + ' · ' + p.label, x: ev?.clientX ?? 0, y: ev?.clientY ?? 0 };
+  }
+  function onPinClick(p: { kind: string; label: string; sys?: string; clickable?: boolean }) {
+    const m = marks.find((x) => x.label === p.label && x.kind === p.kind && (!p.sys || x.sys === p.sys))
+      ?? marks.find((x) => x.label === p.label && (!p.sys || x.sys === p.sys));
+    if (m) { inspect = m; sfx.click(); }
+  }
+  function onPlace(e: MouseEvent) {
+    e.preventDefault();
+    if (!isDM) return;
+    if (mode === 'system' && sys2) {
+      const hit = sys2.groundHit(e.clientX, e.clientY);
+      openPin({ sys: cur ?? '', body: bsel || bhov || '', x: hit?.x, y: hit?.y, z: hit?.z });
+    } else if (sc) {
+      const hit = sc.groundHit(e.clientX, e.clientY);
+      const sys = sc.nearestSys(hit, e.clientX, e.clientY) || sel || '';
+      openPin({ sys, x: hit?.x, y: hit?.y, z: hit?.z });
+    }
+  }
+  const sysHooks = {
+    hover: (id: string | null) => (bhov = id),
+    select: (id: string | null) => selectBody(id),
+    pinHover: (p: SysPin | null) => onPinHover(p),
+    pinClick: (p: SysPin) => onPinClick(p),
+  };
   function makeCluster(near?: string) {
-    sc = new ClusterScene(host!, ov!, map!, known, { hover: (id) => (hov = id), select: (id) => (sel = id) }, q);
+    sc = new ClusterScene(host!, ov!, map!, known, { hover: (id) => (hov = id), select: (id) => (sel = id), pinHover: (p) => onPinHover(p), pinClick: (p) => onPinClick(p) }, q);
     if (sel) sc.selected = sel;
     sc.setLayers(labels, lanesOn, terr); sc.setFilter(new Set(hidden)); refreshEvents(); applyMarks(); if (routeIds) sc.highlightRoute(routeIds);
     if (near) { sc.placeNear(near, 9); sc.select(near); sc.flyTo(near, 85, 1800); }
@@ -207,11 +237,20 @@
 </script>
 
 <div class="sm">
-  <div class="gl" bind:this={host} role="presentation" onpointerup={(e) => {
-      if (!placeMode || !isDM || !sys2 || Math.abs((e as PointerEvent).movementX) + Math.abs((e as PointerEvent).movementY) > 8) return;
-      const id = bsel || bhov;
-      const hit = sys2.groundHit(e.clientX, e.clientY);
-      openPin({ sys: cur ?? '', body: id || '', x: hit?.x, y: hit?.y, z: hit?.z });
+  <div class="gl" bind:this={host} role="presentation"
+    onpointermove={(e) => { if (tip) tip = { ...tip, x: e.clientX, y: e.clientY }; }}
+    oncontextmenu={onPlace}
+    onpointerup={(e) => {
+      if (e.button === 2) return;
+      if (!placeMode || !isDM) return;
+      if (mode === 'system' && sys2) {
+        const hit = sys2.groundHit(e.clientX, e.clientY);
+        openPin({ sys: cur ?? '', body: bsel || bhov || '', x: hit?.x, y: hit?.y, z: hit?.z });
+      } else if (sc) {
+        const hit = sc.groundHit(e.clientX, e.clientY);
+        const sys = sc.nearestSys(hit, e.clientX, e.clientY) || sel || '';
+        openPin({ sys, x: hit?.x, y: hit?.y, z: hit?.z });
+      }
     }}></div>
   <div class="ov" bind:this={ov}></div>
   <div class="vig"></div>
@@ -282,11 +321,12 @@
     <button class="ovw mono" onclick={() => { bsel = null; sys2?.select(null); sys2?.overview(); }}>⌖ SİSTEMİN TAMAMI</button>
     <button class="ovw mono back" onclick={back}>‹ KÜMEYE DÖN <small>ESC</small></button>
     {#if isDM}<button class="ovw mono" onclick={() => openPin({ sys: cur ?? '', body: bsel || '' })}>Seçili cisme işaret</button>
-    <button class="ovw mono" class:on={placeMode} onclick={() => { placeMode = !placeMode; sfx.click(); }}>Haritaya tıklayarak koy</button>{/if}
+    <button class="ovw mono" class:on={placeMode} onclick={() => { placeMode = !placeMode; sfx.click(); }}>Sağ tık ile işaret koy</button>{/if}
   </aside>
   {/if}
 
-  <!-- sağ üst: yerel uyarılar -->
+  <!-- sağ sütun: uyarılar + sistem paneli -->
+  <div class="rcol" class:hasinfo={mode === 'cluster' && !!ss && !routeOpen}>
   <section class="alerts" class:open={aopen} role="complementary" onmouseenter={() => (aopen = true)} onmouseleave={() => (aopen = false)}>
     {#if mode === 'system' && cs}
     <header class="mono"><span class="dot" class:hot={evFor(cs.id).length}></span>YEREL UYARILAR · {cs.name.toLocaleUpperCase('tr')}{#if evFor(cs.id).length > 1}<em class="more">+{evFor(cs.id).length - 1} {aopen ? '▴' : '▾'}</em>{/if}</header>
@@ -314,6 +354,7 @@
     {/each}
     {/if}
   </section>
+  </div>
 
   <!-- sağ: cisim paneli (sistem görünümü) -->
   {#if mode === 'system' && cs && bsel}
@@ -374,6 +415,7 @@
     {#key ss.id}
       <aside class="pan info" style:--fc={map?.factions[ss.owner]?.color}>
         <button class="x" onclick={() => { sel = null; sc?.select(null); }} aria-label="Kapat">✕</button>
+        <div class="ibody">
         <div class="mono k">{STYPE[ss.stype]}{#if ss.star && known(ss.id)} · {ss.star}{/if}</div>
         <h2 class="glitch" data-text={known(ss.id) ? ss.name : 'Bilinmeyen sinyal'}>{known(ss.id) ? ss.name : 'Bilinmeyen sinyal'}</h2>
         {#if ss.owner === 'dm'}
@@ -398,9 +440,10 @@
             <button class="btn ghost" onclick={() => se && openTag(se.id)}>Kodeks</button>
             <button class="btn ghost" onclick={() => { rFrom = ss.id; routeOpen = true; sfx.glitch(); }}>Buradan rota</button>
             {#if isDM}<button class="btn ghost" onclick={() => openPin({ sys: ss.id })}>İşaret koy</button>{/if}
-            <button class="btn" onclick={enter} disabled={!known(ss.id)}>Sisteme gir ›</button>
+            <button class="btn go" onclick={enter} disabled={!known(ss.id)}>Sisteme gir ›</button>
           </div>
         {/if}
+        </div>
       </aside>
     {/key}
   {/if}
@@ -443,6 +486,17 @@
     </div>
   {/if}
 
+  {#if tip}<div class="ptip mono" style:left="{tip.x}px" style:top="{tip.y}px">{tip.t}</div>{/if}
+  {#if inspect}
+    <div class="insp">
+      <div class="mono k">{KL[inspect.kind] ?? inspect.kind}</div>
+      <h3>{inspect.label}</h3>
+      {#if inspect.note}<p>{inspect.note}</p>{/if}
+      {#if inspect.cat}<div class="mono">{inspect.cat}</div>{/if}
+      <div class="act"><button class="btn ghost" onclick={() => (inspect = null)}>Kapat</button>{#if isDM}<button class="btn ghost" onclick={() => { pin = inspect; inspect = null; }}>Düzenle</button>{/if}</div>
+    </div>
+  {/if}
+
 <style>
   .sm{position:absolute;inset:0;overflow:hidden;background:#020309}
   .gl{position:absolute;inset:0}.gl :global(canvas){display:block;width:100%;height:100%}
@@ -474,6 +528,11 @@
   .pinf .kd{display:flex;flex-wrap:wrap;gap:4px}.pinf .kd button{background:none;border:1px solid var(--line);color:var(--mut);padding:4px 8px;font:inherit;font-size:12px}.pinf .kd button.on{border-color:var(--cy);color:var(--cy)}
   .pinf .ck{display:flex;gap:6px;align-items:center;font-size:13px}
   .place{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);z-index:11;background:rgba(0,0,0,.7);border:1px solid var(--ye);color:var(--ye);padding:6px 12px;letter-spacing:.16em}
+  .ptip{position:fixed;z-index:20;transform:translate(-50%,-130%);background:rgba(5,8,14,.95);border:1px solid var(--ye);color:var(--ye);padding:4px 8px;font-size:11px;letter-spacing:.12em;pointer-events:none;white-space:nowrap;box-shadow:0 0 16px rgba(252,238,10,.25)}
+  .insp{position:absolute;left:50%;bottom:80px;transform:translateX(-50%);z-index:12;width:min(360px,90vw);background:rgba(5,8,14,.96);border:1px solid var(--cy);padding:14px 16px}
+  .insp h3{font-family:var(--f-disp);color:#fff;margin:4px 0 8px;font-size:20px}
+  .ov :global(.pin-lbl){position:absolute;left:0;top:0;margin:-28px 0 0 0;transform:translate(-50%,-100%);white-space:nowrap;font-family:var(--f-ui);font-size:12px;color:#dff6ff;text-shadow:0 0 6px #000;pointer-events:none;text-align:center}
+  .ov :global(.pin-lbl b){display:block;font-weight:600;color:#fff}.ov :global(.pin-lbl i){font-style:normal;font-size:9px;letter-spacing:.2em;color:var(--ye)}
   .mkg{margin-left:auto;color:#39ff8a;font-size:11px}
   .mks{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px}
   .mks button,.mks .mkr{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;text-align:left;background:rgba(0,0,0,.35);border:1px solid rgba(57,255,138,.35);color:var(--tx);padding:5px 8px;font-size:13px}
@@ -496,7 +555,10 @@
   .qual button{flex:1;background:none;border:1px solid var(--line);color:var(--mut);font-family:var(--f-mono);font-size:9.5px;padding:4px 0}
   .qual button.on{border-color:var(--cy);color:var(--cy)}
   .ovw{background:none;border:1px solid var(--line);color:var(--cy);padding:6px;font-size:10.5px;letter-spacing:.2em}.ovw:hover{border-color:var(--cy)}
-  .alerts{position:absolute;right:16px;top:58px;width:340px;max-height:42vh;overflow:hidden;z-index:7;display:flex;flex-direction:column;gap:6px;transition:max-height .35s}
+  .rcol{position:absolute;right:16px;top:58px;width:min(400px,32vw);z-index:8;display:flex;flex-direction:column;pointer-events:none}
+  .rcol > :global(*){pointer-events:auto}
+  .alerts{position:static;width:auto;max-height:42vh;overflow:hidden;display:flex;flex-direction:column;gap:6px;transition:max-height .35s}
+
   .alerts.open{max-height:76vh;overflow:auto}
   .alerts:not(.open) article:not(:first-of-type){display:none}
   .alerts:not(.open) article:first-of-type .eff,.alerts:not(.open) article:first-of-type .by{display:none}
@@ -512,18 +574,19 @@
   .msg{font-size:12.5px;color:#d7e3ee;font-style:italic;line-height:1.4}.eff{font-size:12px;color:var(--mut);margin-top:4px;line-height:1.4}
   .by{font-size:9.5px;color:var(--mut);margin-top:4px;letter-spacing:.08em}
   .none{font-size:10px;letter-spacing:.2em;color:var(--mut);background:rgba(5,8,14,.8);padding:10px;border:1px solid var(--line)}
-  .info{right:16px;bottom:16px;top:calc(42vh + 70px);width:340px;padding:16px 18px;overflow:auto;border-color:color-mix(in srgb,var(--fc) 55%,transparent);animation:ii .35s cubic-bezier(.2,.9,.2,1) both;display:flex;flex-direction:column;gap:8px}
+  .info{right:16px;bottom:16px;top:auto;width:min(400px,32vw);max-height:calc(100% - 200px);padding:14px 16px;overflow:hidden;border-color:color-mix(in srgb,var(--fc) 55%,transparent);animation:ii .35s cubic-bezier(.2,.9,.2,1) both;display:flex;flex-direction:column;gap:8px;z-index:7}
   @keyframes ii{from{opacity:0;transform:translateX(30px)}}
   .info .x{position:absolute;right:8px;top:8px;background:none;border:0;color:var(--mut)}
   .k{font-size:10px;letter-spacing:.18em;color:var(--fc)}
-  .info h2{font-family:var(--f-disp);font-size:28px;letter-spacing:.08em;color:#fff;text-shadow:0 0 16px color-mix(in srgb,var(--fc) 60%,transparent)}
+  .info .ibody{flex:1 1 auto;min-height:0;overflow:auto;padding-right:4px}
+  .info h2{font-family:var(--f-disp);font-size:24px;letter-spacing:.08em;color:#fff;text-shadow:0 0 16px color-mix(in srgb,var(--fc) 60%,transparent)}
   .own{display:flex;align-items:center;gap:10px}.chip{font-size:12.5px;padding:2px 8px;border:1px solid var(--fc);color:var(--fc);cursor:pointer}
   .dg{font-size:10px;letter-spacing:.15em;color:var(--ye)}.ot{font-size:12px;color:var(--mut)}
   .sum{font-size:14px;line-height:1.5;color:#d2dfea}
   .tags{display:flex;flex-wrap:wrap;gap:4px}.tg{font-size:12px;padding:2px 7px;background:color-mix(in srgb,var(--c) 10%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent);color:var(--c)}
   .ln{display:flex;flex-direction:column;gap:3px}.ln button{display:flex;align-items:center;gap:7px;background:none;border:0;color:var(--tx);text-align:left;font-size:12.5px;padding:2px 0}
   .ln i{width:14px;height:3px;flex:none}.ln span{color:var(--mut);font-size:11.5px}.ln button:hover b{color:var(--ye)}
-  .act{display:flex;gap:8px;margin-top:auto;padding-top:8px}.act .btn{flex:1}
+  .act{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);flex:none}.act .btn{width:100%}.act .btn.go{grid-column:1/-1}
   .legend{position:absolute;left:40px;bottom:16px;z-index:4;background:rgba(5,8,14,.8);border:1px solid var(--line);padding:6px 10px;font-size:11.5px;color:#c9d6e2}
   .legend>button{background:none;border:0;color:var(--cy);font-size:10px;letter-spacing:.25em;padding:0}
   .lg{display:flex;flex-direction:column;gap:5px;margin-top:6px}.lg>div{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;max-width:620px}
@@ -551,7 +614,7 @@
   .gal img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}.gal button:hover img{transform:scale(1.06)}
   .gal em{position:absolute;left:3px;bottom:2px;font-size:7.5px;letter-spacing:.15em;color:var(--cy);font-style:normal;text-shadow:0 0 3px #000}
   .snapld{grid-column:span 2;display:grid;place-items:center;font-size:9px;letter-spacing:.2em;color:var(--mut);border:1px dashed var(--line);aspect-ratio:2}
-  .bpan{top:calc(42vh + 70px)}
+  .bpan{top:auto}
   .wtag{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:12px;letter-spacing:.4em;color:var(--cy);text-shadow:0 0 10px var(--cy);animation:ai .4s .3s both}
   .warp.out{pointer-events:none}.warp.out .streaks{animation:wzo .9s ease-out forwards}.warp.out .flash{animation:wfo .9s forwards}
   @keyframes wzo{0%{transform:scale(3.4) rotate(12deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:0}}
