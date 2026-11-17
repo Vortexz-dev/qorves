@@ -14,7 +14,7 @@
   async function close() { if (gods) { if (await ask('Emin misin?', "God's Eye kapanacak. Sahne kaybolmaz; yeniden açınca kaldığın yerden devam eder. Yalnızca gizlemek için küçült düğmesini kullanabilirsin.", 'Kapat', false)) closeCore(); } else closeCore(); }
   let go = $state(false);
   onMount(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !gods && !wm.coreMin) closeCore(); };
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && !gods && !wm.coreMin) { if (coreBack.go) coreBack.go(); else closeCore(); } };
     const t = setTimeout(() => (go = true), 1800);
     addEventListener('keydown', k); return () => { clearTimeout(t); removeEventListener('keydown', k); };
   });
