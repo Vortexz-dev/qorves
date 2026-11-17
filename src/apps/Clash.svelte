@@ -65,10 +65,10 @@
   function startPvp(m: Match, side: Side, o: number) {
     mode = 'pvp'; me = side; match = m; off = o; foeName = m.names[1 - side] ?? 'Rakip'; foeCr = m.cr[1 - side] ?? 0; bot = null;
     net = channel(m, side, (c) => { if (c.side === me) return; onRemote(c); }, () => { if (st && !st.over) finish(true); });
-    begin(m.seed, m.decks, 0);
+    const dk = m.decks as Record<number, string[]>; begin(m.seed, [dk[0]!.slice(), dk[1]!.slice()], 0);
   }
   function begin(seed: number, decks: [string[], string[]], startAt: number) {
-    cmds = new Map(); snaps = []; pending = []; seq = 0; result = null; lastCrowns = [0, 0]; lastRate = 1; lastSec = -1;
+    cmds = new Map(); hk = {}; snaps = []; pending = []; seq = 0; result = null; lastCrowns = [0, 0]; lastRate = 1; lastSec = -1;
     st = init(seed, decks); snaps.push(clone(st));
     t0 = startAt; scr = 'vs'; S.whoosh(); setTimeout(() => S.stamp(), 650);
     setTimeout(() => { scr = 'match'; music.level(1); requestAnimationFrame(() => { setupCanvas(); loop(); }); }, 2600);
@@ -84,8 +84,9 @@
     if (c.t < st.tick) {
       // geç geldi: komuttan önceki son anlık görüntüye sar, sessizce yeniden koş
       const target = st.tick; let base = snaps.filter((s) => s.tick <= c.t).pop() ?? snaps[0]!;
-      let s = clone(base); while (s.tick < target && !s.over) step(s, cmds.get(s.tick) ?? []);
-      snaps = snaps.filter((x) => x.tick <= base.tick); st = s;
+      snaps = snaps.filter((x) => x.tick <= base.tick);
+      let s = clone(base); while (s.tick < target && !s.over) { step(s, cmds.get(s.tick) ?? []); if (s.tick % HZ === 0) { snaps.push(clone(s)); if (snaps.length > 40) snaps.splice(1, 1); } if (s.tick % 100 === 0) hk[s.tick] = hash(s); }
+      st = s;
     }
   }
   function sounds(fx: Fx[]) {
@@ -96,7 +97,7 @@
       else if (f.k === 'shot') { if (f.card === 'archer') S.rail(); else if (f.card === 'drone') S.tracer(); else if (f.card === 'mech') S.plasma(); else if (f.card === 'king' || f.card === 'crown') S.bolt(f.card === 'king'); }
     }
   }
-  let lastFrame = 0;
+  let lastFrame = 0; let hk: Record<number, string> = {};
   function loop() {
     raf = requestAnimationFrame(loop);
     if (!st || !R) return;
@@ -111,6 +112,7 @@
       const list = cmds.get(s.tick) ?? [];
       step(s, list, fx);
       if (s.tick % HZ === 0) { snaps.push(clone(s)); if (snaps.length > 40) snaps.splice(1, 1); }
+      if (s.tick % 100 === 0) hk[s.tick] = hash(s);
     }
     pending = pending.filter((c) => c.t >= s.tick);
     R.feed(fx); sounds(fx);
@@ -192,7 +194,7 @@
     S.whoosh(); music.start(0);
     const ts = [setTimeout(() => (introStep = 1), 250), setTimeout(() => { introStep = 2; S.stamp(); }, 900), setTimeout(() => (introStep = 3), 1600)];
     addEventListener('keydown', key);
-    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') (window as any).__clash = { get st() { return st; }, play, get ui() { return ui; }, get scr() { return scr; }, startBot, me: () => me };
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') (window as any).__clash = { get st() { return st; }, play, get ui() { return ui; }, get scr() { return scr; }, startBot, me: () => me, hk: () => hk };
     return () => { ts.forEach(clearTimeout); removeEventListener('keydown', key); };
   });
   onDestroy(() => { cancelAnimationFrame(raf); stopSeek(false); if (net && st && !st.over) net.leave(); net?.close(); music.stop(); coreBack.go = null; ro?.disconnect(); });

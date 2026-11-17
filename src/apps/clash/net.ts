@@ -13,7 +13,7 @@ export async function loadProfile(uid: string, name: string): Promise<Profile> {
 }
 export async function saveProfile(uid: string, p: Profile) { await setDoc(doc(db, 'clash_decks', uid), { deck: p.deck, w: p.w, l: p.l, d: p.d, cr: p.cr, name: p.name.slice(0, 40), at: Date.now() }); }
 
-export interface Match { id: string; players: [string, string]; names: [string, string]; decks: [string[], string[]]; cr: [number, number]; seed: number; t0: number; left?: string[]; res?: Record<string, { w: number; h: string; c: number[] }> }
+export interface Match { id: string; players: [string, string]; names: [string, string]; decks: { 0: string[]; 1: string[] } | [string[], string[]]; cr: [number, number]; seed: number; t0: number; left?: string[]; res?: Record<string, { w: number; h: string; c: number[] }> }
 
 /** Sunucu saati farkı: kendi kuyruk belgemize serverTimestamp yazıp geri okuruz. */
 async function serverOffset(uid: string): Promise<number> {
@@ -50,7 +50,7 @@ export function seek(me: { uid: string; name: string; deck: string[]; cr: number
             const t = theirs.data()!; const id = Math.random().toString(36).slice(2, 12);
             const seed = (Math.random() * 2 ** 31) | 0;
             // eski kuyruktaki (önce gelen) host = taraf 0
-            tx.set(doc(db, 'clash_matches', id), { players: [o.id, me.uid], names: [String(t.name).slice(0, 40), me.name.slice(0, 40)], decks: [t.deck, me.deck], cr: [t.cr ?? 0, me.cr], seed,
+            tx.set(doc(db, 'clash_matches', id), { players: [o.id, me.uid], names: [String(t.name).slice(0, 40), me.name.slice(0, 40)], decks: { 0: t.deck, 1: me.deck } /* Firestore iç içe dizi kabul etmez → harita */, cr: [t.cr ?? 0, me.cr], seed,
               t0: Date.now() + off + 5000, at: serverTimestamp(), left: [] });
             tx.update(o.ref, { match: id }); tx.update(qref, { match: id });
             return id;
