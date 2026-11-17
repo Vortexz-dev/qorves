@@ -28,7 +28,7 @@
   const unreadWith = (id: string) => { const c = myConvs.find((x) => x.members.includes(id)); return !!c && unreadFor(c, me); };
   onMount(() => {
     const L = ['> röle zinciri kuruluyor…', '> düğüm 1/3 · ' + hex(4) + '.onion', '> düğüm 2/3 · ' + hex(4) + '.void', '> düğüm 3/3 · ' + hex(4) + '.null', '> anahtar değişimi: X25519 · akış: XChaCha20', '> kimlik maskesi: ETKİN', '> UYARI: kayıt dışı yazılım. Ortak Hat Kayıt Ağı bu trafiği arıyor.'];
-    let i = 0; const iv = setInterval(() => { bootLines = [...bootLines, L[i++]]; sfx.key(); if (i >= L.length) { clearInterval(iv); setTimeout(() => (booted = true), 280); } }, 180);
+    let i = 0; const iv = setInterval(() => { bootLines = [...bootLines, L[i++]]; if (!win.min) sfx.key(); if (i >= L.length) { clearInterval(iv); setTimeout(() => (booted = true), 280); } }, 180);
     const ck = setInterval(() => { clock = Date.now(); tr = Math.min(100, Math.max(4, tr + (Math.random() - 0.45) * 9)); }, 1000);
     if (dm && ghos.npcs.length) ident = ghos.npcs[0].id;
     return () => { clearInterval(iv); clearInterval(ck); };

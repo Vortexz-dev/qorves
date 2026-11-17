@@ -6,6 +6,24 @@ function ensure() {
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
 }
+const CORE_AMB = new Set(['ghoskey', 'starmap', 'timeline', 'ship', 'persona', 'codex']);
+const ambs: { kind: string; out: GainNode; vol: number }[] = [];
+let coreAmbPaused = false;
+function fadeGain(g: GainNode, to: number, sec = 0.18) {
+  if (!ctx) return;
+  const t0 = ctx.currentTime;
+  g.gain.cancelScheduledValues(t0);
+  g.gain.setValueAtTime(Math.max(g.gain.value, 0.0001), t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(to, 0.0001), t0 + sec);
+}
+/** Tam ekran uygulamaların ortam sesi: küçültülünce susar, geri gelince devam eder. Times gibi pencereli ortam buna karışmaz. */
+export function setAmbientPaused(on: boolean) {
+  coreAmbPaused = on;
+  for (const rec of ambs) if (CORE_AMB.has(rec.kind)) fadeGain(rec.out, on ? 0.0001 : rec.vol);
+}
+export function setKindAmbientPaused(kind: string, on: boolean) {
+  for (const rec of ambs) if (rec.kind === kind) fadeGain(rec.out, on ? 0.0001 : rec.vol);
+}
 function apply() { if (master) master.gain.value = muted ? 0 : vol * 0.35; }
 export const audio = {
   get volume() { return vol; }, get music() { return mus; }, get muted() { return muted; },
@@ -78,8 +96,10 @@ export const sfx = {
 /** Ortam sesi: prosedürel, alçak uğultu. Ana ses düğmesine bağlı; açılışta yavaşça gelir, kapanışta söner. */
 export function ambient(kind: 'codex' | 'starmap' | 'timeline' | 'ship' | 'persona' | 'ghoskey' | 'times'): () => void {
   const c = ensure(); if (!master) return () => {};
-  const out = c.createGain(), t0 = c.currentTime; out.gain.setValueAtTime(0.0001, t0); out.gain.exponentialRampToValueAtTime(kind === 'codex' ? 0.22 : kind === 'timeline' ? 0.2 : kind === 'ship' ? 0.24 : 0.26, t0 + 3);
-  out.connect(master); const nodes: AudioScheduledSourceNode[] = [];
+  const vol = kind === 'codex' ? 0.22 : kind === 'timeline' ? 0.2 : kind === 'ship' ? 0.24 : 0.26;
+  const out = c.createGain(), t0 = c.currentTime; out.gain.setValueAtTime(0.0001, t0);
+  if (CORE_AMB.has(kind) && coreAmbPaused) { /* küçültülüyken başlarsa sessiz kalsın */ } else out.gain.exponentialRampToValueAtTime(vol, t0 + 3);
+  out.connect(master); const rec = { kind, out, vol }; ambs.push(rec); const nodes: AudioScheduledSourceNode[] = [];
   const osc = (f: number, type: OscillatorType, g: number, dest: AudioNode, det = 0) => { const o = c.createOscillator(), a = c.createGain(); o.type = type; o.frequency.value = f; o.detune.value = det; a.gain.value = g; o.connect(a).connect(dest); o.start(); nodes.push(o); return { o, a }; };
   const lfo = (rate: number, depth: number, param: AudioParam) => { const o = c.createOscillator(), a = c.createGain(); o.frequency.value = rate; a.gain.value = depth; o.connect(a).connect(param); o.start(); nodes.push(o); };
   const noiseSrc = (dest: AudioNode, g: number) => { const b = c.createBuffer(1, c.sampleRate * 4, c.sampleRate), ch = b.getChannelData(0); let last = 0;
@@ -125,5 +145,6 @@ export function ambient(kind: 'codex' | 'starmap' | 'timeline' | 'ship' | 'perso
   }
   let done = false;
   return () => { if (done) return; done = true; const t = c.currentTime; out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(Math.max(out.gain.value, 0.0001), t); out.gain.exponentialRampToValueAtTime(0.0001, t + 1.2);
+    const i = ambs.indexOf(rec); if (i >= 0) ambs.splice(i, 1);
     setTimeout(() => { nodes.forEach((n) => { try { n.stop(); } catch {} }); out.disconnect(); }, 1400); };
 }

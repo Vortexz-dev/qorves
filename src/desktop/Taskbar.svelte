@@ -5,7 +5,7 @@
   import { audio, sfx } from '../lib/sfx';
   import { appById } from './apps';
   import { ICONS } from './icons';
-  import { wm, toggleTask, openApp } from './wm.svelte';
+  import { wm, toggleTask, openApp, minCore } from './wm.svelte';
   let now = $state(new Date()), volOpen = $state(false), vol = $state(audio.volume), mvol = $state(audio.music), muted = $state(audio.muted);
   onMount(() => {
     let t: number;
@@ -30,7 +30,12 @@
         <span class="ti">{@html ICONS[a.icon]}</span><span class="tl">{a.title}</span>
       </button>
     {/each}
-    {#if wm.core === 'gods'}<button class="task" class:on={!wm.coreMin} class:min={wm.coreMin} onclick={() => (wm.coreMin ? openApp('gods') : (wm.coreMin = true))}><span class="ti">{@html ICONS.gods}</span><span class="tl">God's Eye</span></button>{/if}
+    {#if wm.core}
+      {@const ca = appById(wm.core)}
+      <button class="task" class:on={!wm.coreMin} class:min={wm.coreMin} onclick={() => (wm.coreMin ? openApp(wm.core!) : minCore())}>
+        <span class="ti">{@html ICONS[ca.icon]}</span><span class="tl">{ca.title}</span>
+      </button>
+    {/if}
   </div>
   <div class="tray">
     {#if w}<div class="gd mono" title="Oyun tarihi (DM belirler)">{w.era} {w.year} · GÜN {w.day}</div>{/if}

@@ -10,7 +10,7 @@
   // giriş animasyonu bitene kadar ağır uygulama kurulmaz; böylece giriş takılmadan oynar
   const intro = $derived(id === 'timeline' || id === 'codex' || id === 'starmap' || id === 'gods' || id === 'persona' || id === 'ghoskey' || id === 'ship');
   const gods = $derived(id === 'gods');
-  const canMin = $derived(id === 'gods' || id === 'ghoskey');
+  const canMin = $derived(true);
   async function close() { if (gods) { if (await ask('Emin misin?', "God's Eye kapanacak. Sahne kaybolmaz; yeniden açınca kaldığın yerden devam eder. Yalnızca gizlemek için küçült düğmesini kullanabilirsin.", 'Kapat', false)) closeCore(); } else closeCore(); }
   let go = $state(false);
   onMount(() => {

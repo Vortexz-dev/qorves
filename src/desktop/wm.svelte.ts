@@ -1,6 +1,6 @@
 import { appById, isLocked } from './apps';
 import { toast } from '../lib/desk.svelte';
-import { sfx } from '../lib/sfx';
+import { sfx, setAmbientPaused, setKindAmbientPaused } from '../lib/sfx';
 import { session } from '../lib/session.svelte';
 export interface Win { id: number; app: string; x: number; y: number; w: number; h: number; z: number; min: boolean; max: boolean; closing?: boolean; arg?: string; title?: string }
 export const wm = $state<{ wins: Win[]; core: string | null; coreClosing: boolean; coreMin: boolean; z: number; focus: number; start: boolean }>(
@@ -13,41 +13,46 @@ const RKEY = () => 'qv.recent.' + (session.user?.uid ?? '');
 export const recent = $state<{ ids: string[] }>({ ids: [] });
 export function loadRecent() { try { recent.ids = JSON.parse(localStorage.getItem(RKEY()) || '[]'); } catch { recent.ids = []; } }
 function touchRecent(id: string) { if (appById(id)?.hidden) return; recent.ids = [id, ...recent.ids.filter((x) => x !== id)].slice(0, 8); try { localStorage.setItem(RKEY(), JSON.stringify(recent.ids)); } catch { /* yer yok */ } }
+
+function syncWinAmbient() {
+  const timesOn = wm.wins.some((w) => w.app === 'times' && !w.min && !w.closing);
+  setKindAmbientPaused('times', !timesOn);
+}
 export function openApp(id: string, arg?: string) {
   wm.start = false;
   if (isLocked(session.user, id)) { toast('Bu uygulama kilitli.'); sfx.error(); return; }
   touchRecent(id);
   const a = appById(id);
-  if (a.core || a.full) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; wm.coreMin = false; sfx.open(); } else if (wm.coreMin) { wm.coreMin = false; sfx.open(); } return; } // çekirdek / tam ekran uygulamalar birbirinin yerine geçer
+  if (a.core || a.full) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; wm.coreMin = false; setAmbientPaused(false); sfx.open(); } else if (wm.coreMin) { wm.coreMin = false; setAmbientPaused(false); sfx.open(); } return; } // çekirdek / tam ekran uygulamalar birbirinin yerine geçer
   // tek pencereli uygulamalar (ghOS-Net, DM Paneli): var olan pencere yeni hedefe geçer
   const one = id === 'ghos' || id === 'dm';
   const ex = wm.wins.find((w) => w.app === id && (one || w.arg === arg));
   if (ex && one && arg) ex.arg = arg;
-  if (ex) { ex.min = false; focus(ex.id); return; }
+  if (ex) { ex.min = false; focus(ex.id); syncWinAmbient(); return; }
   const W = innerWidth, H = innerHeight - 48, w = Math.min(a.w ?? 720, W - 40), h = Math.min(a.h ?? 520, H - 40);
   const n = wm.wins.length;
   wm.wins.push({ id: seq++, app: id, w, h, x: Math.round((W - w) / 2 + n * 28 - 40), y: Math.round((H - h) / 2 + n * 24 - 30), z: ++wm.z, min: false, max: false, arg });
-  wm.focus = seq - 1; sfx.open();
+  wm.focus = seq - 1; sfx.open(); syncWinAmbient();
 }
 export function focus(id: number) { const w = wm.wins.find((x) => x.id === id); if (w) { w.z = ++wm.z; wm.focus = id; } }
 export function closeWin(id: number) {
   const w = wm.wins.find((x) => x.id === id); if (!w || w.closing) return;
   w.closing = true; sfx.close();
-  setTimeout(() => { wm.wins = wm.wins.filter((x) => x.id !== id); }, 180);
+  setTimeout(() => { wm.wins = wm.wins.filter((x) => x.id !== id); syncWinAmbient(); }, 180);
 }
-export function minimize(id: number) { const w = wm.wins.find((x) => x.id === id); if (w) { w.min = true; wm.focus = -1; sfx.close(); } }
+export function minimize(id: number) { const w = wm.wins.find((x) => x.id === id); if (w) { w.min = true; wm.focus = -1; sfx.close(); syncWinAmbient(); } }
 export function toggleTask(id: number) {
   const w = wm.wins.find((x) => x.id === id); if (!w) return;
-  if (w.min) { w.min = false; focus(id); sfx.open(); } else if (wm.focus === id) minimize(id); else focus(id);
+  if (w.min) { w.min = false; focus(id); sfx.open(); syncWinAmbient(); } else if (wm.focus === id) minimize(id); else focus(id);
 }
 export function closeCore() {
   if (!wm.core || wm.coreClosing) return;
   const id = wm.core; wm.coreClosing = true; sfx.close();
   // kapanış sürerken başka çekirdek uygulama açıldıysa onu kapatma
-  setTimeout(() => { if (wm.core === id && wm.coreClosing) { wm.core = null; wm.coreClosing = false; wm.coreMin = false; } }, 420);
+  setTimeout(() => { if (wm.core === id && wm.coreClosing) { wm.core = null; wm.coreClosing = false; wm.coreMin = false; setAmbientPaused(false); } }, 420);
 }
-export function minCore() { if (wm.core) { wm.coreMin = true; sfx.close(); } }
-export function resetWM() { wm.wins = []; wm.core = null; wm.coreMin = false; wm.start = false; }
+export function minCore() { if (wm.core) { wm.coreMin = true; setAmbientPaused(true); sfx.close(); } }
+export function resetWM() { wm.wins = []; wm.core = null; wm.coreMin = false; wm.start = false; setAmbientPaused(false); setKindAmbientPaused('times', true); }
 export function closeAppWins(app: string, arg?: string) { wm.wins.filter((w) => w.app === app && (arg === undefined || w.arg === arg)).forEach((w) => closeWin(w.id)); }
 
 export function enforceLocks(ids: string[]) {
