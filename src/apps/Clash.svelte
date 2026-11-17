@@ -322,7 +322,7 @@
   .logo .l1{color:#e9fbff;text-shadow:0 0 18px #00e5ff,0 0 2px #fff}.logo .sl{color:#fcee0a;margin:0 .1em;text-shadow:0 0 14px #fcee0a}.logo .l2{color:#ffe3ea;text-shadow:0 0 18px #ff2a55}
   .logo.on .sl{animation:gl 2.4s steps(2) infinite}
   @keyframes gl{0%,92%{transform:none}94%{transform:translate(4px,-2px) skewX(-12deg)}96%{transform:translate(-3px,1px)}}
-  .logo.sm{font-size:56px}
+  .logo.sm{font-size:44px}
   .sub{letter-spacing:.5em;font-size:14px;color:#9ec3d4;opacity:0;transition:opacity .6s}.sub.on{opacity:1}
   .press{margin-top:40px;font-size:12px;letter-spacing:.4em;color:#fcee0a;opacity:0}.press.on{opacity:1;animation:bl 1.2s ease-in-out infinite}
   @keyframes bl{50%{opacity:.25}}
@@ -375,7 +375,7 @@
   .vsx{font-family:var(--f-disp,sans-serif);font-weight:900;font-size:90px;color:#fcee0a;text-shadow:0 0 30px #fcee0a;animation:sl .5s .55s cubic-bezier(.2,1.6,.4,1) both}
   @keyframes sl{from{transform:scale(4);opacity:0}}
   .match{position:absolute;inset:48px 0 0;z-index:2;display:grid;grid-template-columns:1fr auto 1fr;gap:16px}
-  .col{display:flex;flex-direction:column;height:100%;min-height:0;width:min(62vh,96vw)}
+  .col{display:flex;flex-direction:column;height:100%;min-height:0;width:min(60vh,96vw)}
   .arena{position:relative;flex:1;min-height:0;touch-action:none}
   .arena canvas{position:absolute;inset:0}
   .clock{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.12);padding:6px 10px;text-align:right;pointer-events:none}
@@ -385,7 +385,7 @@
   @keyframes cd{from{transform:scale(2.2);opacity:0}30%{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.8)}}
   .handbar{display:grid;grid-template-columns:58px 1fr;grid-template-rows:auto auto;gap:6px 10px;padding:8px 4px 10px;background:linear-gradient(transparent,rgba(0,0,0,.6))}
   .nx{grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:8px;letter-spacing:.15em;color:#7d97a8}.nx .card{width:52px;cursor:default}.nx .cost{width:18px;height:18px;font-size:10px}
-  .hand{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .hand{display:grid;grid-template-columns:repeat(4,minmax(0,calc(15vh * .74)));justify-content:center;gap:8px}
   .hand .card{transition:transform .12s;touch-action:none}.hand .card:hover{transform:translateY(-4px)}
   .hand .card.sel{transform:translateY(-10px);border-color:#fcee0a;box-shadow:0 0 18px rgba(252,238,10,.6)}
   .hand .card.no img{filter:grayscale(1) brightness(.5)}

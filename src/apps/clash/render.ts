@@ -21,7 +21,7 @@ export class Renderer {
   constructor(c: HTMLCanvasElement, me: Side) { this.c = c; this.x = c.getContext('2d')!; this.me = me; this.flip = me === 1; }
   resize(w: number, h: number) {
     this.dpr = Math.min(2, devicePixelRatio || 1); this.c.width = Math.round(w * this.dpr); this.c.height = Math.round(h * this.dpr); this.c.style.width = w + 'px'; this.c.style.height = h + 'px';
-    this.ts = Math.min(w / W, h / H); this.ox = (w - this.ts * W) / 2; this.oy = (h - this.ts * H) / 2; this.bg = null;
+    this.ts = Math.min(w / W, h / (H + 3.4)); this.ox = (w - this.ts * W) / 2; this.oy = Math.max(this.ts * 3, (h - this.ts * H) / 2 + this.ts * 1.5); this.bg = null;
   }
   sx(x: number) { return this.ox + (this.flip ? W - x : x) * this.ts; }
   sy(y: number) { return this.oy + (this.flip ? H - y : y) * this.ts; }
@@ -30,7 +30,7 @@ export class Renderer {
     const ts = this.ts, cw = Math.ceil(W * ts), ch = Math.ceil(H * ts);
     const b = document.createElement('canvas'); b.width = Math.round(cw * this.dpr); b.height = Math.round(ch * this.dpr); const g = b.getContext('2d')!; g.scale(this.dpr, this.dpr);
     g.fillStyle = '#07090f'; g.fillRect(0, 0, cw, ch);
-    const fl = IMG.floor; if (fl?.naturalWidth) { const pat = g.createPattern(fl, 'repeat')!; const m = new DOMMatrix().scale((ts * 3.2) / 512); pat.setTransform(m); g.globalAlpha = 0.9; g.fillStyle = pat; g.fillRect(0, 0, cw, ch); g.globalAlpha = 1; }
+    const fl = IMG.floor; if (fl?.naturalWidth) { const pat = g.createPattern(fl, 'repeat')!; const m = new DOMMatrix().scale((ts * 6) / 512); pat.setTransform(m); g.globalAlpha = 0.9; g.fillStyle = pat; g.fillRect(0, 0, cw, ch); g.globalAlpha = 1; }
     // yarı tonları: altta ben (camgöbeği), üstte rakip (kırmızı)
     let gr = g.createLinearGradient(0, 0, 0, ch); gr.addColorStop(0, 'rgba(255,42,85,.13)'); gr.addColorStop(0.45, 'rgba(255,42,85,.02)'); gr.addColorStop(0.55, 'rgba(0,229,255,.02)'); gr.addColorStop(1, 'rgba(0,229,255,.12)'); g.fillStyle = gr; g.fillRect(0, 0, cw, ch);
     // kanat yolları
@@ -116,7 +116,7 @@ export class Renderer {
       const cx = this.sx(dp.x), cy = this.sy(dp.y), mine = e.side === this.me, col = mine ? ME : FOE;
       if (e.kind === 'tower') { this.tower(e, cx, cy, mine); continue; }
       const c = CARD[e.card]!; const img = IMG[e.kind === 'building' && !mine ? e.card + '_r' : e.card];
-      const hgt = ts * (e.kind === 'building' ? 2.6 : e.card === 'ogre' || e.card === 'mech' ? 2.5 : e.card === 'breacher' ? 2.15 : e.card === 'goblin' ? 1.25 : e.card === 'bomber' ? 2.2 : e.card === 'drone' ? 1.3 : 1.75);
+      const hgt = ts * 1.2 * (e.kind === 'building' ? 2.5 : e.card === 'ogre' || e.card === 'mech' ? 2.5 : e.card === 'breacher' ? 2.15 : e.card === 'goblin' ? 1.3 : e.card === 'bomber' ? 2.2 : e.card === 'drone' ? 1.4 : 1.8);
       const dep = e.dep / HZ; const lift = e.fly ? ts * (1.3 + Math.sin(this.t * 3 + e.id) * 0.12) : 0;
       // gölge + takım halkası
       x.fillStyle = 'rgba(0,0,0,.45)'; x.beginPath(); x.ellipse(cx, cy + ts * 0.15, e.r * ts * 1.1, e.r * ts * 0.55, 0, 0, 6.283); x.fill();
@@ -127,7 +127,7 @@ export class Renderer {
       const drop = dep > 0 ? (dep * dep) * ts * 6 : 0;
       x.save(); x.translate(cx + lx, cy + ts * 0.2 - lift - bob - drop + ly); if (e.kind === 'troop' && dp.fx < 0) x.scale(-1, 1);
       x.globalAlpha = dep > 0 ? 0.35 + (1 - dep) * 0.65 : 1;
-      x.shadowColor = col; x.shadowBlur = 14; x.drawImage(img, -iw / 2, -hgt, iw, hgt); x.shadowBlur = 0;
+      x.shadowColor = col; x.shadowBlur = 8; x.drawImage(img, -iw / 2, -hgt, iw, hgt); x.shadowBlur = 0;
       if (dp.flash > 0) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = dp.flash / 0.14 * 0.7; x.drawImage(img, -iw / 2, -hgt, iw, hgt); x.globalCompositeOperation = 'source-over'; }
       x.restore(); x.globalAlpha = 1;
       if (e.stun > 0) { for (let i = 0; i < 3; i++) { const a = this.t * 8 + i * 2.1; x.fillStyle = '#9fd6ff'; x.fillRect(cx + Math.cos(a) * ts * 0.4, cy - hgt - lift + Math.sin(a) * ts * 0.15, 3, 3); } }
