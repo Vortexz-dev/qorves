@@ -1,5 +1,5 @@
 /* Persona.ID — karakter kağıdı, envanter, krom, günlük. Oyuncu istatistiklerini değiştirmez; sadece harcanmamış puan ve envanter ekler. */
-import { doc, getDoc, setDoc, updateDoc, collection, onSnapshot, deleteDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, onSnapshot, deleteDoc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from './backend/firebase';
 import { LIVE, nid, now, type Wallet } from './live';
 import { RACE_GROUPS, CHROME_TIERS } from './data/character';
@@ -119,7 +119,9 @@ export const dropChrome = (uid: string, id: string) => deleteDoc(doc(db, 'person
 
 export function watchQuests(uid: string | null, cb: (xs: Quest[]) => void) {
   if (!LIVE) return off();
-  return onSnapshot(collection(db, 'journal'), (s) => {
+  // oyuncu: kurallar yalnız kendi kayıtlarını okur; sorgu da öyle olmalı (yoksa tüm okuma reddedilir)
+  const qq = uid ? query(collection(db, 'journal'), where('players', 'array-contains', uid)) : collection(db, 'journal');
+  return onSnapshot(qq, (s) => {
     const all = s.docs.map((d) => ({ ...(d.data() as Quest), id: d.id }));
     cb(uid ? all.filter((q) => q.players?.includes(uid)) : all);
   }, () => cb([]));
@@ -129,7 +131,9 @@ export const dropQuest = (id: string) => deleteDoc(doc(db, 'journal', id));
 
 export function watchBounties(uid: string | null, cb: (xs: Bounty[]) => void) {
   if (!LIVE) return off();
-  return onSnapshot(collection(db, 'bounties'), (s) => {
+  // oyuncu: kurallar yalnız kendi kayıtlarını okur; sorgu da öyle olmalı (yoksa tüm okuma reddedilir)
+  const qq = uid ? query(collection(db, 'bounties'), where('players', 'array-contains', uid)) : collection(db, 'bounties');
+  return onSnapshot(qq, (s) => {
     const all = s.docs.map((d) => ({ ...(d.data() as Bounty), id: d.id }));
     cb(uid ? all.filter((q) => q.players?.includes(uid)) : all);
   }, () => cb([]));
@@ -139,7 +143,9 @@ export const dropBounty = (id: string) => deleteDoc(doc(db, 'bounties', id));
 
 export function watchRels(uid: string | null, cb: (xs: NpcRel[]) => void) {
   if (!LIVE) return off();
-  return onSnapshot(collection(db, 'rels'), (s) => {
+  // oyuncu: kurallar yalnız kendi kayıtlarını okur; sorgu da öyle olmalı (yoksa tüm okuma reddedilir)
+  const qq = uid ? query(collection(db, 'rels'), where('players', 'array-contains', uid)) : collection(db, 'rels');
+  return onSnapshot(qq, (s) => {
     const all = s.docs.map((d) => ({ ...(d.data() as NpcRel), id: d.id }));
     cb(uid ? all.filter((q) => q.players?.includes(uid)) : all);
   }, () => cb([]));
@@ -174,3 +180,11 @@ export const moneyLine = (w: Wallet | null) => {
   return (['BK', 'Mark', 'Kantar'] as const).map((k) => `${w.bal[k] ?? 0} ${k === 'Mark' ? 'M' : k === 'Kantar' ? 'K' : 'BK'}`).join('  ·  ');
 };
 export { nid, now, writeBatch };
+
+/** DM için oyuncu listesi (Persona.ID oyuncu seçici). */
+export async function listPlayers(): Promise<import('./backend').UserProfile[]> {
+  if (!LIVE) return [];
+  const { getDocs } = await import('firebase/firestore');
+  const s = await getDocs(collection(db, 'users'));
+  return s.docs.map((d) => ({ ...(d.data() as import('./backend').UserProfile), uid: d.id })).filter((u) => u.role !== 'dm' && u.character);
+}
