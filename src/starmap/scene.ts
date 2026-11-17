@@ -2,6 +2,7 @@
  * Qorves küme haritası (three.js). Yalnız uygulama açık ve sekme görünürken çizer; kapanınca her şeyi serbest bırakır.
  */
 import * as THREE from 'three';
+import { buildShip, spinYaw } from './ship';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -245,20 +246,13 @@ export class ClusterScene {
       el.innerHTML = html;
     }
     this.pinRoot.clear(); this.pins.forEach((p) => p.label?.remove()); this.pins = [];
-    const shipGeo = new THREE.ConeGeometry(2.4, 6.8, 5);
-    const shipMat = new THREE.MeshBasicMaterial({ color: 0x39ff8a, transparent: true, opacity: 0.95 });
-    const bodyGeo = new THREE.BoxGeometry(1.6, 1.1, 3.6);
-    const wingGeo = new THREE.BoxGeometry(4.2, 0.25, 1.4);
     for (const o of this.sys.values()) {
       const x = m.get(o.d.id); if (!x) continue;
       x.ships.forEach((lab, i) => {
-        const g = new THREE.Group();
+        const g = buildShip(1.32);
         const a = i * 1.15 + o.pos.x * 0.01;
         g.position.set(o.pos.x + Math.cos(a) * 14, o.pos.y + 5, o.pos.z + Math.sin(a) * 14);
-        const nose = new THREE.Mesh(shipGeo, shipMat); nose.rotation.x = Math.PI / 2; nose.position.z = 2.4;
-        const body = new THREE.Mesh(bodyGeo, shipMat.clone());
-        const wing = new THREE.Mesh(wingGeo, new THREE.MeshBasicMaterial({ color: 0x7dffb0, transparent: true, opacity: 0.9 }));
-        g.add(nose, body, wing); g.lookAt(o.pos);
+        g.rotation.set(0, 0, 0);
         const tip = { kind: 'ship', label: lab, sys: o.d.id, clickable: false };
         this.pinRoot.add(g); this.pins.push({ kind: 'ship', obj: g, tip });
       });
@@ -370,7 +364,7 @@ export class ClusterScene {
       l.label.style.transform = `translate3d(${(this.v.x * 0.5 + 0.5) * w}px,${(-this.v.y * 0.5 + 0.5) * h}px,0)`;
     }
     for (const p of this.pins) {
-      if (p.kind === 'ship') { p.obj.position.y = 5 + Math.sin(t * 0.7 + p.obj.position.x) * 0.45; p.obj.rotation.y = t * 0.25; }
+      if (p.kind === 'ship') { p.obj.position.y = 5 + Math.sin(t * 0.7 + p.obj.position.x) * 0.45; spinYaw(p.obj, t, 0.25); }
       else if (p.ring) { const s = 12 + (Math.sin(t * 2.2) * 0.5 + 0.5) * 10; p.ring.scale.setScalar(s); p.ring.material.opacity = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(t * 2.2)); }
     }
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);

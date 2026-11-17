@@ -3,6 +3,7 @@
  * Cisim listesi kb'den gelir (anahtar süzgecinden geçmiş); burada yeni cisim uydurulmaz. Sayısı verilen adsız uydu grupları yalnız nokta olarak çizilir.
  */
 import * as THREE from 'three';
+import { buildShip, spinYaw } from './ship';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -537,7 +538,7 @@ export class SystemScene {
     const pw = this.host.clientWidth, ph = this.host.clientHeight;
     for (const p of this.pins) {
       if (p.follow) p.obj.position.copy(p.follow.pos);
-      if (p.tip.kind === 'ship') p.obj.rotation.y = rt * 0.28;
+      if (p.tip.kind === 'ship') spinYaw(p.obj, rt, 0.28);
       if (p.ring) { const s = (p.follow ? p.follow.r * 6 + 3 : 8) * (1 + 0.25 * Math.sin(rt * 2.5)); p.ring.scale.setScalar(s); p.ring.material.opacity = 0.4 + 0.4 * (0.5 + 0.5 * Math.sin(rt * 2.5)); }
       this.v.copy(p.obj.position).project(this.camera);
       const on = this.v.z <= 1;
@@ -577,10 +578,6 @@ export class SystemScene {
   screenOf(id: string) { const o = this.byId.get(id); if (!o) return null; this.v.copy(o.pos).project(this.camera); return { x: (this.v.x * 0.5 + 0.5) * this.host.clientWidth, y: (-this.v.y * 0.5 + 0.5) * this.host.clientHeight }; }
   setPins(ms: { kind: string; label: string; body?: string; x?: number; y?: number; z?: number }[]) {
     this.pins.forEach((p) => p.label.remove()); this.pinRoot.clear(); this.pins = [];
-    const shipMat = new THREE.MeshBasicMaterial({ color: 0x39ff8a });
-    const shipGeo = new THREE.ConeGeometry(1.4, 4.2, 5);
-    const bodyGeo = new THREE.BoxGeometry(1.1, 0.7, 2.6);
-    const wingGeo = new THREE.BoxGeometry(3.2, 0.18, 1.1);
     for (const m of ms) {
       const bid = m.body; const follow = bid ? this.objs.find((o) => o.id === bid || o.name.toLocaleLowerCase('tr') === bid.toLocaleLowerCase('tr')) : undefined;
       const g = new THREE.Group();
@@ -590,8 +587,8 @@ export class SystemScene {
       lab.innerHTML = `<b>${m.label.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))}</b><i>${m.kind === 'ship' ? 'GEMİ' : m.kind === 'mission' ? 'GÖREV' : m.kind === 'objective' ? 'HEDEF' : m.kind === 'alert' ? 'UYARI' : 'NOKTA'}</i>`;
       this.overlay.appendChild(lab);
       if (m.kind === 'ship') {
-        const nose = new THREE.Mesh(shipGeo, shipMat); nose.rotation.x = Math.PI / 2; nose.position.z = 1.6;
-        g.add(nose, new THREE.Mesh(bodyGeo, shipMat.clone()), new THREE.Mesh(wingGeo, new THREE.MeshBasicMaterial({ color: 0x7dffb0 })));
+        g.add(buildShip(0.88));
+        g.rotation.set(0, 0, 0);
         const edge = this.extent * 0.85;
         g.position.set(m.x ?? edge, m.y ?? 3, m.z ?? 0);
       } else {

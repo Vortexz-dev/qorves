@@ -22,7 +22,7 @@ export function viewsOf(key: string) {
   return 1_200_000 + (h % 48_800_000);
 }
 
-const PHONE = ['riot', 'dock', 'lane', 'street', 'flare', 'yard', 'ion', 'nebula', 'debris', 'magnetar', 'corona', 'rift', 'rune', 'pollen', 'quarantine', 'foundry', 'raid', 'quake'] as const;
+const PHONE = ['riot', 'dock', 'lane', 'street', 'flare', 'yard', 'ion', 'nebula', 'debris', 'magnetar', 'corona', 'rift', 'rune', 'pollen', 'quarantine', 'foundry', 'raid', 'quake', 'pirates', 'idscan', 'gwathren', 'burstday', 'reddwarf', 'gasgiant', 'blackrain', 'navy', 'fleet', 'beacon', 'gatequeue', 'toll', 'sunspot', 'magwave', 'dustflood', 'sootstorm', 'tangle', 'blackline', 'plague', 'deepriot'] as const;
 export function phoneImg(key: string, sev: number) {
   if (sev < 2 && (fnv(key) & 3) !== 0) return '';
   return PHONE[fnv(key + '|img') % PHONE.length];

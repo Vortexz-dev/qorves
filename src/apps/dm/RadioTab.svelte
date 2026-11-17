@@ -29,8 +29,20 @@
   function seek(v: number) { setRadio({ pos: v, t0: Date.now(), playing: st.playing }); }
   function vol(v: number) { setRadio({ vol: v }); }
   function loop() { setRadio({ loop: !st.loop }); }
+  function skip(dir: 1 | -1) {
+    if (!st.list.length) return;
+    const n = st.list.length; let i = st.i + dir;
+    if (i < 0 || i >= n) { if (!st.loop) { if (i >= n) pause(); return; } i = (i + n) % n; }
+    setRadio({ ...st, i, pos: 0, t0: Date.now(), playing: true }); sfx.open();
+  }
+  function move(i: number, dir: -1 | 1) {
+    const j = i + dir; if (j < 0 || j >= st.list.length) return;
+    const list = st.list.slice(); const [it] = list.splice(i, 1); list.splice(j, 0, it!);
+    const cur = st.i === i ? j : st.i === j ? i : st.i;
+    st.list = list; st.i = cur; setRadio({ list, i: cur });
+  }
   function saveList() { setRadio({ list: st.list, i: st.i }); flash('Liste kaydedildi.'); }
-  function drop(i: number) { st.list = st.list.filter((_, k) => k !== i); if (st.i >= st.list.length) st.i = 0; }
+  function drop(i: number) { st.list = st.list.filter((_, k) => k !== i); if (st.i >= st.list.length) st.i = Math.max(0, st.list.length - 1); setRadio({ list: st.list, i: st.i }); }
   async function oneshotUrl() {
     const p = parseYt(url); if (!p?.video) { flash('Tek seferlik için video bağlantısı gerekli.'); return; }
     await fireShot({ kind: 'yt', src: p.video, title: title || p.video }); flash('Efekt gönderildi.'); sfx.ping();
@@ -43,7 +55,10 @@
     <b>{tr ? tr.title : 'Kuyruk boş'}</b>
     <div class="row">
       {#if st.playing}<button class="btn" onclick={pause}>Duraklat</button>{:else}<button class="btn" onclick={resume} disabled={!st.list.length}>Çal</button>{/if}
+      <button class="btn ghost" onclick={() => skip(-1)} disabled={!st.list.length}>‹ Önceki</button>
+      <button class="btn ghost" onclick={() => skip(1)} disabled={!st.list.length}>Sonraki ›</button>
       <button class="btn ghost small" onclick={loop}>{st.loop ? 'Döngü açık' : 'Döngü kapalı'}</button>
+      <span class="nt mono">{st.list.length ? (st.i + 1) + ' / ' + st.list.length : '—'}</span>
       <label class="field"><span>Ses (herkes)</span><input type="range" min="0" max="1" step="0.01" value={st.vol} oninput={(e) => vol(+e.currentTarget.value)} /></label>
     </div>
     <label class="field"><span>Konum (sn)</span><input class="inp" type="number" min="0" value={Math.floor(radioPos(st))} onchange={(e) => seek(+e.currentTarget.value)} /></label>
@@ -60,6 +75,8 @@
     {#each st.list as t, i (t.id + i)}
       <div class="it" class:on={i===st.i}><b>{t.title}</b> <em class="mono">{t.kind}</em>
         <button class="btn ghost small" onclick={() => playAt(i)}>Çal</button>
+        <button class="btn ghost small" onclick={() => move(i, -1)} disabled={i===0}>↑</button>
+        <button class="btn ghost small" onclick={() => move(i, 1)} disabled={i===st.list.length-1}>↓</button>
         <button class="btn red small" onclick={() => drop(i)}>Çıkar</button>
         {#if t.kind==='mp3'}<button class="btn ghost small" onclick={() => oneshotMp3(t.src, t.title)}>Efekt</button>{/if}
       </div>

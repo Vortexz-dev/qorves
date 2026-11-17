@@ -134,9 +134,11 @@
       ?? marks.find((x) => x.label === p.label && (!p.sys || x.sys === p.sys));
     if (m) { inspect = m; sfx.click(); }
   }
+  let rdown: { x: number; y: number } | null = null;
   function onPlace(e: MouseEvent) {
     e.preventDefault();
-    if (!isDM) return;
+    if (!isDM || !e.shiftKey) return;
+    if (rdown && Math.hypot(e.clientX - rdown.x, e.clientY - rdown.y) > 6) return;
     if (mode === 'system' && sys2) {
       const hit = sys2.groundHit(e.clientX, e.clientY);
       openPin({ sys: cur ?? '', body: bsel || bhov || '', x: hit?.x, y: hit?.y, z: hit?.z });
@@ -239,6 +241,7 @@
 <div class="sm">
   <div class="gl" bind:this={host} role="presentation"
     onpointermove={(e) => { if (tip) tip = { ...tip, x: e.clientX, y: e.clientY }; }}
+    onpointerdown={(e) => { if (e.button === 2) rdown = { x: e.clientX, y: e.clientY }; }}
     oncontextmenu={onPlace}
     onpointerup={(e) => {
       if (e.button === 2) return;
@@ -321,7 +324,8 @@
     <button class="ovw mono" onclick={() => { bsel = null; sys2?.select(null); sys2?.overview(); }}>⌖ SİSTEMİN TAMAMI</button>
     <button class="ovw mono back" onclick={back}>‹ KÜMEYE DÖN <small>ESC</small></button>
     {#if isDM}<button class="ovw mono" onclick={() => openPin({ sys: cur ?? '', body: bsel || '' })}>Seçili cisme işaret</button>
-    <button class="ovw mono" class:on={placeMode} onclick={() => { placeMode = !placeMode; sfx.click(); }}>Sağ tık ile işaret koy</button>{/if}
+    <button class="ovw mono" class:on={placeMode} onclick={() => { placeMode = !placeMode; sfx.click(); }}>{placeMode ? 'Tıklayarak koy (açık)' : 'Tıklayarak işaret koy'}</button>
+    <span class="ovw mono dim">Shift + sağ tık ile işaret koy</span>{/if}
   </aside>
   {/if}
 
@@ -554,7 +558,7 @@
   .qual{display:flex;gap:4px;align-items:center;font-size:9.5px;letter-spacing:.15em;color:var(--mut)}
   .qual button{flex:1;background:none;border:1px solid var(--line);color:var(--mut);font-family:var(--f-mono);font-size:9.5px;padding:4px 0}
   .qual button.on{border-color:var(--cy);color:var(--cy)}
-  .ovw{background:none;border:1px solid var(--line);color:var(--cy);padding:6px;font-size:10.5px;letter-spacing:.2em}.ovw:hover{border-color:var(--cy)}
+  .ovw.dim{opacity:.7;pointer-events:none}.ovw{background:none;border:1px solid var(--line);color:var(--cy);padding:6px;font-size:10.5px;letter-spacing:.2em}.ovw:hover{border-color:var(--cy)}
   .rcol{position:absolute;right:16px;top:58px;width:min(400px,32vw);z-index:8;display:flex;flex-direction:column;pointer-events:none}
   .rcol > :global(*){pointer-events:auto}
   .alerts{position:static;width:auto;max-height:42vh;overflow:hidden;display:flex;flex-direction:column;gap:6px;transition:max-height .35s}

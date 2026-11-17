@@ -18,8 +18,9 @@ service cloud.firestore {
       allow create: if isMe(uid) && request.resource.data.uid == uid && (
         request.resource.data.role == 'player' ||
         (request.resource.data.role == 'dm' && request.auth.token.email == dmEmail()));
-      allow update: if (isMe(uid) && request.resource.data.role == resource.data.role
-                        && request.resource.data.uid == resource.data.uid) || isDM();
+      allow update: if isDM() || (isMe(uid) && request.resource.data.role == resource.data.role
+                        && request.resource.data.uid == resource.data.uid
+                        && request.resource.data.get('lockedApps', []) == resource.data.get('lockedApps', []));
       allow delete: if isDM();
 
       match /notes/{noteId} {

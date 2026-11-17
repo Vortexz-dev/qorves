@@ -27,5 +27,9 @@ export const APPS: AppDef[] = [
   { id: 'dm', title: 'DM Paneli', icon: 'dm', w: 1280, h: 820, dmOnly: true, load: safeLoad(() => import('../apps/DMPanel.svelte')) },
   { id: 'docview', title: 'Belge', icon: 'doc', w: 640, h: 560, hidden: true, load: safeLoad(() => import('../apps/DocView.svelte')) },
 ];
-export const visibleApps = (u: { role: string; apps?: string[] }) => APPS.filter((a) => !a.hidden && (!a.dmOnly || u.role === 'dm') && (!a.optional || (u.apps ?? []).includes(a.id)));
+export const isLocked = (u: { role?: string; lockedApps?: string[] } | null | undefined, id: string) =>
+  !!u && u.role !== 'dm' && (u.lockedApps ?? []).includes(id);
+export const visibleApps = (u: { role: string; apps?: string[]; lockedApps?: string[] }) =>
+  APPS.filter((a) => !a.hidden && (!a.dmOnly || u.role === 'dm') && !isLocked(u, a.id) && (!a.optional || (u.apps ?? []).includes(a.id)));
+export const lockableApps = () => APPS.filter((a) => !a.hidden && !a.dmOnly);
 export const appById = (id: string) => APPS.find((a) => a.id === id)!;

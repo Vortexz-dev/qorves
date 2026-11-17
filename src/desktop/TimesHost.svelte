@@ -8,12 +8,12 @@
   import { watchNews, fromEvent, type News } from '../lib/times';
   import { openApp } from './wm.svelte';
   const u = session.user!;
-  const on = () => u.role === 'dm' || (u.apps ?? []).includes('times');
+  const on = () => { const x = session.user; if (!x) return false; if (x.role === 'dm') return true; return (x.apps ?? []).includes('times') && !(x.lockedApps ?? []).includes('times'); };
   onMount(() => {
     if (!on()) return () => {};
     let known = new Set<string>(), ready = false, evd: EvData | null = null, systems: { id: string; name: string }[] = [];
     let stopE = () => {}, stopN = () => {}, t = 0;
-    const toast = (n: News) => pushToast('Qorves Times', n.title, n.body.slice(0, 140), () => openApp('times'));
+    const toast = (n: News) => { if (!on()) return; pushToast('Qorves Times', n.title, n.body.slice(0, 140), () => openApp('times')); };
     (async () => {
       const data = await fetch(import.meta.env.BASE_URL + 'data/starmap.json').then((r) => r.json()).catch(() => null);
       if (!data) return;

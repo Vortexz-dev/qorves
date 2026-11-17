@@ -181,6 +181,11 @@ export function watchTl(all: boolean, cb: (t: TlEvent[]) => void) {
 export const saveTl = (t: TlEvent) => setDoc(doc(db, 'tlevents', t.id), t);
 export const deleteTl = (id: string) => deleteDoc(doc(db, 'tlevents', id));
 export const setProfileField = (uid: string, patch: Record<string, unknown>) => updateDoc(doc(db, 'users', uid), patch);
+export function watchProfile(uid: string, cb: (u: import('./backend').UserProfile) => void) {
+  if (!LIVE) return off;
+  return onSnapshot(doc(db, 'users', uid), (s) => { if (s.exists()) cb({ ...(s.data() as import('./backend').UserProfile), uid }); });
+}
+
 export { increment, addDoc };
 /** Oyuncunun bilgi erişimi (paket izinleri + tek tek açılan kayıtlar) değişince haber verir; ilk anlık görüntü sayılmaz. */
 export function watchKnowledge(uid: string, cb: () => void) {

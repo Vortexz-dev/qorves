@@ -153,6 +153,21 @@ export async function resetStats(uid: string, level: number) {
   await saveSheet(uid, { unspent: poolPoints(level), lvlSeen: Math.max(1, level) });
 }
 
+/** Seviye L → L+1 için gereken XP: L × 1000. Toplam XP'den seviye: (1+sqrt(1+8xp/1000))/2 */
+export const xpToReach = (level: number) => Math.round(1000 * Math.max(0, level - 1) * level / 2);
+export function levelFromXp(xp: number) {
+  return Math.max(1, Math.floor((1 + Math.sqrt(1 + 8 * Math.max(0, xp) / 1000)) / 2));
+}
+export async function grantXp(uid: string, add: number, curLevel: number, curXp?: number | null) {
+  const lv0 = Math.max(1, curLevel || 1);
+  const base = curXp != null && curXp >= 0 ? curXp : xpToReach(lv0);
+  const xp = Math.max(0, base + Math.round(add));
+  const lv = levelFromXp(xp);
+  await updateDoc(doc(db, 'users', uid), { 'character.xp': xp, 'character.level': lv });
+  await ensureSheet(uid, lv);
+  return { from: lv0, to: lv, xp, gained: Math.round(add) };
+}
+
 export const newItem = (): InvItem => ({ id: nid(), name: '', kg: 0.5, type: 'misc', qty: 1, at: now() });
 export const moneyLine = (w: Wallet | null) => {
   if (!w?.bal) return '0 BK';

@@ -1,11 +1,42 @@
 <script lang="ts">
-  import { dm, when } from './store.svelte';
-  import { isOnline, fileOf } from '../../lib/live';
+  import { dm, when, refreshUsers } from './store.svelte';
+  import { isOnline, fileOf, setProfileField, sendNotice } from '../../lib/live';
   import { ago } from '../../lib/decrypt';
+  import { grantXp, xpToReach } from '../../lib/persona';
+  import { lockableApps } from '../../desktop/apps';
+  import { sfx } from '../../lib/sfx';
   let { go }: { go: (tab: string) => void } = $props();
   const u = $derived(dm.users.find((x) => x.uid === dm.pid));
   const pr = $derived(dm.pres.find((p) => p.uid === dm.pid));
   let file = $state<{ name: string; type: string; url: string } | null>(null), fbusy = $state(false), ferr = $state('');
+  let pick = $state<string[]>([]), xpAmt = $state(1000), msg = $state('');
+  const flash = (s: string) => { msg = s; setTimeout(() => { if (msg === s) msg = ''; }, 4000); };
+  const togPick = (id: string) => { pick = pick.includes(id) ? pick.filter((x) => x !== id) : [...pick, id]; };
+  async function doXp(all: boolean) {
+    const list = all ? dm.users : (pick.length ? dm.users.filter((x) => pick.includes(x.uid)) : (u ? [u] : []));
+    if (!list.length || !xpAmt) return;
+    let up = 0;
+    for (const p of list) {
+      if (!p.character) continue;
+      const r = await grantXp(p.uid, xpAmt, p.character.level ?? 1, p.character.xp);
+      if (r.to > r.from) {
+        up++;
+        await sendNotice(p.uid, { title: 'Seviye atladın', body: `Seviye ${r.from} → ${r.to}. Persona.ID'de ${3 * (r.to - r.from)} harcanmamış puanın var.`, level: 'info', from: 'DM' });
+      } else {
+        await sendNotice(p.uid, { title: 'XP kazandın', body: `+${r.gained} XP (toplam ${r.xp}). Sonraki seviye için ${Math.max(0, xpToReach(r.to + 1) - r.xp)} XP kaldı.`, level: 'info', from: 'DM' });
+      }
+    }
+    await refreshUsers(); sfx.granted();
+    flash(list.length + ' oyuncuya +' + xpAmt + ' XP verildi.' + (up ? ' ' + up + ' seviye atladı.' : ''));
+  }
+  async function togLock(id: string) {
+    if (!u) return;
+    const cur = new Set(u.lockedApps ?? []);
+    if (cur.has(id)) cur.delete(id); else cur.add(id);
+    const lockedApps = [...cur];
+    await setProfileField(u.uid, { lockedApps });
+    u.lockedApps = lockedApps; sfx.click();
+  }
   $effect(() => { dm.pid; file = null; ferr = ''; });
   async function openFile() { if (!u?.file) return; fbusy = true; ferr = ''; try { file = await fileOf(u.uid, u.file.id); if (!file) ferr = 'Dosya bulunamadı.'; } catch (e) { ferr = 'Dosya açılamadı: ' + String(e); } fbusy = false; }
   const C = [['name', 'Ad'], ['age', 'Yaş'], ['race', 'Irk'], ['origin', 'Köken'], ['faction', 'Taraf'], ['clan', 'Klan'], ['job', 'Meslek'], ['cls', 'Sınıf'], ['sub', 'Alt sınıf'], ['cls2', '2. sınıf'], ['level', 'Seviye'], ['background', 'Geçmiş'], ['chrome', 'Krom']] as const;
@@ -14,19 +45,32 @@
   <div class="ls">
     {#each dm.users as x (x.uid)}{@const p = dm.pres.find((y) => y.uid === x.uid)}
       <button class:on={dm.pid === x.uid} onclick={() => (dm.pid = x.uid)}>
+        <input type="checkbox" checked={pick.includes(x.uid)} onclick={(e) => e.stopPropagation()} onchange={() => togPick(x.uid)} />
         <span class="av">{#if x.avatar}<img src={x.avatar} alt="" data-nolb />{/if}<b class:on={isOnline(p)}></b></span>
-        <span class="nm">{x.character?.name || x.username}<small>@{x.username} · {isOnline(p) ? 'çevrimiçi' : p ? ago(p.last) : x.lastLogin ? ago(x.lastLogin) : 'hiç girmedi'}</small></span>
+        <span class="nm">{x.character?.name || x.username}<small>@{x.username} · sv {x.character?.level ?? '—'} · {isOnline(p) ? 'çevrimiçi' : p ? ago(p.last) : x.lastLogin ? ago(x.lastLogin) : 'hiç girmedi'}</small></span>
       </button>
     {:else}<div class="none mono">Kayıtlı oyuncu yok.</div>{/each}
   </div>
   {#if u}
   <div class="dt">
+    <div class="xp">
+      <h4 class="mono">TOPLU XP</h4>
+      <p class="nt">Seviye atlamak için gereken XP: mevcut seviye × 1000. Puanlar Persona.ID'de birikir; seviye atlayınca +3 harcanmamış stat puanı düşer.</p>
+      <div class="qa">
+        <label class="field"><span>XP</span><input class="inp" type="number" min="1" step="100" bind:value={xpAmt} /></label>
+        <button class="btn small" onclick={() => doXp(false)}>{pick.length ? 'Seçilenlere ver (' + pick.length + ')' : 'Bu oyuncuya ver'}</button>
+        <button class="btn ghost small" onclick={() => doXp(true)}>Herkese ver</button>
+        <button class="btn ghost small" onclick={() => (pick = pick.length === dm.users.length ? [] : dm.users.map((x) => x.uid))}>{pick.length === dm.users.length ? 'Seçimi kaldır' : 'Tümünü seç'}</button>
+      </div>
+      {#if msg}<p class="msg mono">{msg}</p>{/if}
+    </div>
     <div class="hd">
       <div class="big">{#if u.avatar}<img src={u.avatar} alt="" />{/if}</div>
       <div><h2>{u.character?.name || u.username}</h2><div class="mono s">@{u.username} · {isOnline(pr) ? '● ÇEVRİMİÇİ' : 'ÇEVRİMDIŞI'}</div>
         <div class="mono s">Son giriş: {when(u.lastLogin)} · Son görülme: {when(pr?.last)} · Kayıt: {when(u.createdAt)}</div>
         <div class="mono s">Kurulu uygulamalar: {(u.apps ?? []).join(', ') || '—'}</div>
         <div class="qa"><button class="btn ghost small" onclick={() => go('know')}>Bilgi izinleri</button><button class="btn ghost small" onclick={() => go('notify')}>Bildirim gönder</button><button class="btn ghost small" onclick={() => go('wallet')}>Cüzdan</button><button class="btn ghost small" onclick={() => go('markers')}>Harita işareti</button></div>
+        {#if u.character}<div class="mono s">Seviye {u.character.level} · XP {u.character.xp ?? xpToReach(u.character.level)} / {xpToReach((u.character.level ?? 1) + 1)}</div>{/if}
       </div>
     </div>
     {#if u.character}
@@ -34,6 +78,11 @@
       {#if u.character.stats}<div class="stats">{#each Object.entries(u.character.stats) as [k, v] (k)}<div><span class="mono">{k.toUpperCase()}</span><b>{v}</b></div>{/each}</div>{/if}
       {#if u.character.bio}<h4 class="mono">ÖZGEÇMİŞ</h4><p class="bio">{u.character.bio}</p>{/if}
     {:else}<p class="none">Karakter bilgisi yok.</p>{/if}
+    <h4 class="mono">UYGULAMA KİLİDİ</h4>
+    <p class="nt">Kilitli uygulama oyuncunun masaüstünden, başlat menüsünden ve mağazasından kaybolur; açıksa kapanır. Oyuncu kilidi kendi açamaz.</p>
+    <div class="locks">{#each lockableApps() as a (a.id)}
+      <label class="ck"><input type="checkbox" checked={(u.lockedApps ?? []).includes(a.id)} onchange={() => togLock(a.id)} />{a.title}</label>
+    {/each}</div>
     <h4 class="mono">GEÇMİŞ DOSYASI</h4>
     {#if u.file}
       <div class="fl"><span>{u.file.name} · {(u.file.size / 1024).toFixed(0)} KB · {when(u.file.uploadedAt)}</span>
@@ -62,4 +111,9 @@
   .fl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fl span{font-size:14px;margin-right:6px}
   .prev{display:block;width:100%;max-height:520px;height:520px;object-fit:contain;margin-top:10px;border:1px solid var(--line);background:#fff}img.prev{background:#0b0e17;height:auto}
   .none{color:var(--mut);font-size:13px;padding:10px}.err{color:var(--rd);font-size:13px}
+  .xp{border:1px solid var(--line);padding:10px 12px;margin-bottom:14px;background:rgba(0,240,255,.04)}
+  .nt{font-size:12.5px;color:var(--mut);margin:0 0 8px}.msg{color:#39ff8a;font-size:13px;margin:8px 0 0}
+  .field{display:flex;flex-direction:column;gap:2px;font-size:11px}.inp{background:#0006;border:1px solid var(--line);color:var(--tx);padding:4px 8px;font:inherit;width:120px}
+  .locks{display:flex;flex-wrap:wrap;gap:8px 14px;margin:6px 0 8px}
+  .ck{display:flex;gap:6px;align-items:center;font-size:13px;border:1px solid var(--line);padding:4px 8px}
 </style>

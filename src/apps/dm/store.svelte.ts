@@ -20,3 +20,9 @@ export function stopDm() { refs = Math.max(0, refs - 1); if (!refs) { stopP?.();
 export const pname = (uid: string) => { const u = dm.users.find((x) => x.uid === uid); return u ? (u.character?.name ? `${u.character.name} (@${u.username})` : '@' + u.username) : uid.slice(0, 6); };
 export const sysName = (id: string) => dm.systems.find((s) => s.id === id)?.name ?? id;
 export const when = (t?: number) => (t ? new Date(t).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
+
+export async function refreshUsers() {
+  const u = await listUsers();
+  dm.users = u.filter((x) => x.role !== 'dm').sort((a, b) => (b.lastLogin ?? 0) - (a.lastLogin ?? 0));
+  if (dm.pid && !dm.users.some((x) => x.uid === dm.pid)) dm.pid = dm.users[0]?.uid ?? '';
+}

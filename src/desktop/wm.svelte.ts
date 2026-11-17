@@ -1,4 +1,5 @@
-import { appById } from './apps';
+import { appById, isLocked } from './apps';
+import { toast } from '../lib/desk.svelte';
 import { sfx } from '../lib/sfx';
 import { session } from '../lib/session.svelte';
 export interface Win { id: number; app: string; x: number; y: number; w: number; h: number; z: number; min: boolean; max: boolean; closing?: boolean; arg?: string; title?: string }
@@ -13,7 +14,9 @@ export const recent = $state<{ ids: string[] }>({ ids: [] });
 export function loadRecent() { try { recent.ids = JSON.parse(localStorage.getItem(RKEY()) || '[]'); } catch { recent.ids = []; } }
 function touchRecent(id: string) { if (appById(id)?.hidden) return; recent.ids = [id, ...recent.ids.filter((x) => x !== id)].slice(0, 8); try { localStorage.setItem(RKEY(), JSON.stringify(recent.ids)); } catch { /* yer yok */ } }
 export function openApp(id: string, arg?: string) {
-  wm.start = false; touchRecent(id);
+  wm.start = false;
+  if (isLocked(session.user, id)) { toast('Bu uygulama kilitli.'); sfx.error(); return; }
+  touchRecent(id);
   const a = appById(id);
   if (a.core || a.full) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; wm.coreMin = false; sfx.open(); } else if (wm.coreMin) { wm.coreMin = false; sfx.open(); } return; } // çekirdek / tam ekran uygulamalar birbirinin yerine geçer
   // tek pencereli uygulamalar (ghOS-Net, DM Paneli): var olan pencere yeni hedefe geçer
@@ -46,3 +49,9 @@ export function closeCore() {
 export function minCore() { if (wm.core) { wm.coreMin = true; sfx.close(); } }
 export function resetWM() { wm.wins = []; wm.core = null; wm.coreMin = false; wm.start = false; }
 export function closeAppWins(app: string, arg?: string) { wm.wins.filter((w) => w.app === app && (arg === undefined || w.arg === arg)).forEach((w) => closeWin(w.id)); }
+
+export function enforceLocks(ids: string[]) {
+  if (!ids.length || session.user?.role === 'dm') return;
+  if (wm.core && ids.includes(wm.core)) closeCore();
+  wm.wins.filter((w) => ids.includes(w.app)).forEach((w) => closeWin(w.id));
+}

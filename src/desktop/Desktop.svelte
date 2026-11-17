@@ -9,7 +9,7 @@
   import Logo from '../ui/Logo.svelte';
   import { APPS, visibleApps } from './apps';
   import { ICONS } from './icons';
-  import { wm, openApp, resetWM } from './wm.svelte';
+  import { wm, openApp, resetWM, enforceLocks } from './wm.svelte';
   import Taskbar from './Taskbar.svelte';
   import StartPanel from './StartPanel.svelte';
   import Window from './Window.svelte';
@@ -31,7 +31,8 @@
 
   const GX = 104, GY = 112, OX = 18, OY = 18;
   const user = session.user!;
-  const desk = $derived(visibleApps(user).filter((a) => a.id !== 'profile'));
+  const desk = $derived(visibleApps(session.user ?? user).filter((a) => a.id !== 'profile'));
+  $effect(() => { enforceLocks((session.user ?? user).lockedApps ?? []); });
   const pos = $state<Record<string, { x: number; y: number }>>({});
   const free = () => { for (let x = OX; ; x += GX) for (let y = OY; y <= innerHeight - 48 - GY; y += GY) if (!Object.values(pos).some((p) => p.x === x && p.y === y)) return { x, y }; };
   const taken = (q: { x: number; y: number }) => Object.values(pos).some((p) => p.x === q.x && p.y === q.y);

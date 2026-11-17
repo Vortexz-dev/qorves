@@ -7,12 +7,13 @@
   import { sfx } from '../lib/sfx';
   import { ICONS } from '../desktop/icons';
   const user = session.user!;
-  import { APPS } from '../desktop/apps';
+  import { APPS, isLocked } from '../desktop/apps';
   const store = APPS.filter((a) => a.optional || a.storeTitle);
   let busy = $state<Record<string, number>>({}), phase = $state<Record<string, string>>({});
   const has = (id: string) => (user.apps ?? []).includes(id) || !!APPS.find((a) => a.id === id && !a.optional);
   async function setApps(a: string[]) { user.apps = a; await backend.patchProfile(user.uid, { apps: a }).catch(() => {}); }
   async function install(id: string) {
+    if (isLocked(session.user ?? user, id)) { sfx.error(); return; }
     phase[id] = 'KURULUYOR'; sfx.click();
     for (let i = 0; i <= 20; i++) { busy[id] = i * 5; await new Promise((r) => setTimeout(r, 55)); }
     await setApps([...(user.apps ?? []).filter((x) => x !== id), id]); if (id === 'notepad') await loadNotes(); busy[id] = 0; phase[id] = ''; sfx.granted();
@@ -35,7 +36,7 @@
     <div class="ic">{@html ICONS[a.icon]}</div>
     <div class="tx"><b>{a.storeTitle ?? a.title}{#if a.id === 'ghos' || a.illegal}<em class="mono">KAYIT DIŞI</em>{/if}</b><span>{a.desc}</span>
       {#if busy[a.id]}<div class="pb"><i style:width="{busy[a.id]}%"></i></div><small class="mono">{phase[a.id]}… {busy[a.id]}%</small>{/if}</div>
-    {#if !a.optional}<span class="mono sys">YÜKLÜ · SİSTEM</span>{:else if has(a.id)}<button class="btn red" disabled={!!busy[a.id]} onclick={() => uninstall(a.id)}>Kaldır</button>{:else}<button class="btn" disabled={!!busy[a.id]} onclick={() => install(a.id)}>Kur</button>{/if}
+    {#if isLocked(session.user ?? user, a.id)}<span class="mono sys">KİLİTLİ</span>{:else if !a.optional}<span class="mono sys">YÜKLÜ · SİSTEM</span>{:else if has(a.id)}<button class="btn red" disabled={!!busy[a.id]} onclick={() => uninstall(a.id)}>Kaldır</button>{:else}<button class="btn" disabled={!!busy[a.id]} onclick={() => install(a.id)}>Kur</button>{/if}
   </div>
   {/each}
   <div class="mono soon">Yeni uygulamalar ileride eklenecek.</div>

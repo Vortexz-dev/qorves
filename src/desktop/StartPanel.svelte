@@ -11,7 +11,7 @@
   loadRecent();
   const DEF = ['gods', 'ship', 'logbook', 'starmap'];
   let all = $state(false);
-  const vis = $derived(visibleApps(u));
+  const vis = $derived(visibleApps(session.user ?? u));
   const top = $derived([...recent.ids, ...DEF, ...vis.map((a) => a.id)].filter((id, i, arr) => arr.indexOf(id) === i).map((id) => vis.find((a) => a.id === id)).filter((a) => !!a).slice(0, 4));
   function out(fn: () => void) { sfx.close(); resetWM(); fn(); }
 </script>

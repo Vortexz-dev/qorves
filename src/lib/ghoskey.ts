@@ -65,3 +65,9 @@ export const DECOYS: { name: string; signal: number }[] = [
   { name: 'ssdp://0.0.0.0', signal: 2 }, { name: 'HAT-KIRIĞI', signal: 1 },
   { name: 'prae.ghost (düşük)', signal: 1 },
 ];
+export const DECOY_POOL = [
+  '█▓▒░///???.net', 'ORTH-relay#??', 'ssdp://0.0.0.0', 'HAT-KIRIĞI', 'prae.ghost (düşük)',
+  'NUL-GATE ::drop', 'MESH/black.line', 'icmp://void', 'KANTAR-echo??', 'cellax.whisper',
+  'YILDIZ-fail', 'boot://lost-tty', 'FENER-0x00', 'gümrük.spoof', '???-HROTH-loop',
+  'saelis.hole', 'north.static', 'relay#DEAD', '0x7f.ghostnet', 'kor.gece.bak',
+];

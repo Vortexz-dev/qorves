@@ -1,7 +1,7 @@
 export type Role = 'player' | 'dm';
 export interface Character {
   name: string; age: string; race: string; origin: string; faction: string; clan: string; job: string;
-  cls: string; sub: string; cls2: string; sub2: string; level: number; background: string;
+  cls: string; sub: string; cls2: string; sub2: string; level: number; xp?: number; background: string;
   chrome: string; visibleChrome: boolean; stats: Record<string, number>; bio: string;
 }
 export interface FileMeta { id: string; name: string; type: string; size: number; uploadedAt: number }
@@ -9,7 +9,7 @@ export interface UserProfile {
   uid: string; username: string; role: Role; avatar: string; createdAt: number;
   character: Character | null; file: FileMeta | null;
   desktop: { icons: Record<string, { x: number; y: number }> };
-  apps: string[]; lastLogin?: number;
+  apps: string[]; lockedApps?: string[]; lastLogin?: number;
 }
 export interface Note { id: string; title: string; body: string; x: number; y: number; updatedAt: number; parent?: string }
 /** Masaüstü öğesi: klasör ya da kaydedilmiş görsel (yalnız adres/başvuru, veri değil). parent '' = masaüstü. */

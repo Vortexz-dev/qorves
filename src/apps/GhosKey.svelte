@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import { session } from '../lib/session.svelte';
   import { sfx, ambient } from '../lib/sfx';
-  import { watchNets, writeLog, DECOYS, randGame, effectiveDiff, gameLabel, type Net, type GameId } from '../lib/ghoskey';
+  import { watchNets, writeLog, DECOY_POOL, randGame, effectiveDiff, gameLabel, type Net, type GameId } from '../lib/ghoskey';
   import Jumpscare from './ghoskey/Jumpscare.svelte';
   import Play from './ghoskey/Play.svelte';
 
@@ -13,7 +13,13 @@
   let loadN = $state(0), loadTxt = $state<string[]>([]);
   let target = $state<Net | null>(null), game = $state<GameId>('breach'), diff = $state(2);
   let box: HTMLDivElement | undefined = $state();
-  const deco = DECOYS;
+  type Deco = { id: string; name: string; shown: string; signal: number; glitch: boolean; fade: boolean };
+  const scramble = (s: string) => s.split('').map((c, i) => (i % 3 === 1 ? '█▓▒░/?#'[Math.floor(Math.random()*7)] : c)).join('');
+  const mkDeco = (name?: string): Deco => {
+    const n = name || DECOY_POOL[Math.floor(Math.random() * DECOY_POOL.length)]!;
+    return { id: Math.random().toString(36).slice(2, 8), name: n, shown: n, signal: 1 + Math.floor(Math.random() * 3), glitch: false, fade: false };
+  };
+  let deco = $state<Deco[]>(DECOY_POOL.slice(0, 5).map((n) => mkDeco(n)));
   const sig = (n: number) => '▁▂▃▄▅'.slice(0, n) + '▁▂▃▄▅'.slice(n).replace(/./g, '·');
 
   const HELP = [
@@ -143,7 +149,25 @@
     const stopAmb = ambient('ghoskey');
     const stop = watchNets(u.role === 'dm' ? null : u.uid, (xs) => (nets = xs.filter((n) => !n.decoy)));
     const iv = setInterval(() => { flicker = true; setTimeout(() => (flicker = false), 140); }, 4800 + Math.random() * 2600);
-    return () => { stopAmb(); stop(); clearInterval(iv); };
+    const tick = setInterval(() => {
+      if (!deco.length) { deco = [mkDeco()]; return; }
+      const r = Math.random();
+      if (r < 0.45) {
+        const i = Math.floor(Math.random() * deco.length);
+        const d = deco[i]!;
+        d.glitch = true; d.shown = scramble(d.name); d.signal = Math.max(1, Math.min(3, d.signal + (Math.random() < 0.5 ? -1 : 1)));
+        deco = deco.slice();
+        setTimeout(() => { d.glitch = false; d.shown = d.name; deco = deco.slice(); }, 280 + Math.random() * 400);
+      } else if (r < 0.75 && deco.length > 3) {
+        const i = Math.floor(Math.random() * deco.length);
+        deco[i]!.fade = true; deco = deco.slice();
+        const gone = deco[i]!;
+        setTimeout(() => { deco = deco.filter((x) => x.id !== gone.id); if (deco.length < 5) deco = [...deco, mkDeco()]; }, 400);
+      } else if (deco.length < 7) {
+        deco = [...deco, mkDeco()];
+      }
+    }, 1600);
+    return () => { stopAmb(); stop(); clearInterval(iv); clearInterval(tick); };
   });
 </script>
 
@@ -157,8 +181,8 @@
         <small class="mono">{sig(n.signal)} {n.signal}/5</small>
       </button>
     {:else}<div class="none mono">hedef yok</div>{/each}
-    {#each deco as d}
-      <div class="n dec"><b>{d.name}</b><small class="mono">{sig(d.signal)} kopuk</small></div>
+    {#each deco as d (d.id)}
+      <div class="n dec" class:gx={d.glitch} class:fade={d.fade}><b>{d.shown}</b><small class="mono">{sig(d.signal)} kopuk</small></div>
     {/each}
   </div>
   <div class="term">
@@ -184,7 +208,7 @@
   .n{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;background:none;border:1px solid #163;color:inherit;padding:8px;margin-bottom:6px;font:inherit}
   .n:hover{border-color:#39ff8a;box-shadow:0 0 10px rgba(57,255,138,.2)}.n b{color:#cfe}.n b.fx{animation:tx .12s steps(2)}
   @keyframes tx{50%{opacity:.4;transform:translateX(2px);color:#f22}}
-  .dec{opacity:.45;pointer-events:none;filter:grayscale(.4)}
+  .dec{opacity:.45;pointer-events:none;filter:grayscale(.4);transition:opacity .4s,transform .4s}.dec.gx b{animation:tx .12s steps(2);color:#f66;letter-spacing:.08em}.dec.fade{opacity:0;transform:translateX(-8px)}
   .none{color:#365;padding:8px}.term{display:flex;flex-direction:column;min-width:0;position:relative;z-index:2}
   .out{flex:1;overflow:auto;padding:14px;font-size:13px;line-height:1.55;white-space:pre-wrap;text-shadow:0 0 4px rgba(57,255,138,.25)}
   form{display:flex;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid #1a3;background:rgba(0,20,8,.5)}
