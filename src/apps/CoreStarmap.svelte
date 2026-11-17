@@ -8,7 +8,7 @@
   import { session } from '../lib/session.svelte';
   import { openTag } from '../lib/tags.svelte';
   import { loadEvents, activeAt, setWorldLive, type ActiveEvent, type EvData } from '../lib/events';
-  import { watchMarkers, watchDoc, type Marker } from '../lib/live';
+  import { watchMarkers, watchDoc, saveMarker, nid, now as stamp, listUsers, type Marker } from '../lib/live';
   import type { WorldEvents } from '../lib/backend';
   import { sfx, ambient } from '../lib/sfx';
   import { coreBack } from '../desktop/wm.svelte';
@@ -37,9 +37,32 @@
   const known = (id: string) => !!getEntry(id);
   // DM işaretleri (gemi konumu / görev noktası); kurallar yalnız izinli oyunculara okutur
   let marks = $state<Marker[]>([]);
+  let pin = $state<Marker | null>(null), placeMode = $state(false), plist = $state<{ uid: string; name: string }[]>([]);
+  const KINDS: [Marker['kind'], string][] = [['ship', '▲ Gemi'], ['mission', '◆ Görev'], ['objective', '◎ Hedef'], ['poi', '● Nokta'], ['alert', '▲ Uyarı']];
+  async function openPin(partial: Partial<Marker>) {
+    if (!isDM) return;
+    if (!plist.length) plist = (await listUsers()).filter((u) => u.role !== 'dm').map((u) => ({ uid: u.uid, name: u.character?.name || u.username }));
+    pin = { id: nid(), sys: cur || sel || '', kind: 'mission', label: '', note: '', cat: '', players: [], at: stamp(), ...partial };
+    sfx.click();
+  }
+  async function savePin() {
+    if (!pin || !pin.label.trim() || !pin.sys) return;
+    const raw = pin;
+    const m: Marker = { id: raw.id, sys: raw.sys, kind: raw.kind, label: raw.label.trim(), note: raw.note ?? '', players: raw.players ?? [], at: stamp() };
+    if (raw.cat) m.cat = raw.cat;
+    if (raw.body) m.body = raw.body;
+    if (raw.x != null) m.x = raw.x;
+    if (raw.y != null) m.y = raw.y;
+    if (raw.z != null) m.z = raw.z;
+    await saveMarker(m); sfx.granted(); pin = null; placeMode = false;
+  }
   const marksOf = (id: string) => marks.filter((m) => m.sys === id);
-  function applyMarks() { if (!sc) return; const g = new Map<string, { ship: string[]; mission: string[] }>();
-    for (const m of marks) { const x = g.get(m.sys) ?? { ship: [], mission: [] }; x[m.kind].push(m.label); g.set(m.sys, x); } sc.setMarkers(g); }
+  function applyMarks() {
+    const g = new Map<string, { ships: string[]; pins: { kind: string; label: string }[] }>();
+    for (const m of marks) { const x = g.get(m.sys) ?? { ships: [], pins: [] }; if (m.kind === 'ship') x.ships.push(m.label); else x.pins.push({ kind: m.kind, label: m.label }); g.set(m.sys, x); }
+    sc?.setMarkers(g);
+    if (sys2 && cur) sys2.setPins(marks.filter((m) => m.sys === cur).map((m) => ({ kind: m.kind, label: m.label, body: m.body, x: m.x, y: m.y, z: m.z })));
+  }
   $effect(() => { marks; untrack(applyMarks); });
   const S = $derived(map ? new Map(map.systems.map((s) => [s.id, s])) : new Map());
   const focus = $derived(hov ?? sel);
@@ -111,7 +134,7 @@
     const id = ss.id; sc?.flyTo(id, 12, 1000); setTimeout(() => (warp = 1), 450);
     setTimeout(() => {
       sc?.dispose(); sc = null; hov = null; cur = id; routeOpen = false; routeIds = null; bsel = null; mode = 'system';
-      sys2 = new SystemScene(host!, ov!, S.get(id)!, bodiesOf(id), sysHooks, q, { gates: gatesFor(id) }); sys2.setLayers(labels, orbits, moving);
+      sys2 = new SystemScene(host!, ov!, S.get(id)!, bodiesOf(id), sysHooks, q, { gates: gatesFor(id) }); sys2.setLayers(labels, orbits, moving); applyMarks();
       warp = 2; setTimeout(() => { warp = 0; busy = false; }, 900);
     }, 1500);
   }
@@ -149,7 +172,7 @@
     localStorage.setItem('qv.mapq', qq);
     if (sc && sc.quality !== qq && !busy) { const pose = sc.getPose(); sc.dispose(); makeCluster(); sc!.setPose(pose); }
     if (sys2 && sys2.quality !== qq && !busy && cur) { const pose = sys2.getPose(), keep = bsel; sys2.dispose();
-      sys2 = new SystemScene(host!, ov!, S.get(cur)!, bodiesOf(cur), sysHooks, qq, { intro: false, gates: gatesFor(cur) }); sys2.setLayers(labels, orbits, moving); sys2.setPose(pose);
+      sys2 = new SystemScene(host!, ov!, S.get(cur)!, bodiesOf(cur), sysHooks, qq, { intro: false, gates: gatesFor(cur) }); sys2.setLayers(labels, orbits, moving); sys2.setPose(pose); applyMarks();
       if (keep) { sys2.select(keep); snaps = {}; } }
   }
 
@@ -184,7 +207,12 @@
 </script>
 
 <div class="sm">
-  <div class="gl" bind:this={host}></div>
+  <div class="gl" bind:this={host} role="presentation" onpointerup={(e) => {
+      if (!placeMode || !isDM || !sys2 || Math.abs((e as PointerEvent).movementX) + Math.abs((e as PointerEvent).movementY) > 8) return;
+      const id = bsel || bhov;
+      const hit = sys2.groundHit(e.clientX, e.clientY);
+      openPin({ sys: cur ?? '', body: id || '', x: hit?.x, y: hit?.y, z: hit?.z });
+    }}></div>
   <div class="ov" bind:this={ov}></div>
   <div class="vig"></div>
 
@@ -253,6 +281,8 @@
     <div class="qual mono">KALİTE {#each ['low', 'med', 'high'] as x}<button class:on={q === x} onclick={() => (q = x as Quality)}>{x === 'low' ? 'DÜŞÜK' : x === 'med' ? 'ORTA' : 'YÜKSEK'}</button>{/each}</div>
     <button class="ovw mono" onclick={() => { bsel = null; sys2?.select(null); sys2?.overview(); }}>⌖ SİSTEMİN TAMAMI</button>
     <button class="ovw mono back" onclick={back}>‹ KÜMEYE DÖN <small>ESC</small></button>
+    {#if isDM}<button class="ovw mono" onclick={() => openPin({ sys: cur ?? '', body: bsel || '' })}>Seçili cisme işaret</button>
+    <button class="ovw mono" class:on={placeMode} onclick={() => { placeMode = !placeMode; sfx.click(); }}>Haritaya tıklayarak koy</button>{/if}
   </aside>
   {/if}
 
@@ -367,6 +397,7 @@
           <div class="act">
             <button class="btn ghost" onclick={() => se && openTag(se.id)}>Kodeks</button>
             <button class="btn ghost" onclick={() => { rFrom = ss.id; routeOpen = true; sfx.glitch(); }}>Buradan rota</button>
+            {#if isDM}<button class="btn ghost" onclick={() => openPin({ sys: ss.id })}>İşaret koy</button>{/if}
             <button class="btn" onclick={enter} disabled={!known(ss.id)}>Sisteme gir ›</button>
           </div>
         {/if}
@@ -397,6 +428,21 @@
   {#if err}<div class="ld mono err">HARİTA AÇILAMADI: {err}</div>{/if}
 </div>
 
+  {#if isDM && placeMode && mode === 'system'}
+    <div class="place mono">Haritaya tıkla — işaret oraya düşer</div>
+  {/if}
+  {#if pin}
+    <div class="pinf">
+      <div class="mono h">YENİ İŞARET</div>
+      <div class="kd">{#each KINDS as [k,l]}<button class:on={pin.kind===k} onclick={() => pin && (pin.kind = k)}>{l}</button>{/each}</div>
+      <input class="inp" placeholder="Etiket" bind:value={pin.label} maxlength="60" />
+      <input class="inp" placeholder="Kategori (isteğe bağlı)" bind:value={pin.cat} />
+      <textarea class="inp" rows="2" placeholder="Not" bind:value={pin.note}></textarea>
+      {#each plist as p (p.uid)}<label class="ck"><input type="checkbox" checked={pin.players.includes(p.uid)} onchange={(e) => pin && (pin.players = (e.currentTarget as HTMLInputElement).checked ? [...pin.players, p.uid] : pin.players.filter((x) => x !== p.uid))} />{p.name}</label>{/each}
+      <div class="act"><button class="btn" onclick={savePin}>Kaydet</button><button class="btn ghost" onclick={() => { pin = null; placeMode = false; }}>Vazgeç</button></div>
+    </div>
+  {/if}
+
 <style>
   .sm{position:absolute;inset:0;overflow:hidden;background:#020309}
   .gl{position:absolute;inset:0}.gl :global(canvas){display:block;width:100%;height:100%}
@@ -421,9 +467,13 @@
   .ov :global(.sm-lbl .cap){pointer-events:auto;cursor:help;position:relative;display:inline-grid;place-items:center;width:17px;height:17px;border:1px solid rgba(252,238,10,.7);background:rgba(20,16,0,.75);box-shadow:0 0 8px rgba(252,238,10,.35);text-decoration:none}
   .ov :global(.sm-lbl .cap svg){width:12px;height:12px;fill:var(--ye);stroke:var(--ye);stroke-width:.6}
   .ov :global(.sm-lbl .cap.old){border-color:rgba(184,160,96,.6);background:rgba(10,8,0,.6);box-shadow:none}.ov :global(.sm-lbl .cap.old svg){fill:none;stroke:#b8a060;stroke-width:1.2}
-  .ov :global(.sm-lbl .mk s){pointer-events:auto;cursor:help;position:relative;text-decoration:none;margin-left:5px;font-size:12px}
-  .ov :global(.sm-lbl .mk .sh){color:#39ff8a;text-shadow:0 0 8px #39ff8a;animation:evb 1.6s infinite}.ov :global(.sm-lbl .mk .mi){color:#ff9b2f;text-shadow:0 0 8px #ff9b2f}
+  .ov :global(.sm-lbl .mk s){pointer-events:auto;cursor:help;position:relative;text-decoration:none;margin-left:6px;font-size:16px;font-weight:700}
+  .ov :global(.sm-lbl .mk .sh){color:#39ff8a;text-shadow:0 0 12px #39ff8a,0 0 2px #39ff8a;animation:evb 1.2s infinite}.ov :global(.sm-lbl .mk .mi){color:#ff9b2f;text-shadow:0 0 12px #ff9b2f,0 0 2px #ff9b2f;animation:evb 1.4s infinite}
   .ov :global(.sm-lbl .mk s:hover::after){content:attr(data-tip);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);white-space:nowrap;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;color:#000;background:#dff6ff;padding:4px 8px}
+  .pinf{position:absolute;left:50%;top:70px;transform:translateX(-50%);z-index:12;width:min(380px,90vw);background:rgba(5,8,14,.95);border:1px solid var(--cy);padding:12px;display:flex;flex-direction:column;gap:8px}
+  .pinf .kd{display:flex;flex-wrap:wrap;gap:4px}.pinf .kd button{background:none;border:1px solid var(--line);color:var(--mut);padding:4px 8px;font:inherit;font-size:12px}.pinf .kd button.on{border-color:var(--cy);color:var(--cy)}
+  .pinf .ck{display:flex;gap:6px;align-items:center;font-size:13px}
+  .place{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);z-index:11;background:rgba(0,0,0,.7);border:1px solid var(--ye);color:var(--ye);padding:6px 12px;letter-spacing:.16em}
   .mkg{margin-left:auto;color:#39ff8a;font-size:11px}
   .mks{display:flex;flex-direction:column;gap:4px;margin:4px 0 8px}
   .mks button,.mks .mkr{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;text-align:left;background:rgba(0,0,0,.35);border:1px solid rgba(57,255,138,.35);color:var(--tx);padding:5px 8px;font-size:13px}

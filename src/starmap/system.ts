@@ -47,6 +47,7 @@ export class SystemScene {
   showLabels = true; showOrbits = true; moving = true; extent = 120;
   private tex: Record<string, THREE.Texture> = {}; private star!: O; private starDef: StarDef; private timeMats: THREE.ShaderMaterial[] = [];
   private raf = 0; private clock = new THREE.Clock(); private running = false; private t = 0; private v = new THREE.Vector3(); private down = { x: 0, y: 0 };
+  private pinRoot = new THREE.Group(); private pins: { obj: THREE.Object3D; ring?: THREE.Sprite; follow?: O }[] = [];
   private fly: { t0: number; dur: number; fromT: THREE.Vector3; fromP: THREE.Vector3; o: O | null; offT: THREE.Vector3; offP: THREE.Vector3; done?: () => void } | null = null;
   private follow: O | null = null; private lastFollow = new THREE.Vector3(); private reticle: THREE.Sprite; private snapReq: { id: string; res: (u: string[]) => void } | null = null; private snapping = false;
   constructor(private host: HTMLElement, private overlay: HTMLElement, private sys: SysData, bodies: Body[], private hooks: SysHooks, quality: Quality, private opts: SysOpts = {}) {
@@ -63,7 +64,7 @@ export class SystemScene {
     const pl = new THREE.PointLight(C(this.starDef.c).lerp(C('#ffffff'), 0.6), 2.4, 0, 0); this.scene.add(pl);
     this.buildBackground(); this.buildStar(); this.buildBodies(bodies); this.buildLaneGates(opts.gates ?? []);
     this.reticle = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.ret, color: C('#fcee0a').multiplyScalar(0.55), transparent: true, opacity: 0.7, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
-    this.reticle.visible = false; this.reticle.renderOrder = 9; this.scene.add(this.reticle);
+    this.reticle.visible = false; this.reticle.renderOrder = 9; this.scene.add(this.reticle); this.scene.add(this.pinRoot);
     this.setQuality(quality);
     const el = this.renderer.domElement;
     el.addEventListener('pointermove', this.onMove); el.addEventListener('pointerdown', this.onDown); el.addEventListener('pointerup', this.onUp);
@@ -519,6 +520,7 @@ export class SystemScene {
   private frame = () => {
     if (!this.running) return; this.raf = requestAnimationFrame(this.frame);
     const dt = Math.min(this.clock.getDelta(), 0.1); if (this.moving) this.t += dt; const t = this.t, rt = this.clock.elapsedTime;
+    for (const p of this.pins) { if (p.follow) p.obj.position.copy(p.follow.pos); if (p.ring) { const s = (p.follow ? p.follow.r * 6 + 3 : 8) * (1 + 0.25 * Math.sin(rt * 2.5)); p.ring.scale.setScalar(s); p.ring.material.opacity = 0.4 + 0.4 * (0.5 + 0.5 * Math.sin(rt * 2.5)); } }
     const prev = this.follow ? this.follow.pos.clone() : null;
     this.update(t);
     if (this.fly) { const f = this.fly, k = Math.min(1, (performance.now() - f.t0) / f.dur), e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
@@ -549,6 +551,41 @@ export class SystemScene {
     if (this.snapReq) { this.doSnapshot(); if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera); }
   };
   screenOf(id: string) { const o = this.byId.get(id); if (!o) return null; this.v.copy(o.pos).project(this.camera); return { x: (this.v.x * 0.5 + 0.5) * this.host.clientWidth, y: (-this.v.y * 0.5 + 0.5) * this.host.clientHeight }; }
+  setPins(ms: { kind: string; label: string; body?: string; x?: number; y?: number; z?: number }[]) {
+    this.pinRoot.clear(); this.pins = [];
+    const shipMat = new THREE.MeshBasicMaterial({ color: 0x39ff8a });
+    const shipGeo = new THREE.ConeGeometry(0.6, 1.8, 5);
+    for (const m of ms) {
+      const bid = m.body; const follow = bid ? this.objs.find((o) => o.id === bid || o.name.toLocaleLowerCase('tr') === bid.toLocaleLowerCase('tr')) : undefined;
+      const g = new THREE.Group();
+      if (m.kind === 'ship') {
+        const nose = new THREE.Mesh(shipGeo, shipMat); nose.rotation.x = Math.PI / 2;
+        g.add(nose);
+        const edge = this.extent * 0.85;
+        g.position.set(m.x ?? edge, m.y ?? 2, m.z ?? 0);
+      } else {
+        const col = m.kind === 'alert' ? '#ff2a55' : m.kind === 'objective' ? '#fcee0a' : m.kind === 'poi' ? '#00f0ff' : '#ff9b2f';
+        const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.ret, color: C(col), transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
+        ring.scale.setScalar(follow ? follow.r * 6 + 3 : 8);
+        g.add(ring);
+        if (m.x != null) g.position.set(m.x, m.y ?? 0, m.z ?? 0);
+        else if (follow) g.position.copy(follow.pos);
+        else g.position.set(this.extent * 0.4, 0, 0);
+        this.pins.push({ obj: g, ring, follow });
+        this.pinRoot.add(g);
+        continue;
+      }
+      this.pins.push({ obj: g, follow }); this.pinRoot.add(g);
+    }
+  }
+  groundHit(cx: number, cy: number) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, this.camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const hit = new THREE.Vector3(); if (!ray.ray.intersectPlane(plane, hit)) return null;
+    return { x: hit.x, y: hit.y, z: hit.z };
+  }
   dispose() {
     this.stop(); const el = this.renderer.domElement;
     el.removeEventListener('pointermove', this.onMove); el.removeEventListener('pointerdown', this.onDown); el.removeEventListener('pointerup', this.onUp);

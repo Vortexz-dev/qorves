@@ -2,12 +2,14 @@
   // Timeline / Codex / Starmap / God's Eye açılış girişi (~1,6 sn). Tıkla ya da bir tuşa bas: atlanır.
   import { onMount } from 'svelte';
   import { sfx } from '../lib/sfx';
-  let { id, ondone }: { id: 'timeline' | 'codex' | 'starmap' | 'gods'; ondone?: () => void } = $props();
+  let { id, ondone }: { id: 'timeline' | 'codex' | 'starmap' | 'gods' | 'persona' | 'ghoskey'; ondone?: () => void } = $props();
   const C = {
     timeline: { t: 'QORVES TIMELINE', k: 'KRONOLOJİ ÇEKİRDEĞİ', l: ['ZAMAN EKSENİ HİZALANIYOR', 'ÇAĞLAR İNDEKSLENDİ', 'SS 224 · ŞİMDİ'] },
     codex: { t: 'QORVES CODEX', k: 'KÜME BİLGİ BANKASI', l: ['ARŞİV ŞİFRESİ ÇÖZÜLÜYOR', 'KAYITLAR EŞLENİYOR', 'ERİŞİM İZNİ DOĞRULANDI'] },
     gods: { t: "GOD'S EYE", k: 'CANLI SAHNE AĞI', l: ['GÖZETİM DÜĞÜMÜ UYANIYOR', 'SAHNE KANALI ARANIYOR', 'GÖRÜŞ ALANI KİLİTLENDİ'] },
     starmap: { t: 'QORVES STARMAP', k: 'NAVİGASYON AĞI', l: ['SENSÖR DİZİSİ AÇILIYOR', 'HİPERHATLAR TARANIYOR', 'KÜME KONUMU KİLİTLENDİ'] },
+    persona: { t: 'PERSONA.ID', k: 'KİMLİK ÇEKİRDEĞİ', l: ['BİYOMETRİ OKUNUYOR', 'KAĞIT EŞLENİYOR', 'KİMLİK KİLİDİ AÇILDI'] },
+    ghoskey: { t: 'ghOS-KEY', k: 'KAYIT DIŞI SIZMA', l: ['RÖLE ZİNCİRİ KURULUYOR', 'İZ SİLİCİ ETKİN', 'ANAHTAR TAKILDI'] },
   }[id];
   let on = $state(true), out = $state(false), n = $state(0);
   const YEARS = ['−1.000.000', '−120.000', '−12.000', '−3.400', '−900', '−210', '0', 'SS 100', 'SS 224'];
@@ -31,7 +33,7 @@
   <div class="bg"></div>
   {#if id === 'timeline'}
     <div class="axis"><i></i>{#each YEARS as y, i (y)}<span style:left="{6 + i * 11}%" style:animation-delay="{0.14 + i * 0.06}s"><b></b>{y}</span>{/each}</div>
-  {:else if id === 'codex'}
+  {:else if id === 'codex' || id === 'persona'}
     <div class="cells">{#each cells as c (c.i)}<i class:w={c.w} style:animation-delay="{c.d}s"></i>{/each}</div>
   {:else if id === 'gods'}
     <div class="eye"><i class="lid"></i><i class="ir i1"></i><i class="ir i2"></i><i class="pu"></i><i class="hz"></i><i class="vt"></i>{#each Array(12) as _, i (i)}<b style:transform="rotate({i * 30}deg)" style:animation-delay="{0.1 + i * 0.03}s"></b>{/each}</div>
@@ -53,7 +55,7 @@
 
 <style>
   .ci{position:absolute;inset:0;z-index:7;display:grid;place-items:center;cursor:pointer;--c:#00f0ff;--c2:#fcee0a;overflow:hidden}
-  .ci.codex{--c:#fcee0a;--c2:#00f0ff}.ci.gods{--c:#ff2a55;--c2:#00f0ff}.ci.starmap{--c:#7df9ff;--c2:#ff2a55}
+  .ci.codex{--c:#fcee0a;--c2:#00f0ff}.ci.gods{--c:#ff2a55;--c2:#00f0ff}.ci.starmap{--c:#7df9ff;--c2:#ff2a55}.ci.persona{--c:#fcee0a;--c2:#00f0ff}.ci.ghoskey{--c:#39ff8a;--c2:#ff2a55}
   .ci.out{animation:co .3s cubic-bezier(.7,0,.3,1) forwards}
   @keyframes co{0%{opacity:1;filter:none}40%{filter:hue-rotate(70deg) brightness(1.8);transform:skewX(-4deg)}100%{opacity:0;clip-path:inset(48% 0 48% 0);transform:none}}
   .bg{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(4,10,18,.88),rgba(2,3,8,.97) 70%)}

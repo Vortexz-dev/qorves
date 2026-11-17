@@ -3,7 +3,7 @@
   import { backend } from '../lib/backend';
   import { ask } from '../lib/confirm.svelte';
   import { removeAllNotes, loadNotes } from '../lib/notes.svelte';
-  import { closeAppWins } from '../desktop/wm.svelte';
+  import { closeAppWins, wm, closeCore } from '../desktop/wm.svelte';
   import { sfx } from '../lib/sfx';
   import { ICONS } from '../desktop/icons';
   const user = session.user!;
@@ -24,15 +24,16 @@
     if (!ok) return;
     phase[id] = 'KALDIRILIYOR'; busy[id] = 50; closeAppWins(id);
     if (id === 'notepad') await removeAllNotes();
+    if (wm.core === id) closeCore();
     await setApps((user.apps ?? []).filter((x) => x !== id)); busy[id] = 0; phase[id] = ''; sfx.close();
   }
 </script>
 <div class="st">
   <div class="hd"><div class="mono k">Q-MAĞAZA · HER ŞEY ÜCRETSİZ</div><h2>Uygulamalar</h2></div>
   {#each store as a (a.id)}
-  <div class="card" class:on={has(a.id)} class:ghos={a.id === 'ghos'}>
+  <div class="card" class:on={has(a.id)} class:ghos={a.id === 'ghos' || a.illegal}>
     <div class="ic">{@html ICONS[a.icon]}</div>
-    <div class="tx"><b>{a.storeTitle ?? a.title}{#if a.id === 'ghos'}<em class="mono">KAYIT DIŞI</em>{/if}</b><span>{a.desc}</span>
+    <div class="tx"><b>{a.storeTitle ?? a.title}{#if a.id === 'ghos' || a.illegal}<em class="mono">KAYIT DIŞI</em>{/if}</b><span>{a.desc}</span>
       {#if busy[a.id]}<div class="pb"><i style:width="{busy[a.id]}%"></i></div><small class="mono">{phase[a.id]}… {busy[a.id]}%</small>{/if}</div>
     {#if !a.optional}<span class="mono sys">YÜKLÜ · SİSTEM</span>{:else if has(a.id)}<button class="btn red" disabled={!!busy[a.id]} onclick={() => uninstall(a.id)}>Kaldır</button>{:else}<button class="btn" disabled={!!busy[a.id]} onclick={() => install(a.id)}>Kur</button>{/if}
   </div>

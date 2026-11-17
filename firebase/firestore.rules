@@ -97,6 +97,11 @@ service cloud.firestore {
       allow read: if signedIn();
       allow write: if isDM();
     }
+    // Oyuncu, kendisine gönderilen sızma saldırısının sonucunu işaretleyebilir.
+    match /world/hackatk {
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'ok', 'at']);
+    }
     // Çevrimiçi durumu: herkes okur (kişi listesi), herkes yalnız kendini yazar.
     match /presence/{uid} {
       allow read: if signedIn();
@@ -315,6 +320,64 @@ service cloud.firestore {
         && request.resource.data.x is number && request.resource.data.y is number && request.resource.data.f is number);
       allow delete: if isDM() || (signedIn() && uid == request.auth.uid);
     }
+
+    // Persona.ID: kağıt + envanter (oyuncu), krom (DM).
+    match /persona/{uid} {
+      allow read: if isMe(uid) || isDM();
+      allow create: if isMe(uid) || isDM();
+      allow update: if isDM() || (isMe(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hp', 'unspent', 'lvlSeen', 'armor', 'at']));
+      allow delete: if isDM();
+      match /inv/{id} {
+        allow read: if isMe(uid) || isDM();
+        allow delete: if isMe(uid) || isDM();
+        allow create, update: if (isMe(uid) || isDM()) && request.resource.data.name is string && request.resource.data.name.size() <= 80
+          && request.resource.data.kg is number && request.resource.data.qty is int
+          && (!('img' in request.resource.data) || (request.resource.data.img is string && request.resource.data.img.size() < 120000))
+          && (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 400));
+      }
+      match /chrome/{id} {
+        allow read: if isMe(uid) || isDM();
+        allow write: if isDM();
+      }
+    }
+    // Günlük: görevler, ödüller, NPC ilişkileri — görünür oyuncular okur, DM yazar.
+    match /journal/{id} {
+      allow read: if isDM() || (signedIn() && request.auth.uid in resource.data.players);
+      allow write: if isDM();
+    }
+    match /bounties/{id} {
+      allow read: if isDM() || (signedIn() && request.auth.uid in resource.data.players);
+      allow write: if isDM();
+    }
+    match /rels/{id} {
+      allow read: if isDM() || (signedIn() && request.auth.uid in resource.data.players);
+      allow write: if isDM();
+    }
+    // Qorves Times: DM haberi. Harita olayları istemcide türetilir.
+    match /news/{id} {
+      allow read: if signedIn();
+      allow write: if isDM();
+    }
+    // ghOS-Key ağları ve log.
+    match /hacknet/{id} {
+      allow read: if isDM() || (signedIn() && request.auth.uid in resource.data.players);
+      allow write: if isDM();
+    }
+    match /hacklog/{id} {
+      allow read: if isDM() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isDM();
+    }
+    // DM radyosu MP3 parçaları (Spark: Storage yok).
+    match /radio_files/{id} {
+      allow read: if signedIn();
+      allow write: if isDM();
+      match /chunks/{n} {
+        allow read: if signedIn();
+        allow write: if isDM() && (request.resource == null || (request.resource.data.d is string && request.resource.data.d.size() < 900000));
+      }
+    }
+
     match /config/{id} {
       allow read: if signedIn();
       allow write: if isDM();

@@ -19,9 +19,22 @@
   import DiceFeed from './dm/DiceFeed.svelte';
   import ShipTab from './dm/ShipTab.svelte';
   import DuelFeed from './dm/DuelFeed.svelte';
+  import PersonaTab from './dm/PersonaTab.svelte';
+  import RadioTab from './dm/RadioTab.svelte';
+  import NewsTab from './dm/NewsTab.svelte';
+  import HackTab from './dm/HackTab.svelte';
   let { arg }: { arg?: string } = $props();
   const ok = session.user?.role === 'dm';
-  const TABS = [['players', 'Oyuncular'], ['know', 'Bilgi izinleri'], ['events', 'Olaylar'], ['sess', 'Oturum'], ['gods', "God's Eye"], ['cal', 'Takvim'], ['notify', 'Bildirim'], ['npc', 'ghOS-Net'], ['markers', 'Harita işaretleri'], ['wallet', 'Cüzdan'], ['dice', 'Zar akışı'], ['duel', 'Zar Düellosu'], ['ship', 'Gemi']] as const;
+  const SECTIONS: { h: string; tabs: [string, string][] }[] = [
+    { h: 'Oyuncular', tabs: [['players', 'Kayıtlar'], ['know', 'Bilgi izinleri'], ['persona', 'Persona.ID']] },
+    { h: 'Dünya', tabs: [['events', 'Harita olayları'], ['cal', 'Takvim'], ['news', 'Qorves Times'], ['radio', 'Radyo / müzik']] },
+    { h: 'Harita', tabs: [['markers', 'İşaretler ve gemiler']] },
+    { h: 'İletişim', tabs: [['notify', 'Bildirim'], ['npc', 'ghOS-Net']] },
+    { h: 'Masa', tabs: [['sess', 'Oturum'], ['gods', "God's Eye"], ['ship', 'Gemi']] },
+    { h: 'Finans', tabs: [['wallet', 'Cüzdan'], ['dice', 'Zar akışı'], ['duel', 'Zar Düellosu']] },
+    { h: 'Sızma', tabs: [['hack', 'ghOS-Key']] },
+  ];
+  const TABS = SECTIONS.flatMap((s) => s.tabs);
   let tab = $state<string>(arg && TABS.some((t) => t[0] === arg) ? arg : 'players'), err = $state('');
   const go = (t: string) => { tab = t; sfx.click(); };
   $effect(() => { if (arg && TABS.some((t) => t[0] === arg)) tab = arg; });
@@ -34,7 +47,10 @@
 <div class="dmp">
   <nav>
     <div class="br mono">DM PANELİ<small>{dm.users.length} oyuncu · {online} çevrimiçi</small></div>
-    {#each TABS as [k, l] (k)}<button class:on={tab === k} onclick={() => go(k)}>{l}{#if k === 'npc' && npcUnread}<em>{npcUnread}</em>{/if}</button>{/each}
+    {#each SECTIONS as s (s.h)}
+      <div class="sec mono">{s.h}</div>
+      {#each s.tabs as [k, l] (k)}<button class:on={tab === k} onclick={() => go(k)}>{l}{#if k === 'npc' && npcUnread}<em>{npcUnread}</em>{/if}</button>{/each}
+    {/each}
   </nav>
   <main>
     {#if err}<div class="no mono">YÜKLENEMEDİ · {err}</div>
@@ -51,17 +67,22 @@
     {:else if tab === 'wallet'}<WalletTab />
     {:else if tab === 'dice'}<DiceFeed />
     {:else if tab === 'duel'}<DuelFeed />
-    {:else if tab === 'ship'}<ShipTab />{/if}
+    {:else if tab === 'ship'}<ShipTab />
+    {:else if tab === 'persona'}<PersonaTab />
+    {:else if tab === 'radio'}<RadioTab />
+    {:else if tab === 'news'}<NewsTab />
+    {:else if tab === 'hack'}<HackTab />{/if}
   </main>
 </div>
 {/if}
 <style>
-  .dmp{display:grid;grid-template-columns:180px 1fr;height:100%;min-height:0}
+  .dmp{display:grid;grid-template-columns:200px 1fr;height:100%;min-height:0}
   nav{border-right:1px solid var(--line);display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,42,85,.06),transparent 40%)}
   .br{padding:14px 14px 12px;font-size:13px;letter-spacing:.25em;color:var(--rd);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:4px}.br small{font-size:10px;letter-spacing:.1em;color:var(--mut)}
   nav button{display:flex;align-items:center;background:none;border:0;border-left:2px solid transparent;color:var(--tx);text-align:left;padding:10px 14px;font:inherit;font-size:15px}
   nav button:hover{background:rgba(0,240,255,.06)}nav button.on{border-left-color:var(--rd);background:rgba(255,42,85,.1);color:#fff}
   nav em{margin-left:auto;font-style:normal;font-family:var(--f-mono);font-size:10px;background:#ff2a8a;color:#000;padding:0 5px}
+  .sec{padding:10px 14px 4px;font-size:9.5px;letter-spacing:.22em;color:var(--mut);margin-top:4px}
   .dmp :global(.btn.small){font-size:11.5px;letter-spacing:.1em;padding:6px 12px;white-space:nowrap;--cut:8px}
   main{min-height:0;min-width:0;overflow:hidden}
   .no{padding:30px;color:var(--mut);font-size:12px;letter-spacing:.2em}

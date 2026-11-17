@@ -15,7 +15,7 @@ function touchRecent(id: string) { if (appById(id)?.hidden) return; recent.ids =
 export function openApp(id: string, arg?: string) {
   wm.start = false; touchRecent(id);
   const a = appById(id);
-  if (a.core) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; wm.coreMin = false; sfx.open(); } else if (wm.coreMin) { wm.coreMin = false; sfx.open(); } return; } // çekirdek uygulamalar birbirinin yerine geçer
+  if (a.core || a.full) { if (wm.core !== id) { wm.core = id; wm.coreClosing = false; wm.coreMin = false; sfx.open(); } else if (wm.coreMin) { wm.coreMin = false; sfx.open(); } return; } // çekirdek / tam ekran uygulamalar birbirinin yerine geçer
   // tek pencereli uygulamalar (ghOS-Net, DM Paneli): var olan pencere yeni hedefe geçer
   const one = id === 'ghos' || id === 'dm';
   const ex = wm.wins.find((w) => w.app === id && (one || w.arg === arg));

@@ -1,6 +1,6 @@
 // Sentezlenmiş arayüz sesleri (dosya yok). AudioContext ilk kullanıcı etkileşiminde açılır.
 let ctx: AudioContext | null = null, master: GainNode | null = null;
-let vol = Number(localStorage.getItem('qv.vol') ?? '0.5'), muted = localStorage.getItem('qv.mute') === '1';
+let vol = Number(localStorage.getItem('qv.vol') ?? '0.5'), mus = Number(localStorage.getItem('qv.mvol') ?? '0.7'), muted = localStorage.getItem('qv.mute') === '1';
 function ensure() {
   if (!ctx) { ctx = new AudioContext(); master = ctx.createGain(); master.connect(ctx.destination); apply(); }
   if (ctx.state === 'suspended') ctx.resume();
@@ -8,10 +8,13 @@ function ensure() {
 }
 function apply() { if (master) master.gain.value = muted ? 0 : vol * 0.35; }
 export const audio = {
-  get volume() { return vol; }, get muted() { return muted; },
+  get volume() { return vol; }, get music() { return mus; }, get muted() { return muted; },
   setVolume(v: number) { vol = v; localStorage.setItem('qv.vol', String(v)); apply(); },
-  setMuted(m: boolean) { muted = m; localStorage.setItem('qv.mute', m ? '1' : '0'); apply(); },
+  setMusic(v: number) { mus = v; localStorage.setItem('qv.mvol', String(v)); window.dispatchEvent(new Event('qv-mvol')); },
+  setMuted(m: boolean) { muted = m; localStorage.setItem('qv.mute', m ? '1' : '0'); apply(); window.dispatchEvent(new Event('qv-mvol')); },
+  mediaGain() { return muted ? 0 : mus; },
   suspend() { ctx?.suspend(); },
+  ctx: () => { ensure(); return ctx!; },
 };
 function tone(f: number, d: number, type: OscillatorType = 'square', g = 0.25, slide = 0, delay = 0) {
   const c = ensure(); if (!master) return;
@@ -53,9 +56,27 @@ export const sfx = {
   coin: () => { for (let i = 0; i < 4; i++) tone(2400 + i * 380, 0.08, 'triangle', 0.08, -200, i * 0.05); },
   /** Kaybetme: alçak düşüş */
   lose: () => { tone(240, 0.3, 'triangle', 0.14, -120); tone(160, 0.4, 'triangle', 0.1, -60, 0.16); },
+  /** Bozuk kahkaha: jumpscare. Kısa, yüksek, bozulmuş. */
+  laugh: () => {
+    const c = ensure(); if (!master) return;
+    const t0 = c.currentTime;
+    const buf = c.createBuffer(1, c.sampleRate * 1.2, c.sampleRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) {
+      const x = i / c.sampleRate;
+      const env = x < 0.05 ? x / 0.05 : Math.max(0, 1 - (x - 0.05) / 1.1);
+      const trill = Math.sin(2 * Math.PI * (9 + x * 3) * x);
+      const tone0 = Math.sin(2 * Math.PI * (180 + Math.sin(2 * Math.PI * 7 * x) * 40) * x);
+      ch[i] = (tone0 * 0.7 + trill * 0.5 + (Math.random() * 2 - 1) * 0.35) * env * 0.9;
+    }
+    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.7;
+    s.buffer = buf; g.gain.value = 0.85; s.connect(f).connect(g).connect(master); s.start();
+    tone(90, 0.5, 'sawtooth', 0.2, -40);
+  },
 };
+
 /** Ortam sesi: prosedürel, alçak uğultu. Ana ses düğmesine bağlı; açılışta yavaşça gelir, kapanışta söner. */
-export function ambient(kind: 'codex' | 'starmap' | 'timeline' | 'ship'): () => void {
+export function ambient(kind: 'codex' | 'starmap' | 'timeline' | 'ship' | 'persona' | 'ghoskey' | 'times'): () => void {
   const c = ensure(); if (!master) return () => {};
   const out = c.createGain(), t0 = c.currentTime; out.gain.setValueAtTime(0.0001, t0); out.gain.exponentialRampToValueAtTime(kind === 'codex' ? 0.22 : kind === 'timeline' ? 0.2 : kind === 'ship' ? 0.24 : 0.26, t0 + 3);
   out.connect(master); const nodes: AudioScheduledSourceNode[] = [];
@@ -83,6 +104,19 @@ export function ambient(kind: 'codex' | 'starmap' | 'timeline' | 'ship'): () => 
     osc(36.7, 'sawtooth', 0.32, chug); osc(55, 'square', 0.06, chug, 6); osc(73.4, 'triangle', 0.08, lp, -4);
     const hum = c.createBiquadFilter(); hum.type = 'bandpass'; hum.frequency.value = 240; hum.Q.value = 6; hum.connect(out); osc(120, 'sawtooth', 0.05, hum);
     const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 0.5; bp.connect(out); noiseSrc(bp, 0.035); lfo(0.06, 500, bp.frequency);
+  } else if (kind === 'persona') { // klinik kimlik: yumuşak tarayıcı, nabız
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 280; lp.connect(out);
+    osc(49, 'sine', 0.4, lp); osc(73.4, 'triangle', 0.12, lp, 4); osc(196, 'sine', 0.04, out);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1600; bp.Q.value = 0.7; bp.connect(out); noiseSrc(bp, 0.04); lfo(0.08, 400, bp.frequency);
+    const sh = osc(392, 'sine', 0.0, out); const tr = c.createGain(); tr.gain.value = 0.02; const tl = c.createOscillator(); tl.frequency.value = 1.15; tl.connect(tr).connect(sh.a.gain); tl.start(); nodes.push(tl);
+  } else if (kind === 'ghoskey') { // yasadışı terminal: tiz dijital uğultu, bozulma
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 400; lp.Q.value = 1.4; lp.connect(out);
+    osc(58, 'square', 0.08, lp); osc(116, 'sawtooth', 0.05, lp, 8); osc(174, 'triangle', 0.04, lp);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 2; bp.connect(out); noiseSrc(bp, 0.05); lfo(0.14, 800, bp.frequency);
+  } else if (kind === 'times') { // haber odası: teleks, uzak kalabalık
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.connect(out);
+    osc(65.4, 'triangle', 0.2, lp); osc(98, 'sine', 0.1, lp, 3);
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1100; bp.Q.value = 0.5; bp.connect(out); noiseSrc(bp, 0.07); lfo(0.05, 350, bp.frequency);
   } else { // derin uzay: alçak beşli, yavaş süpürülen rüzgâr, uzak ışıltı
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180; lp.connect(out);
     osc(41.2, 'sine', 0.5, lp); osc(61.7, 'sine', 0.22, lp, 4); osc(82.4, 'triangle', 0.08, lp, -5);

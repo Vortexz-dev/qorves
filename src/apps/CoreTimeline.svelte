@@ -2,7 +2,7 @@
   // Qorves Timeline: en yeni olay en üstte; aşağı kaydırdıkça geçmişe gidilir.
   // Sanallaştırılmış satırlar + tek rAF döngüsü (yalnız hareket varken ve sekme görünürken).
   import { onMount, tick } from 'svelte';
-  import { kb, loadKb, allEntries, getEntry, type Entry } from '../lib/kb.svelte';
+  import { kb, loadKb, allEntries, getEntry, isRecent, type Entry } from '../lib/kb.svelte';
   import { session } from '../lib/session.svelte';
   import { settings } from '../lib/settings.svelte';
   import { tlnav } from '../lib/tlnav.svelte';
@@ -26,7 +26,24 @@
   const hasMore = (e: Ev) => multi(e) || e.vers!.some((v) => v.sections.some((s) => s.x && s.x !== v.summary));
   // DM'nin yayımladığı yeni olaylar (taslaklar yalnız DM'ye görünür)
   let tl = $state<TlEvent[]>([]);
-  const tlEntry = (t: TlEvent): Entry & { draft?: boolean } => ({ id: 'tl:' + t.id, type: 'event', name: t.name, date: t.date, ys: t.ys, race: t.race, summary: t.summary, key: 'k.tl', draft: !t.published,
+  let raceF = $state<'all' | 'elf' | 'cuce' | 'insan'>('all');
+  let onlyNew = $state(false);
+  let jumpQ = $state('');
+  function parseYs(s: string) {
+    const x = s.trim().toLocaleUpperCase('tr').replace(/\./g, '').replace(/\s+/g, ' ');
+    if (!x) return null;
+    const m = x.match(/^(SS|SÖ|SO)\s*(-?\d+)$/) || x.match(/^(-?\d+)$/);
+    if (!m) return null;
+    if (m.length === 2 && !m[0].startsWith('S')) return +m[1];
+    return (m[1] === 'SS') ? +m[2] : -Math.abs(+m[2]);
+  }
+  function jumpDate() {
+    const y = parseYs(jumpQ); if (y == null || !sc) return;
+    let best = -1, d = Infinity;
+    for (const r of rows) { if (r.kind !== 'ev') continue; const dd = Math.abs((r.e.ys ?? 0) - y); if (dd < d) { d = dd; best = r.i; } }
+    if (best >= 0) jump(best);
+  }
+  const tlEntry = (t: TlEvent): Entry & { draft?: boolean } => ({ id: 'tl:' + t.id, type: 'event', name: t.name, date: t.date, ys: t.ys, race: t.race, summary: t.summary, key: 'k.tl', draft: !t.published, revAt: t.at,
     sections: t.text ? [{ t: 'Ayrıntı', x: t.text, o: 0 }] : [] });
   const rows = $derived.by(() => {
     if (!kb.ready) return [] as Row[];
@@ -39,8 +56,11 @@
       if (m) { m.vers!.push(e); if (!m.img && e.img) m.img = e.img; if (e.name.length < m.name.length) m.name = e.name; continue; }
       const c: Ev = { ...e, vers: [e] }; ev.push(c); if (g) byG.set(g, c);
     }
+    let evF = ev;
+    if (raceF !== 'all') evF = evF.filter((e) => (e.vers ?? [e]).some((v) => (v.race ?? 'insan') === raceF));
+    if (onlyNew) evF = evF.filter((e) => (e.vers ?? [e]).some((v) => isRecent(v)));
     const out: Row[] = []; let band = -1, n = 0;
-    for (const e of ev) {
+    for (const e of evF) {
       const bi = BANDS.findIndex((b) => (e.ys ?? -1e6) >= b.min);
       if (bi !== band) { band = bi; out.push({ kind: 'band', label: BANDS[bi].label, i: out.length }); }
       out.push({ kind: 'ev', e, side: n++ % 2, i: out.length });
@@ -48,6 +68,7 @@
     return out;
   });
   let heights = $state<Record<number, number>>({});
+  $effect(() => { raceF; onlyNew; heights = {}; });
   let open = $state<Record<string, boolean>>({});
   const offs = $derived.by(() => {
     const o: number[] = []; let y = TOP;
@@ -158,7 +179,7 @@
             <article class="card" use:measure={r.i}>
               <div class="im"><img src={img(e)} alt={e.name} loading="lazy" decoding="async" /></div>
               <div class="tx">
-                <div class="meta mono">{#each e.vers ?? [e] as v (v.id)}<b style:color={(RACE[v.race ?? 'insan'] ?? RACE.insan).c}>{(RACE[v.race ?? 'insan'] ?? RACE.insan).n}</b>{/each}{#if eraName(e)}<span>{eraName(e)}</span>{/if}{#if e.key === 'k.tl'}<span class="new">{e.draft ? 'TASLAK · YALNIZ DM' : 'YENİ KAYIT'}</span>{/if}</div>
+                <div class="meta mono">{#each e.vers ?? [e] as v (v.id)}<b style:color={(RACE[v.race ?? 'insan'] ?? RACE.insan).c}>{(RACE[v.race ?? 'insan'] ?? RACE.insan).n}</b>{/each}{#if eraName(e)}<span>{eraName(e)}</span>{/if}{#if e.key === 'k.tl'}<span class="new">{e.draft ? 'TASLAK · YALNIZ DM' : 'YENİ KAYIT'}</span>{:else if (e.vers ?? [e]).some((v) => isRecent(v))}<span class="new">YENİ</span>{/if}</div>
                 <h3>{e.name}</h3>
                 {#if !multi(e) || sameSum(e)}
                   <p class="sum">{#if e.summary}<RichText text={e.summary} self={e.id} />{:else}<i>Ayrıntılar bilinmiyor.</i>{/if}</p>
@@ -186,6 +207,17 @@
   </div>
   <canvas bind:this={cv} class="orb"></canvas>
   <div class="hud mono"><small>KONUM</small><b>{curDate}</b></div>
+  <div class="tf">
+    <span class="mono k">SÜZ</span>
+    {#each [['all', 'Tümü'], ['elf', 'Elf'], ['cuce', 'Cüce'], ['insan', 'İnsan']] as [k, l]}
+      <button class:on={raceF === k} onclick={() => { raceF = k as typeof raceF; sfx.click(); }}>{l}</button>
+    {/each}
+    <button class:on={onlyNew} onclick={() => { onlyNew = !onlyNew; sfx.click(); }} title="Son 14 günde açılan kartlar">Yeni</button>
+    <form class="jmp" onsubmit={(e) => { e.preventDefault(); jumpDate(); }}>
+      <input class="inp" bind:value={jumpQ} placeholder="Tarihe atla · SS 100, SÖ 500" />
+      <button type="submit">Git</button>
+    </form>
+  </div>
   <nav class="mini">
     {#each bandRows as b (b.i)}
       <button style:top="{(offs[b.i] / total) * 100}%" class:cur={cur && offs[b.i] <= orbC && (bandRows.find((x) => x.i > b.i) ? offs[bandRows.find((x) => x.i > b.i)!.i] > orbC : true)} onclick={() => jump(b.i)}>
@@ -199,6 +231,13 @@
 
 <style>
   .tl{position:absolute;inset:0;overflow:hidden;background:#04050a}
+  .tf{position:absolute;left:18px;top:18px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;background:rgba(4,5,10,.88);border:1px solid var(--line);max-width:min(640px,58vw)}
+  .tf .k{font-size:10px;letter-spacing:.3em;color:var(--mut);margin-right:4px}
+  .tf button{background:none;border:1px solid var(--line);color:var(--mut);padding:3px 9px;font:inherit;font-size:12px}
+  .tf button.on{border-color:var(--cy);color:var(--cy);box-shadow:0 0 8px rgba(0,240,255,.25)}
+  .tf .jmp{display:flex;gap:4px;margin-left:6px}
+  .tf .jmp input{width:180px;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--tx);padding:3px 8px;font:inherit;font-size:12px}
+  .tf .jmp button{border-color:var(--ye);color:var(--ye)}
   .bg{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,240,255,.08),transparent 60%),
     repeating-linear-gradient(0deg,rgba(0,240,255,.035) 0 1px,transparent 1px 60px),repeating-linear-gradient(90deg,rgba(0,240,255,.025) 0 1px,transparent 1px 60px)}
   .sc{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(0,240,255,.35) transparent}

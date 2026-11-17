@@ -9,7 +9,7 @@ import { revealsOf } from './live';
 export interface Section { t: string; x: string; k?: string; o: number }
 export interface Entry {
   id: string; type: string; name: string; aliases?: string[]; summary?: string; key: string; parent?: string;
-  date?: string; ys?: number; race?: string; ends?: string[]; region?: string; range?: string; ord?: number; sections: Section[]; pic?: string; img?: string;
+  date?: string; ys?: number; race?: string; ends?: string[]; region?: string; range?: string; ord?: number; sections: Section[]; pic?: string; img?: string; revAt?: number;
 }
 export interface Body {
   id: string; sys: string; name: string; pop?: string; note?: string; kind: string; cls: string; type: string; orbit?: string; au?: number; au2?: number; parent?: string; l4?: string;
@@ -50,8 +50,10 @@ export function loadKb(user: UserProfile) {
     const tags = ['k.public'];
     sealed.forEach((b, i) => { if (b) { bundles.push(b); tags.push(keys[i].id); } });
     // DM'nin oyuncuya tek tek açtığı kayıtlar (users/{uid}/reveals; düz metin, yalnız o oyuncu okuyabilir)
+    const revAt = new Map<string, number>();
     if (user.role !== 'dm') for (const r of await revealsOf(user.uid).catch(() => [])) {
       bundles.push({ e: [r.e as Omit<Entry, 'sections'>], s: (r.s ?? []).map((x) => ({ ...x, id: r.id })), b: (r.b ?? []) as unknown as Body[] }); tags.push('reveal');
+      if (r.at) revAt.set(r.id, r.at);
     }
     kb.keys = ['k.public', ...keys.map((k) => k.id)];
     for (const b of bundles) for (const e of b.e) map.set(e.id, { ...e, sections: [] } as Entry);
@@ -59,6 +61,7 @@ export function loadKb(user: UserProfile) {
     for (const b of bundles) for (const x of b.b ?? []) bodies.set(x.id, { ...x });
     for (const b of bundles) for (const x of b.bx ?? []) { const o = bodies.get(x.id); if (o) o.dm = x.x; }
     for (const e of map.values()) {
+      const ra = revAt.get(e.id); if (ra) e.revAt = ra;
       e.sections.sort((a, b) => a.o - b.o);
       if (e.parent && map.has(e.parent)) { const a = kids.get(e.parent) ?? []; a.push(e.id); kids.set(e.parent, a); }
     }
@@ -133,3 +136,4 @@ export function searchKb(q: string, limit = 40) {
   }
   return [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id, s]) => ({ e: map.get(id)!, s }));
 }
+export const isRecent = (e: Entry, days = 14) => !!e.revAt && Date.now() - e.revAt < days * 86400000;

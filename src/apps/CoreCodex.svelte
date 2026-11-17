@@ -10,7 +10,7 @@
   import TagView from '../ui/TagView.svelte';
   import { showOnTimeline } from '../lib/tlnav.svelte';
   import { getEntry } from '../lib/kb.svelte';
-  let q = $state(''), classic = $state(false), cat = $state('system'), art = $state(''), filter = $state('');
+  let q = $state(''), classic = $state(false), cat = $state('system'), art = $state(''), filter = $state(''), peek = $state('');
   let inp: HTMLInputElement | undefined = $state();
   const res = $derived(kb.ready && q.trim() ? searchKb(q, 40) : []);
   const counts = $derived(kb.ready ? TYPE_ORDER.map((t) => [t, allEntries().filter((e) => e.type === t).length] as const).filter(([, n]) => n) : []);
@@ -18,7 +18,7 @@
     .sort((a, b) => (cat === 'event' || cat === 'era' ? (a.ys ?? a.ord ?? 0) - (b.ys ?? b.ord ?? 0) : a.name.localeCompare(b.name, 'tr'))) : []);
   onMount(() => { loadKb(session.user!); setTimeout(() => inp?.focus(), 700); const stop = ambient('codex'); return stop; });
   const hl = (s: string, n = 150) => (s.length > n ? s.slice(0, n) + '…' : s);
-  function pick(id: string) { sfx.click(); if (classic) art = id; else if (getEntry(id)?.type === 'event') showOnTimeline(id); else openTag(id); }
+  function pick(id: string) { sfx.click(); if (classic) art = id; else if (getEntry(id)?.type === 'event') peek = id; else openTag(id); }
   function toggle() { classic = !classic; sfx.glitch(); if (classic && !art) art = list[0]?.id ?? ''; }
 </script>
 
@@ -44,6 +44,7 @@
               <span class="g">{@html m.glyph}</span>
               <span class="tx"><b>{r.e.name}</b>{#if r.e.date}<i class="mono">{r.e.date}</i>{/if}<small>{hl(r.e.summary ?? '')}</small></span>
               <span class="mono ty">{m.label}</span>
+              {#if r.e.type === 'event'}<span class="tlm mono">ZAMAN ÇİZELGESİ</span>{/if}
             </button>
           {:else}<div class="none mono">{kb.ready ? 'EŞLEŞME YOK' : 'VERİ YÜKLENİYOR…'}</div>{/each}
         </div>
@@ -64,6 +65,16 @@
         </div>
       </div>
       <div class="art">{#if art}{#key art}<div class="ai"><TagView id={art} nav={(id) => (art = id)} /></div>{/key}{/if}</div>
+    </div>
+  {/if}
+  {#if peek && !classic}
+    <div class="peek">
+      <div class="ph">
+        <span class="tlm mono">ZAMAN ÇİZELGESİ KAYDI</span>
+        <button class="btn" onclick={() => { showOnTimeline(peek); sfx.click(); }}>Timeline'da aç</button>
+        <button class="btn ghost" onclick={() => (peek = '')}>Kapat</button>
+      </div>
+      <div class="pb">{#key peek}<TagView id={peek} nav={(id) => (peek = id)} />{/key}</div>
     </div>
   {/if}
 </div>
@@ -92,6 +103,11 @@
   .tx{flex:1;display:flex;flex-direction:column;min-width:0}.tx b{font-size:17px;color:#fff}.tx i{font-size:11px;color:var(--c);font-style:normal}
   .tx small{color:var(--mut);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ty{font-size:10px;letter-spacing:.2em;color:var(--c)}
+  .tlm{font-size:9px;letter-spacing:.18em;color:var(--ye);border:1px solid rgba(252,238,10,.55);padding:2px 6px;white-space:nowrap}
+  .peek{position:absolute;left:50%;top:12%;transform:translateX(-50%);z-index:8;width:min(760px,90vw);max-height:78vh;overflow:auto;background:rgba(5,8,14,.96);border:1px solid var(--ye);padding:16px 20px;box-shadow:0 0 40px rgba(252,238,10,.18)}
+  .ph{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .ph .btn{background:none;border:1px solid var(--cy);color:var(--cy);padding:4px 10px;font:inherit;font-size:12px;margin-left:auto}
+  .ph .btn.ghost{border-color:var(--line);color:var(--mut);margin-left:0}
   .none{color:var(--mut);letter-spacing:.3em;font-size:12px;padding:16px;text-align:center}
   .enc{position:absolute;inset:100px 24px 24px;display:grid;grid-template-columns:220px 280px 1fr;gap:14px;animation:ei .4s both}
   @keyframes ei{from{opacity:0;filter:blur(6px)}}

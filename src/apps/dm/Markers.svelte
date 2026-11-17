@@ -6,7 +6,7 @@
   import { sfx } from '../../lib/sfx';
   let list = $state<Marker[]>([]), ed = $state<Marker | null>(null), msg = $state('');
   onMount(() => watchMarkers(null, (m) => (list = m.sort((a, b) => b.at - a.at))));
-  const blank = (): Marker => ({ id: nid(), sys: dm.systems[0]?.id ?? '', kind: 'mission', label: '', note: '', players: dm.pid ? [dm.pid] : [], at: now() });
+  const blank = (): Marker => ({ id: nid(), sys: dm.systems[0]?.id ?? '', kind: 'mission', label: '', note: '', cat: '', body: '', players: dm.pid ? [dm.pid] : [], at: now() });
   const flash = (s: string) => { msg = s; setTimeout(() => msg === s && (msg = ''), 3500); };
   async function save() { if (!ed || !ed.label.trim() || !ed.sys) return; try { await saveMarker({ ...ed, label: ed.label.trim(), at: now() }); sfx.granted(); flash('İşaret kaydedildi.'); ed = null; } catch (e) { sfx.error(); flash('Hata: ' + String(e)); } }
   async function del(m: Marker) { await deleteMarker(m.id); sfx.click(); flash('İşaret kaldırıldı.'); }
@@ -15,14 +15,16 @@
   <div class="fm">
     {#if ed}
       <h4 class="mono">{list.some((x) => x.id === ed!.id) ? 'İŞARETİ DÜZENLE' : 'YENİ İŞARET'}</h4>
-      <div class="kd">{#each [['ship', '▲ Gemi konumu'], ['mission', '◆ Görev noktası']] as [k, l] (k)}<button class:on={ed.kind === k} onclick={() => ed && (ed.kind = k as Marker['kind'])}>{l}</button>{/each}</div>
+      <div class="kd">{#each [['ship', '▲ Gemi'], ['mission', '◆ Görev'], ['objective', '◎ Hedef'], ['poi', '● Nokta'], ['alert', '▲ Uyarı']] as [k, l] (k)}<button class:on={ed.kind === k} onclick={() => ed && (ed.kind = k as Marker['kind'])}>{l}</button>{/each}</div>
       <label class="field"><span>Sistem</span><select class="inp" bind:value={ed.sys}>{#each dm.systems as s (s.id)}<option value={s.id}>{s.name}{s.owner === 'dm' ? ' (gizli)' : ''}</option>{/each}</select></label>
+      <label class="field"><span>Cisim / konum (isteğe bağlı, gezegen veya ay adı)</span><input class="inp" bind:value={ed.body} maxlength="60" placeholder="ör. Prosperion, ay, veya boş = sistem" /></label>
+      <label class="field"><span>Kategori</span><input class="inp" bind:value={ed.cat} maxlength="40" placeholder="ör. kargo, pusu, sığınak" /></label>
       <label class="field"><span>Etiket</span><input class="inp" bind:value={ed.label} maxlength="60" placeholder={ed.kind === 'ship' ? 'ör. Kara Martı' : 'ör. Kayıp kargo'} /></label>
       <label class="field"><span>Not (oyuncu görür)</span><textarea class="inp" rows="3" bind:value={ed.note} maxlength="400"></textarea></label>
       <h4 class="mono">GÖRECEK OYUNCULAR</h4>
       {#each dm.users as u (u.uid)}<label class="ck"><input type="checkbox" checked={ed.players.includes(u.uid)} onchange={(e) => ed && (ed.players = (e.target as HTMLInputElement).checked ? [...ed.players, u.uid] : ed.players.filter((x) => x !== u.uid))} />{pname(u.uid)}</label>{/each}
       <div class="row"><button class="btn" disabled={!ed.label.trim()} onclick={save}>Kaydet</button><button class="btn ghost small" onclick={() => (ed = null)}>Vazgeç</button></div>
-      <p class="nt">Gizli sistemdeki işaret, oyuncu o sistemi bilmiyorsa haritada “Bilinmeyen sinyal” olarak görünür.</p>
+      <p class="nt">Gizli sistemdeki işaret, oyuncu o sistemi bilmiyorsa haritada “Bilinmeyen sinyal” olarak görünür. Star map içinde DM iken haritaya tıklayarak da pin bırakabilir. Gemiler kümede sistemin kenarında 3B görünür; diğer işaretler halka / dalga efekti verir.</p>
     {:else}<button class="btn" onclick={() => (ed = blank())}>+ Yeni işaret</button>{/if}
     {#if msg}<p class="msg mono">{msg}</p>{/if}
   </div>

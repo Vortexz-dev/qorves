@@ -8,8 +8,9 @@
   const app = $derived(appById(id));
   const mod = $derived(app.load());
   // giriş animasyonu bitene kadar ağır uygulama kurulmaz; böylece giriş takılmadan oynar
-  const intro = $derived(id === 'timeline' || id === 'codex' || id === 'starmap' || id === 'gods');
+  const intro = $derived(id === 'timeline' || id === 'codex' || id === 'starmap' || id === 'gods' || id === 'persona' || id === 'ghoskey');
   const gods = $derived(id === 'gods');
+  const canMin = $derived(id === 'gods' || id === 'ghoskey');
   async function close() { if (gods) { if (await ask('Emin misin?', "God's Eye kapanacak. Sahne kaybolmaz; yeniden açınca kaldığın yerden devam eder. Yalnızca gizlemek için küçült düğmesini kullanabilirsin.", 'Kapat', false)) closeCore(); } else closeCore(); }
   let go = $state(false);
   onMount(() => {
@@ -26,7 +27,7 @@
   </div>
   <div class="top">
     <span class="t">{app.title}</span><span class="mono k">{gods ? 'CANLI · OTOMATİK KAYIT' : coreBack.go ? 'ESC · GERİ' : 'ESC · ÇIKIŞ'}</span>
-    {#if gods}<button class="m" onclick={minCore} aria-label="Küçült" title="Küçült (görev çubuğuna)"><svg viewBox="0 0 12 12"><path d="M2.5 9h7" stroke="currentColor" stroke-width="1.6"/></svg></button>{/if}
+    {#if canMin}<button class="m" onclick={minCore} aria-label="Küçült" title="Küçült (görev çubuğuna)"><svg viewBox="0 0 12 12"><path d="M2.5 9h7" stroke="currentColor" stroke-width="1.6"/></svg></button>{/if}
     {#if coreBack.go}<button class="b mono" onclick={() => coreBack.go?.()} aria-label="Geri" title="Geri">‹ Geri</button>{/if}
     <button class="x" onclick={close} aria-label="Kapat"><svg viewBox="0 0 12 12"><path d="m2.5 2.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="1.6"/></svg></button>
   </div>
@@ -35,7 +36,7 @@
 <style>
   .core{position:fixed;inset:0;z-index:9500;background:#04050a;overflow:hidden}
   .stage{position:absolute;inset:0;animation:st .7s .35s both}
-  .timeline .stage,.codex .stage,.starmap .stage,.gods .stage{animation-delay:.85s}
+  .timeline .stage,.codex .stage,.starmap .stage,.gods .stage,.persona .stage,.ghoskey .stage{animation-delay:.85s}
   @keyframes st{from{opacity:0;transform:scale(1.04);filter:blur(8px)}}
   .top{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:14px;padding:0 10px 0 22px;z-index:5;
     background:linear-gradient(rgba(4,5,10,.85),transparent);animation:fd .4s .6s both}

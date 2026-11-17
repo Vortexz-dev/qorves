@@ -21,6 +21,9 @@
   import { openImage } from '../lib/lightbox.svelte';
   import CtxMenu, { type MI } from '../ui/CtxMenu.svelte';
   import SysNotify, { pushToast } from '../ui/SysNotify.svelte';
+  import RadioHost from './RadioHost.svelte';
+  import TimesHost from './TimesHost.svelte';
+  import HackHost from './HackHost.svelte';
   import SessionToast from './SessionToast.svelte';
   import { watchSess } from '../lib/sess.svelte';
   import { startPresence, watchDoc, watchKnowledge, watchDrops } from '../lib/live';
@@ -184,6 +187,9 @@
 </div>
 {#if wm.core}<CoreShell id={wm.core} />{/if}
 <SysNotify uid={user.uid} />
+<RadioHost />
+<TimesHost />
+<HackHost />
 
 <style>
   .desk{position:absolute;inset:0;overflow:hidden;opacity:0;transform:scale(1.03);filter:blur(6px);transition:opacity .6s,transform .7s cubic-bezier(.2,.8,.2,1),filter .6s}

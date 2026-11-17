@@ -58,6 +58,7 @@ export class ClusterScene {
   private raf = 0; private clock = new THREE.Clock(); private running = false; private fly: { t0: number; dur: number; fromT: THREE.Vector3; toT: THREE.Vector3; fromP: THREE.Vector3; toP: THREE.Vector3 } | null = null;
   hovered: string | null = null; selected: string | null = null; showLabels = true; showLanes = true; showTerr = true; quality: Quality;
   private down = { x: 0, y: 0 }; private v = new THREE.Vector3();
+  private pinRoot = new THREE.Group(); private pins: { kind: string; obj: THREE.Object3D; ring?: THREE.Sprite }[] = [];
   constructor(private host: HTMLElement, private overlay: HTMLElement, private data: MapData, private known: (id: string) => boolean, private hooks: Hooks, quality: Quality) {
     this.quality = quality;
     this.renderer = new THREE.WebGLRenderer({ antialias: Q[quality].aa, powerPreference: 'high-performance' });
@@ -69,7 +70,7 @@ export class ClusterScene {
       screenSpacePanning: false, rotateSpeed: 0.6, zoomSpeed: 0.9, panSpeed: 0.8 });
     this.controls.target.set(0, 0, 20);
     for (const [k, f] of Object.entries({ glow: glowTex, soft: softTex, ring: ringTex, disk: diskTex, beam: beamTex, ret: reticleTex })) this.tex[k] = f();
-    this.buildBackground(); this.buildGrid(); this.buildSystems(); this.buildLanes();
+    this.buildBackground(); this.buildGrid(); this.buildSystems(); this.buildLanes(); this.scene.add(this.pinRoot);
     this.reticle = this.sprite('ret', '#fcee0a', 1); this.reticle.visible = false; this.scene.add(this.reticle);
     this.hovRet = this.sprite('ret', '#00f0ff', 0.7); this.hovRet.visible = false; this.scene.add(this.hovRet);
     this.setQuality(quality);
@@ -231,11 +232,38 @@ export class ClusterScene {
     }
     this.resize();
   }
-  /** DM işaretleri: sistem → gemi konumu / görev noktası rozetleri */
-  setMarkers(m: Map<string, { ship: string[]; mission: string[] }>) {
+  /** DM işaretleri: sistem rozetleri + kümede görünür 3B gemi / dalga halkaları */
+  setMarkers(m: Map<string, { ships: string[]; pins: { kind: string; label: string }[] }>) {
     const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-    for (const o of this.sys.values()) { const el = o.label.querySelector('.mk') as HTMLElement, x = m.get(o.d.id);
-      el.innerHTML = x ? (x.ship.length ? `<s class="sh" data-tip="${esc('Gemi: ' + x.ship.join(', '))}">▲</s>` : '') + (x.mission.length ? `<s class="mi" data-tip="${esc('Görev: ' + x.mission.join(', '))}">◆${x.mission.length > 1 ? x.mission.length : ''}</s>` : '') : ''; }
+    for (const o of this.sys.values()) {
+      const el = o.label.querySelector('.mk') as HTMLElement, x = m.get(o.d.id);
+      const pinN = x?.pins.length ?? 0, shipN = x?.ships.length ?? 0;
+      let html = '';
+      if (shipN) html += `<s class="sh" data-tip="${esc('Gemi: ' + x!.ships.join(', '))}">▲${shipN > 1 ? shipN : ''}</s>`;
+      if (pinN) html += `<s class="mi" data-tip="${esc(x!.pins.map((p) => p.label).join(', '))}">◆${pinN > 1 ? pinN : ''}</s>`;
+      el.innerHTML = html;
+    }
+    this.pinRoot.clear(); this.pins = [];
+    const shipGeo = new THREE.ConeGeometry(1.1, 3.2, 5);
+    const shipMat = new THREE.MeshBasicMaterial({ color: 0x39ff8a, transparent: true, opacity: 0.95 });
+    const bodyGeo = new THREE.BoxGeometry(0.7, 0.5, 1.6);
+    for (const o of this.sys.values()) {
+      const x = m.get(o.d.id); if (!x) continue;
+      x.ships.forEach((lab, i) => {
+        const g = new THREE.Group();
+        const a = i * 1.15 + o.pos.x * 0.01;
+        g.position.set(o.pos.x + Math.cos(a) * 9, o.pos.y + 3.5, o.pos.z + Math.sin(a) * 9);
+        const nose = new THREE.Mesh(shipGeo, shipMat); nose.rotation.x = Math.PI / 2; nose.position.z = 1.2;
+        const body = new THREE.Mesh(bodyGeo, shipMat.clone()); g.add(nose, body); g.lookAt(o.pos);
+        this.pinRoot.add(g); this.pins.push({ kind: 'ship', obj: g });
+      });
+      x.pins.forEach((p, i) => {
+        const col = p.kind === 'alert' ? '#ff2a55' : p.kind === 'objective' ? '#fcee0a' : p.kind === 'poi' ? '#00f0ff' : '#ff9b2f';
+        const ring = this.sprite('ring', col, 0.85);
+        ring.position.set(o.pos.x, 0.3, o.pos.z); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(14 + i);
+        this.pinRoot.add(ring); this.pins.push({ kind: p.kind, obj: ring, ring });
+      });
+    }
   }
   flyTo(id: string, dist = 85, dur = 1400) {
     const o = this.sys.get(id); if (!o) return;
@@ -299,6 +327,10 @@ export class ClusterScene {
     for (const l of this.lanes) if (l.label && l.label.style.display !== 'none') {
       this.v.copy(l.mid).project(this.camera); l.label.style.visibility = this.v.z > 1 || !this.showLanes ? 'hidden' : 'visible';
       l.label.style.transform = `translate3d(${(this.v.x * 0.5 + 0.5) * w}px,${(-this.v.y * 0.5 + 0.5) * h}px,0)`;
+    }
+    for (const p of this.pins) {
+      if (p.kind === 'ship') { p.obj.position.y = 3.5 + Math.sin(t * 1.6 + p.obj.position.x) * 0.5; p.obj.rotateY(0.01); }
+      else if (p.ring) { const s = 12 + (Math.sin(t * 2.2) * 0.5 + 0.5) * 10; p.ring.scale.setScalar(s); p.ring.material.opacity = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(t * 2.2)); }
     }
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   };

@@ -6,7 +6,7 @@
   import { appById } from './apps';
   import { ICONS } from './icons';
   import { wm, toggleTask, openApp } from './wm.svelte';
-  let now = $state(new Date()), volOpen = $state(false), vol = $state(audio.volume), muted = $state(audio.muted);
+  let now = $state(new Date()), volOpen = $state(false), vol = $state(audio.volume), mvol = $state(audio.music), muted = $state(audio.muted);
   onMount(() => {
     let t: number;
     const tick = () => { now = new Date(); t = window.setTimeout(tick, 60000 - (Date.now() % 60000) + 20); };
@@ -41,8 +41,11 @@
       </button>
       {#if volOpen}
         <div class="volp">
-          <div class="mono">SES {Math.round(vol * 100)}</div>
+          <div class="mono">SİSTEM {Math.round(vol * 100)}</div>
           <input type="range" min="0" max="1" step="0.01" bind:value={vol} oninput={() => audio.setVolume(vol)} onchange={() => sfx.click()} />
+          <div class="mono">MÜZİK {Math.round(mvol * 100)}</div>
+          <input type="range" min="0" max="1" step="0.01" bind:value={mvol} oninput={() => audio.setMusic(mvol)} />
+          <div class="now" id="qv-radio-now"></div>
           <label class="clickable"><input type="checkbox" bind:checked={muted} onchange={() => audio.setMuted(muted)} /> Sessiz</label>
         </div>
       {/if}
@@ -76,11 +79,12 @@
   .volw{position:relative}
   .vol{width:32px;height:32px;background:none;border:0;color:var(--cy);display:grid;place-items:center}
   .vol svg{width:22px;height:22px}.vol:hover{color:var(--ye)}
-  .volp{position:absolute;bottom:42px;right:-40px;width:200px;padding:14px;background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);
+  .volp{position:absolute;bottom:42px;right:-40px;width:220px;padding:14px;background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);
     display:flex;flex-direction:column;gap:10px;font-size:13px;animation:up .18s both}
   .volp .mono{font-size:11px;color:var(--cy);letter-spacing:.2em}
   .volp input[type=range]{accent-color:var(--ye);width:100%}
   .volp label{display:flex;gap:8px;align-items:center}.volp input[type=checkbox]{accent-color:var(--ye)}
+  .now{font-size:11px;color:var(--mut);min-height:1em;line-height:1.3}
   @keyframes up{from{opacity:0;transform:translateY(8px)}}
   .ses{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.2em;color:var(--mut);padding:3px 8px;border:1px solid rgba(0,240,255,.25)}.ses b{color:var(--cy);font-size:13px;letter-spacing:.05em}
   .ses i{width:5px;height:5px;background:var(--cy);box-shadow:0 0 6px var(--cy)}

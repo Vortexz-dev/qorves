@@ -136,7 +136,7 @@ let hook: string | null | undefined;
 export async function diceHook() { if (hook !== undefined) return hook; try { const s = await getDoc(doc(db, 'config', 'dice')); hook = s.exists() ? (s.data().webhook as string) : null; } catch { hook = null; } return hook; }
 
 // ---------- yıldız haritası işaretleri ----------
-export interface Marker { id: string; sys: string; kind: 'ship' | 'mission'; label: string; note: string; players: string[]; at: number }
+export interface Marker { id: string; sys: string; kind: 'ship' | 'mission' | 'objective' | 'poi' | 'alert'; label: string; note: string; players: string[]; at: number; body?: string; cat?: string; x?: number; y?: number; z?: number }
 export function watchMarkers(uid: string | null, cb: (m: Marker[]) => void) {
   if (!LIVE) return off;
   const q = uid ? query(collection(db, 'markers'), where('players', 'array-contains', uid)) : collection(db, 'markers');
