@@ -172,6 +172,15 @@ export function watchDoc<T>(path: [string, string], cb: (v: T | null) => void) {
 export const setDocAt = (path: [string, string], patch: Record<string, unknown>) => setDoc(doc(db, path[0], path[1]), patch, { merge: true });
 export const setWorld = (patch: Record<string, unknown>) => setDoc(doc(db, 'world', 'state'), patch, { merge: true });
 export const setEvents = (patch: Record<string, unknown>) => setDoc(doc(db, 'world', 'events'), patch, { merge: true });
+/** Özel olay görseli: world/events şişmesin diye ayrı doküman (herkes okur, DM yazar). */
+export const putEvImg = (id: string, data: string) => setDoc(doc(db, 'world', id), { d: data, at: now() });
+export const dropEvImg = (id: string) => deleteDoc(doc(db, 'world', id)).catch(() => {});
+export async function getEvImg(id: string): Promise<string> {
+  if (!LIVE || !id.startsWith('evimg-')) return '';
+  const s = await getDoc(doc(db, 'world', id));
+  const d = s.exists() ? s.data()?.d : null;
+  return typeof d === 'string' ? d : '';
+}
 export interface TlEvent { id: string; name: string; date: string; ys: number; summary: string; text: string; race: string; published: boolean; at: number }
 export function watchTl(all: boolean, cb: (t: TlEvent[]) => void) {
   if (!LIVE) return off;

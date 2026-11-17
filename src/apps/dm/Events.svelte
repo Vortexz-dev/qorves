@@ -2,12 +2,13 @@
   // Olay kontrolü: sistem/hatta olay başlat-bitir, süre, özel resmî yayın. world/events üzerinden herkese canlı yansır.
   import { onMount } from 'svelte';
   import { dm, sysName, when } from './store.svelte';
-  import { watchDoc, setEvents } from '../../lib/live';
+  import { watchDoc, setEvents, putEvImg, dropEvImg, getEvImg } from '../../lib/live';
   import { loadEvents, activeAt, setWorldLive, type EvData, type ActiveEvent } from '../../lib/events';
   import type { WorldEvents, EventOverride } from '../../lib/backend';
   import { sfx } from '../../lib/sfx';
+  import { encodeTimesImage } from '../../lib/times';
   let w = $state<WorldEvents | null>(null), evd = $state<EvData | null>(null), act = $state<ActiveEvent[]>([]), t = $state(Date.now());
-  let sys = $state(''), lane = $state(''), tpl = $state('custom'), dur = $state(60), name = $state(''), msgT = $state(''), eff = $state(''), by = $state(''), sev = $state(2), cat = $state('GUV'), msg = $state('');
+  let sys = $state(''), lane = $state(''), tpl = $state('custom'), dur = $state(60), name = $state(''), msgT = $state(''), eff = $state(''), by = $state(''), sev = $state(2), cat = $state('GUV'), msg = $state(''), pic = $state(''), thumbs = $state<Record<string, string>>({});
   const lanes = $derived(dm.lanes.filter((l) => l.a === sys || l.b === sys));
   const T = $derived(evd?.templates.find((x) => x.id === tpl));
   $effect(() => { const x = T; if (x) { name = x.name; msgT = x.msg; eff = x.effect; by = x.by; sev = x.sev; cat = x.cat; } });
@@ -20,17 +21,50 @@
   });
   $effect(() => { if (!sys && dm.systems[0]) sys = dm.systems[0].id; });
   const flash = (s: string) => { msg = s; setTimeout(() => msg === s && (msg = ''), 4000); };
+  async function take(f: Blob) {
+    try { pic = await encodeTimesImage(f); sfx.click(); } catch (e) { sfx.error(); flash('Hata: ' + String((e as Error)?.message ?? e)); }
+  }
+  function pick(e: Event) {
+    const el = e.target as HTMLInputElement, f = el.files?.[0]; el.value = '';
+    if (f) void take(f);
+  }
+  function onPaste(e: ClipboardEvent) {
+    const it = [...(e.clipboardData?.items ?? [])].find((x) => x.type.startsWith('image/'));
+    const f = it?.getAsFile(); if (!f || tpl !== 'custom') return;
+    e.preventDefault(); void take(f);
+  }
+  $effect(() => {
+    for (const e of act) {
+      const id = e.img; if (!id?.startsWith('evimg-') || thumbs[id] !== undefined) continue;
+      thumbs = { ...thumbs, [id]: '' };
+      getEvImg(id).then((u) => (thumbs = { ...thumbs, [id]: u }));
+    }
+  });
   async function start() {
     if (!sys || dur < 1) return; const s = Date.now();
     const o: EventOverride = { tpl, sys, start: s, end: s + dur * 60000, name: name.trim(), msg: msgT.trim(), effect: eff.trim(), by: by.trim(), sev: +sev, cat };
     if (lane) o.lane = lane;
+    if (tpl === 'custom' && pic) o.img = 'evimg-' + s;
+    const stale = (w?.overrides ?? []).filter((x) => x.end <= Date.now());
     const keep = (w?.overrides ?? []).filter((x) => x.end > Date.now());
-    try { await setEvents({ overrides: [...keep, o] }); sfx.alarm(); flash(`Yayında: ${o.name || T?.name} · ${sysName(sys)} · ${dur} dk`); } catch (e) { sfx.error(); flash('Hata: ' + String(e)); }
+    try {
+      if (o.img) await putEvImg(o.img, pic);
+      await setEvents({ overrides: [...keep, o] });
+      for (const x of stale) if (x.img?.startsWith('evimg-')) dropEvImg(x.img);
+      sfx.alarm(); flash(`Yayında: ${o.name || T?.name} · ${sysName(sys)} · ${dur} dk`);
+      if (tpl === 'custom') pic = '';
+    } catch (e) {
+      if (o.img) dropEvImg(o.img);
+      sfx.error(); flash('Hata: ' + String(e));
+    }
   }
   async function end(e: ActiveEvent) {
     try {
-      if (e.forced) await setEvents({ overrides: (w?.overrides ?? []).filter((x) => `ovr:${x.tpl}:${x.sys}:${x.start}` !== e.key && x.end > Date.now()) });
-      else await setEvents({ cleared: [...new Set([...(w?.cleared ?? []), e.key])].slice(-300) });
+      if (e.forced) {
+        const gone = (w?.overrides ?? []).find((x) => `ovr:${x.tpl}:${x.sys}:${x.start}` === e.key);
+        await setEvents({ overrides: (w?.overrides ?? []).filter((x) => `ovr:${x.tpl}:${x.sys}:${x.start}` !== e.key && x.end > Date.now()) });
+        if (gone?.img?.startsWith('evimg-')) dropEvImg(gone.img);
+      } else await setEvents({ cleared: [...new Set([...(w?.cleared ?? []), e.key])].slice(-300) });
       sfx.click(); flash('Olay bitirildi: ' + e.tpl.name);
     } catch (x) { sfx.error(); flash('Hata: ' + String(x)); }
   }
@@ -38,7 +72,7 @@
   const left = (e: ActiveEvent) => Math.max(1, Math.ceil((e.end - t) / 60000));
 </script>
 <div class="ev">
-  <form class="fm" onsubmit={(e) => { e.preventDefault(); start(); }}>
+  <form class="fm" onsubmit={(e) => { e.preventDefault(); start(); }} onpaste={onPaste}>
     <h4 class="mono">YENİ OLAY / RESMÎ YAYIN</h4>
     <div class="r2">
       <label class="field"><span>Sistem</span><select class="inp" bind:value={sys}>{#each dm.systems as s (s.id)}<option value={s.id}>{s.name}{s.owner === 'dm' ? ' (gizli)' : ''}</option>{/each}</select></label>
@@ -56,6 +90,17 @@
       <label class="field"><span>Seviye</span><select class="inp" bind:value={sev}>{#each Object.entries(evd?.sev ?? {}) as [k, v] (k)}<option value={+k}>{v.label}</option>{/each}</select></label>
       <label class="field"><span>Kategori</span><select class="inp" bind:value={cat}>{#each Object.entries(evd?.cats ?? {}) as [k, v] (k)}<option value={k}>{v}</option>{/each}</select></label>
     </div>
+    {#if tpl === 'custom'}
+      <div class="field">
+        <span>Fotoğraf (isteğe bağlı)</span>
+        <div class="row">
+          <label class="btn ghost small up">Yükle<input type="file" accept="image/*" hidden onchange={pick} /></label>
+          <span class="hint mono">veya panodan yapıştır (Ctrl+V)</span>
+          {#if pic}<button type="button" class="btn ghost small" onclick={() => (pic = '')}>Kaldır</button>{/if}
+        </div>
+        {#if pic}<img class="prv" src={pic} alt="" />{/if}
+      </div>
+    {/if}
     <div class="act"><button class="btn" disabled={!sys || (!msgT.trim() && tpl === 'custom')}>Yayını başlat</button>{#if msg}<span class="msg mono">{msg}</span>{/if}</div>
     <label class="ck"><input type="checkbox" checked={!!w?.paused} onchange={(e) => setEvents({ paused: (e.target as HTMLInputElement).checked })} />Rastgele olayları duraklat (yalnız DM olayları görünür)</label>
   </form>
@@ -64,7 +109,7 @@
     {#each [...act].sort((a, b) => Number(!!b.forced) - Number(!!a.forced) || b.tpl.sev - a.tpl.sev) as e (e.key)}{@const sv = evd?.sev[e.tpl.sev]}
       <div class="it" style:--sv={sv?.color}>
         <div class="h mono"><b>{sv?.label}</b><span>{sysName(e.sys)}{#if e.lane} · {dm.lanes.find((l) => l.id === e.lane)?.name}{/if}</span><span class="t">kalan {left(e)} dk</span>{#if e.forced}<em>DM</em>{/if}</div>
-        <div class="n">{e.tpl.name}</div><p>{e.tpl.msg}</p>
+        <div class="n">{e.tpl.name}</div>{#if e.img && thumbs[e.img]}<img class="th" src={thumbs[e.img]} alt="" />{/if}<p>{e.tpl.msg}</p>
         <div class="b">{#if e.forced}<button class="btn ghost small" onclick={() => extend(e, 30)}>+30 dk</button>{/if}<button class="btn red small" onclick={() => end(e)}>Bitir</button><small class="mono">{when(e.start)} → {when(e.end)}</small></div>
       </div>
     {:else}<div class="none mono">Etkin olay yok.</div>{/each}
@@ -84,4 +129,8 @@
   .n{font-size:16px;color:#fff;margin:3px 0}.it p{font-size:13px;color:#c9d6e2;line-height:1.4;margin:0 0 6px}
   .b{display:flex;gap:6px;align-items:center}.b small{margin-left:auto;font-size:10px;color:var(--mut)}
   .none{color:var(--mut);font-size:12px;padding:10px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.up{position:relative;cursor:pointer}
+  .hint{font-size:10.5px;color:var(--mut)}
+  .prv{max-width:100%;max-height:140px;object-fit:cover;border:1px solid var(--line);display:block}
+  .th{max-width:160px;max-height:72px;object-fit:cover;border:1px solid var(--line);margin:4px 0}
 </style>

@@ -7,7 +7,7 @@
 import { backend, type WorldEvents } from './backend';
 export interface Tpl { id: string; name: string; cat: string; where: string; effect: string; sev: number; freq: string; w: number; by: string; msg: string; sys: string[]; lanes: string[]; all: boolean }
 export interface EvData { seed: string; cats: Record<string, string>; sev: Record<string, { label: string; color: string }>; templates: Tpl[] }
-export interface ActiveEvent { key: string; tpl: Tpl; sys: string; lane?: string; start: number; end: number; forced?: boolean }
+export interface ActiveEvent { key: string; tpl: Tpl; sys: string; lane?: string; start: number; end: number; forced?: boolean; img?: string }
 interface SysRef { id: string; name: string }
 interface LaneRef { id: string; a: string; b: string }
 const SLOT = 300_000, DAY = 288, P = [0.045, 0.02];
@@ -74,7 +74,7 @@ export function activeAt(now: number, systems: SysRef[]): ActiveEvent[] {
     const base = data.templates.find((x) => x.id === o.tpl) ?? (o.tpl === 'custom' ? CUSTOM : null);
     if (!base || o.start > now || o.end <= now) continue;
     const t: Tpl = { ...base, id: o.tpl === 'custom' ? 'custom:' + o.start : base.id, name: o.name || base.name, msg: o.msg || base.msg, effect: o.effect ?? base.effect, by: o.by || base.by, sev: o.sev ?? base.sev, cat: o.cat || base.cat };
-    res.push({ key: `ovr:${o.tpl}:${o.sys}:${o.start}`, tpl: t, sys: o.sys, lane: o.lane, start: o.start, end: o.end, forced: true });
+    res.push({ key: `ovr:${o.tpl}:${o.sys}:${o.start}`, tpl: t, sys: o.sys, lane: o.lane, start: o.start, end: o.end, forced: true, img: o.img });
   }
   return res;
 }

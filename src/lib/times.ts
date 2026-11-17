@@ -35,9 +35,11 @@ export function fromEvent(e: ActiveEvent, evd: EvData | null, sysName: (id: stri
   const sev = evd?.sev[e.tpl.sev]?.label ?? '';
   const kicker = [sev, cat].filter(Boolean).join(' · ');
   const body = [e.tpl.msg, e.tpl.effect && `Etkisi: ${e.tpl.effect}`, loc && `Konum: ${loc}.`, e.lane && 'Hiperhat üzerinde hareket kısıtı bildirildi.'].filter(Boolean).join(' ');
+  const custom = e.tpl.id.startsWith('custom:');
+  const img = e.img || (custom ? undefined : eventImg(e.tpl.id));
   return {
     id: 'ev:' + e.key, kind: 'event', title: e.tpl.name, body, kicker, by: e.tpl.by || 'Saha muhabiri',
-    img: eventImg(e.tpl.id), views: viewsOf(e.key), at: e.start, ev: e.key,
+    img, views: viewsOf(e.key), at: e.start, ev: e.key,
   };
 }
 
@@ -61,3 +63,28 @@ export function watchNews(cb: (xs: News[]) => void) {
 export const saveNews = (n: News) => setDoc(doc(db, 'news', n.id), n);
 export const dropNews = (id: string) => deleteDoc(doc(db, 'news', id));
 export const blankNews = (): News => ({ id: nid(), kind: 'dm', title: '', body: '', kicker: 'Özel haber', by: 'Qorves Times', views: viewsOf('n' + now()), at: now() });
+
+/** Haber / özel olay görseli: en uzun kenar 720, WebP. Spark 1 MiB doküman sınırının altında kalır. */
+const IMG_CAP = 900_000;
+export function encodeTimesImage(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const im = new Image(), src = URL.createObjectURL(file);
+    im.onload = () => {
+      URL.revokeObjectURL(src);
+      let max = 720, q = 0.8, data = '';
+      for (let i = 0; i < 5; i++) {
+        const cv = document.createElement('canvas');
+        const s = Math.min(1, max / Math.max(im.width, im.height, 1));
+        cv.width = Math.max(1, Math.round(im.width * s));
+        cv.height = Math.max(1, Math.round(im.height * s));
+        cv.getContext('2d')!.drawImage(im, 0, 0, cv.width, cv.height);
+        data = cv.toDataURL('image/webp', q);
+        if (data.length <= IMG_CAP) { resolve(data); return; }
+        max = Math.round(max * 0.75); q = Math.max(0.5, q - 0.15);
+      }
+      reject(new Error('Görsel çok büyük'));
+    };
+    im.onerror = () => { URL.revokeObjectURL(src); reject(new Error('Görsel okunamadı')); };
+    im.src = src;
+  });
+}

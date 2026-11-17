@@ -16,7 +16,7 @@ export interface Note { id: string; title: string; body: string; x: number; y: n
 export interface DeskItem { id: string; kind: 'folder' | 'image' | 'doc'; name: string; src?: string; body?: string; from?: string; parent: string; x: number; y: number; updatedAt: number }
 export interface VaultKey { id: string; k: string; f: string }
 /** DM olayı: şablondan (tpl) ya da tpl='custom' ile tamamen özel resmî yayın; dolu alanlar şablonu ezer. */
-export interface EventOverride { tpl: string; sys: string; lane?: string; start: number; end: number; name?: string; msg?: string; effect?: string; by?: string; sev?: number; cat?: string }
+export interface EventOverride { tpl: string; sys: string; lane?: string; start: number; end: number; name?: string; msg?: string; effect?: string; by?: string; sev?: number; cat?: string; img?: string }
 export interface WorldEvents { overrides?: EventOverride[]; cleared?: string[]; disabled?: string[]; paused?: boolean; seed?: string }
 export interface World { era: 'SS'; year: number; day: number }
 export interface Backend {

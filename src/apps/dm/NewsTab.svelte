@@ -1,15 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { sfx } from '../../lib/sfx';
-  import { watchNews, saveNews, dropNews, blankNews, KINDS, type News } from '../../lib/times';
+  import { watchNews, saveNews, dropNews, blankNews, encodeTimesImage, KINDS, type News } from '../../lib/times';
   let list = $state<News[]>([]), ed = $state<News | null>(null), msg = $state('');
   onMount(() => watchNews((xs) => (list = xs.filter((n) => n.kind !== 'event' || true))));
   async function save() { if (!ed || !ed.title.trim()) return; await saveNews({ ...ed, title: ed.title.trim(), views: ed.views || 2_000_000 }); ed = null; sfx.granted(); msg = 'Haber yayımlandı.'; }
-  function pick(e: Event) {
-    const f = (e.target as HTMLInputElement).files?.[0]; if (!f || !ed) return;
-    const im = new Image();
-    im.onload = () => { const cv = document.createElement('canvas'), s = Math.min(1, 720 / Math.max(im.width, im.height)); cv.width = Math.round(im.width * s); cv.height = Math.round(im.height * s); cv.getContext('2d')!.drawImage(im, 0, 0, cv.width, cv.height); ed = { ...ed!, img: cv.toDataURL('image/webp', 0.8) }; };
-    im.src = URL.createObjectURL(f);
+  async function pick(e: Event) {
+    const el = e.target as HTMLInputElement, f = el.files?.[0]; el.value = '';
+    if (!f || !ed) return;
+    try { ed = { ...ed, img: await encodeTimesImage(f) }; } catch { /* okunamadı */ }
   }
 </script>
 <div class="nw">

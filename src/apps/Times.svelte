@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { sfx, ambient } from '../lib/sfx';
-  import { watchDoc } from '../lib/live';
+  import { watchDoc, getEvImg } from '../lib/live';
   import { loadEvents, activeAt, setWorldLive, type ActiveEvent, type EvData } from '../lib/events';
   import type { WorldEvents } from '../lib/backend';
   import type { MapData } from '../starmap/scene';
@@ -11,6 +11,7 @@
   let evd = $state<EvData | null>(null), ev = $state<ActiveEvent[]>([]), extra = $state<News[]>([]);
   let map = $state<MapData | null>(null), now = $state(Date.now());
   let open = $state<News | null>(null), boot = $state(true);
+  let evimgs = $state<Record<string, string>>({}), broken = $state<Record<string, boolean>>({});
   const S = $derived(map ? new Map(map.systems.map((s) => [s.id, s.name])) : new Map<string, string>());
   const sysName = (id: string) => S.get(id) ?? id;
   const live = $derived(evd ? ev.map((e) => fromEvent(e, evd, sysName)) : []);
@@ -21,7 +22,23 @@
   });
   const featured = $derived(feed[0]);
   const rest = $derived(feed.slice(1));
-  function img(n: News) { return n.img ? (n.img.startsWith('data:') || n.img.startsWith('http') ? n.img : base + n.img) : ''; }
+  function img(n: News | null | undefined) {
+    if (!n?.img || broken[n.id]) return '';
+    if (n.img.startsWith('data:') || n.img.startsWith('http') || n.img.startsWith('blob:')) return n.img;
+    if (n.img.startsWith('evimg-')) return evimgs[n.img] || '';
+    return base + n.img;
+  }
+  const miss = (n: News) => (broken = { ...broken, [n.id]: true });
+  $effect(() => {
+    for (const n of feed) {
+      const id = n.img; if (!id?.startsWith('evimg-') || evimgs[id] !== undefined) continue;
+      evimgs = { ...evimgs, [id]: '' };
+      getEvImg(id).then((u) => {
+        evimgs = { ...evimgs, [id]: u };
+        if (!u) miss(n);
+      });
+    }
+  });
   const views = (n: number) => n >= 1e6 ? (n / 1e6).toFixed(1).replace('.', ',') + ' Mn' : n.toLocaleString('tr-TR');
   const when = (t: number) => new Date(t).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -61,8 +78,8 @@
     <div class="tag mono">SAHA GÖRÜNTÜSÜ · HİZİP BÜLTENİ · ŞİRKET · REKLAM</div>
   </header>
   {#if featured}
-    <button class="hero" onclick={() => (open = featured)}>
-      {#if img(featured)}<figure><img src={img(featured)} alt="" /><figcaption class="mono">SAHA KAYDI · TELEFON GÖRÜNTÜSÜ</figcaption></figure>{/if}
+    <button class="hero" class:pix={!!img(featured)} onclick={() => (open = featured)}>
+      {#if img(featured)}<figure><img src={img(featured)} alt="" onerror={() => miss(featured)} /><figcaption class="mono">SAHA KAYDI · TELEFON GÖRÜNTÜSÜ</figcaption></figure>{/if}
       <div class="hx">
         <em class="mono">{featured.kicker ?? (featured.kind === 'ad' ? 'REKLAM' : 'MANŞET')}</em>
         <h2>{featured.title}</h2>
@@ -74,7 +91,7 @@
   <div class="grid">
     {#each rest as n (n.id)}
       <button class="card" class:ad={n.kind === 'ad'} onclick={() => (open = n)}>
-        {#if img(n)}<figure><img src={img(n)} alt="" />{#if n.kind === 'event'}<figcaption class="mono">SAHA KAYDI</figcaption>{/if}</figure>{/if}
+        {#if img(n)}<figure><img src={img(n)} alt="" onerror={() => miss(n)} />{#if n.kind === 'event'}<figcaption class="mono">SAHA KAYDI</figcaption>{/if}</figure>{/if}
         <em class="mono">{n.kind === 'ad' ? 'REKLAM' : (n.kicker ?? n.kind)}</em>
         <b>{n.title}</b>
         <p>{n.body}</p>
@@ -87,7 +104,7 @@
 {#if open}
   <div class="read" role="dialog">
     <button class="x" onclick={() => (open = null)}>Kapat</button>
-    {#if img(open)}<figure><img src={img(open)} alt="" />{#if open.kind === 'event'}<figcaption class="mono">SAHA KAYDI · TELEFON GÖRÜNTÜSÜ</figcaption>{/if}</figure>{/if}
+    {#if img(open)}<figure><img src={img(open)} alt="" onerror={() => open && miss(open)} />{#if open.kind === 'event'}<figcaption class="mono">SAHA KAYDI · TELEFON GÖRÜNTÜSÜ</figcaption>{/if}</figure>{/if}
     <em class="mono">{open.kind === 'ad' ? 'REKLAM' : (open.kicker ?? '')}</em>
     <h2>{open.title}</h2>
     <small class="mono">{open.by ?? 'Qorves Times'} · {views(open.views)} görüntülenme · {when(open.at)}</small>
@@ -105,7 +122,8 @@
   .mastrow{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.22em;color:#8aa0ae;padding:0 4px 6px}
   h1{font-family:var(--f-disp);font-size:46px;letter-spacing:.28em;color:#f4fbff;margin:0;text-shadow:0 0 18px rgba(0,240,255,.35),0 0 2px #00f0ff}
   .tag{font-size:10px;letter-spacing:.32em;color:var(--ye,#fcee0a);margin-top:4px}
-  .hero{display:grid;grid-template-columns:1.15fr 1fr;gap:18px;width:100%;text-align:left;background:rgba(0,240,255,.03);border:1px solid rgba(0,240,255,.28);color:inherit;padding:12px;margin-bottom:16px;font:inherit;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+  .hero{display:grid;grid-template-columns:1fr;gap:18px;width:100%;text-align:left;background:rgba(0,240,255,.03);border:1px solid rgba(0,240,255,.28);color:inherit;padding:12px;margin-bottom:16px;font:inherit;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+  .hero.pix{grid-template-columns:1.15fr 1fr}
   .hero:hover{border-color:rgba(252,238,10,.55);background:rgba(252,238,10,.04)}
   figure{margin:0;position:relative}
   figure img{width:100%;aspect-ratio:16/10;object-fit:cover;display:block;border:1px solid rgba(0,240,255,.25);filter:contrast(1.12) saturate(.85)}
