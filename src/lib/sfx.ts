@@ -25,6 +25,8 @@ export function setKindAmbientPaused(kind: string, on: boolean) {
   for (const rec of ambs) if (rec.kind === kind) fadeGain(rec.out, on ? 0.0001 : rec.vol);
 }
 function apply() { if (master) master.gain.value = muted ? 0 : vol * 0.35; }
+/** Sistem ses yolu (ses ayarı + sessiz uygulanır). Hack ses kiti gibi modüller buraya bağlanır. */
+export function sfxBus(): { c: AudioContext; out: GainNode } { const c = ensure(); return { c, out: master! }; }
 export const audio = {
   get volume() { return vol; }, get music() { return mus; }, get muted() { return muted; },
   setVolume(v: number) { vol = v; localStorage.setItem('qv.vol', String(v)); apply(); },

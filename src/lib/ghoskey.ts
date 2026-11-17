@@ -21,7 +21,7 @@ export interface Net {
 export interface HackLog {
   id: string; uid: string; net?: string; name: string; game: GameId; ok: boolean; diff: number; at: number; kind: 'out' | 'def';
 }
-export interface Atk { id: string; uid: string; game: GameId | ''; diff: number; at: number; done?: boolean; ok?: boolean }
+export interface Atk { id: string; uid: string; game: GameId | ''; diff: number; signal?: number; at: number; done?: boolean; ok?: boolean }
 
 export const randGame = (): GameId => GAMES[Math.floor(Math.random() * GAMES.length)].id;
 export const gameLabel = (id: string) => GAMES.find((g) => g.id === id)?.label ?? id;

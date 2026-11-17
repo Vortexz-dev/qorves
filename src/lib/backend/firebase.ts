@@ -3,8 +3,8 @@
  * Background dosyası Cloud Storage yerine Firestore'da parça parça (base64) tutulur: users/{uid}/files/{id}/chunks/{n}.
  */
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, updateDoc, writeBatch, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import type { Backend, UserProfile, World, Note, VaultKey, WorldEvents, DeskItem } from './types';
 import { AuthError } from './types';
 
@@ -19,6 +19,12 @@ export const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+// Yerel test: yalnız localhost'ta ve ?emu=1 iken Firebase emülatörlerine bağlan (canlı sitede etkisiz).
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (new URLSearchParams(location.search).has('emu') || sessionStorage.getItem('qv.emu'))) {
+  sessionStorage.setItem('qv.emu', '1');
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+}
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 export const USER_RE = /^[a-z0-9][a-z0-9._-]{2,23}$/i;

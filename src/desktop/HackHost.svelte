@@ -1,46 +1,33 @@
 <script lang="ts">
+  /* DM'in gönderdiği saldırı: tam ekran uygulama açık olsa bile en üst katmanda açılır. */
   import { onMount } from 'svelte';
   import { session } from '../lib/session.svelte';
-  import { sfx } from '../lib/sfx';
-  import { watchAtk, resolveAtk, writeLog, randGame, effectiveDiff, gameLabel, type Atk, type GameId } from '../lib/ghoskey';
-  import Jumpscare from '../apps/ghoskey/Jumpscare.svelte';
-  import Play from '../apps/ghoskey/Play.svelte';
+  import { watchAtk, resolveAtk, writeLog, randGame, effectiveDiff, type Atk, type GameId } from '../lib/ghoskey';
+  import { preloadLaugh } from '../apps/hack/hsfx';
+  import HackStage from '../apps/hack/HackStage.svelte';
   const u = session.user!;
-  let atk = $state<Atk | null>(null), phase = $state<'idle' | 'scare' | 'play' | 'boot' | 'ok'>('idle');
-  let game = $state<GameId>('breach'), diff = $state(2);
-  let last = 0, lines = $state<string[]>([]);
+  let on = $state(false), scare = $state(true), game = $state<GameId>('breach'), diff = $state(2), sig = $state(3);
+  let last = Number(sessionStorage.getItem('qv.atk.last') || 0);
   function begin(a: Atk) {
-    if (a.done || a.uid !== u.uid || a.at <= last || !a.uid) return;
-    last = a.at;
+    if (on || a.done || !a.uid || a.uid !== u.uid || a.at <= last) return;
+    if (Date.now() - a.at > 5 * 60_000) return; // eski kayıt: oturum açılışında tekrar oynatma
+    last = a.at; sessionStorage.setItem('qv.atk.last', String(a.at));
     game = (a.game || randGame()) as GameId;
-    diff = effectiveDiff(a.diff || 2, 3);
-    phase = 'scare'; sfx.alarm();
+    sig = Math.max(1, Math.min(5, (a as Atk & { signal?: number }).signal ?? 3));
+    diff = effectiveDiff(a.diff || 2, sig);
+    on = true;
   }
   async function done(ok: boolean) {
+    on = false;
     await writeLog({ uid: u.uid, name: 'Gelen saldırı', game, ok, diff, kind: 'def' }).catch(() => {});
     await resolveAtk(ok).catch(() => {});
-    if (ok) { phase = 'ok'; sfx.granted(); setTimeout(() => (phase = 'idle'), 1600); }
-    else {
-      phase = 'boot';
-      lines = [];
-      const L = ['QOS · çekirdek kapanıyor', 'oturum duraklatıldı', 'POST …………', 'qorves-os 4.2 yükleniyor', 'masaüstü geri yükleniyor'];
-      let i = 0; const iv = setInterval(() => { lines = [...lines, L[i++]]; if (i >= L.length) { clearInterval(iv); setTimeout(() => (phase = 'idle'), 600); } }, 420);
-    }
   }
-  onMount(() => watchAtk((a) => { atk = a; if (a) begin(a); }));
+  onMount(() => {
+    setTimeout(() => preloadLaugh(), 4000);
+    // yerel test kancası (yalnız localhost): window.__qvHack('breach', 3, 3, false)
+    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) (window as unknown as Record<string, unknown>).__qvHack = (g: GameId, d = 3, s = 3, sc = false) => { if (!g) { on = false; return; } game = g; diff = d; sig = s; scare = sc; on = true; };
+    return watchAtk((a) => { if (a) { scare = true; begin(a); } });
+  });
 </script>
 
-{#if phase === 'scare'}<Jumpscare ondone={() => (phase = 'play')} />{/if}
-{#if phase === 'play'}<Play {game} {diff} signal={3} ondone={done} />{/if}
-{#if phase === 'boot'}
-  <div class="boot"><div class="mono">QORVES-OS</div>{#each lines as l}<div class="mono">{l}</div>{/each}</div>
-{/if}
-{#if phase === 'ok'}
-  <div class="ok"><b>SALDIRI SAVUNULDU</b><span class="mono">Kontrol geri alındı · {gameLabel(game)}</span></div>
-{/if}
-
-<style>
-  .boot,.ok{position:fixed;inset:0;z-index:19000;background:#020308;color:#00f0ff;display:grid;place-content:center;justify-items:center;gap:8px}
-  .boot{align-content:center;text-align:left;padding:40px;letter-spacing:.12em}
-  .ok b{font-family:var(--f-disp);font-size:32px;color:#39ff8a}.ok span{color:var(--mut)}
-</style>
+{#if on}<HackStage {game} {diff} signal={sig} mode="in" {scare} ondone={done} />{/if}

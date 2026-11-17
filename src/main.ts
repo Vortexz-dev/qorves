@@ -1,4 +1,5 @@
 import './global.css';
+import './lib/keyguard';
 import { mount } from 'svelte';
 import App from './App.svelte';
 import { reloadOnce } from './lib/chunk';
