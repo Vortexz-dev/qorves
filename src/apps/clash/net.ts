@@ -68,7 +68,7 @@ export async function leaderboard(): Promise<Pub[]> {
     getDocs(query(collection(db, 'clash_decks'), orderBy('cr', 'desc'), limit(50))),
     getDocs(query(collection(db, 'clash_bots'), orderBy('cr', 'desc'), limit(50))),
   ]);
-  const ps = a.docs.map((d) => ({ ...(d.data() as Pub), uid: d.id, bot: false })).filter((p) => validDeck(p.deck));
+  const ps = a.docs.map((d) => { const x = d.data() as Partial<Pub>; return { ...x, uid: d.id, bot: false, dl: Array.isArray(x.dl) ? x.dl : Array(8).fill(1), lv: x.lv ?? 1, best: x.best ?? x.cr ?? 0, w: x.w ?? 0, l: x.l ?? 0 } as Pub; }).filter((p) => validDeck(p.deck));
   const bs = b.docs.map((d) => ({ ...(d.data() as Pub), uid: d.id, bot: true }));
   return [...ps, ...bs].sort((x, y) => y.cr - x.cr).slice(0, 60);
 }
@@ -123,7 +123,7 @@ async function headless(a: Pub, b: Pub): Promise<number> {
 /* ---------- arkadaşlar ---------- */
 export interface Fr { f: string[]; in: string[]; name: string }
 export const watchFr = (uid: string, cb: (f: Fr) => void) => onSnapshot(D('clash_fr', uid), (s) => cb({ f: [], in: [], name: '', ...(s.data() as Partial<Fr>) }), () => cb({ f: [], in: [], name: '' }));
-export async function allPlayers(): Promise<Pub[]> { const s = await getDocs(collection(db, 'clash_decks')); return s.docs.map((d) => ({ ...(d.data() as Pub), uid: d.id })).filter((p) => p.name); }
+export async function allPlayers(): Promise<Pub[]> { const s = await getDocs(collection(db, 'clash_decks')); return s.docs.map((d) => { const x = d.data() as Partial<Pub>; return { ...x, uid: d.id, dl: Array.isArray(x.dl) ? x.dl : Array(8).fill(1), lv: x.lv ?? 1, cr: x.cr ?? 0 } as Pub; }).filter((p) => p.name); }
 export async function ensureFr(uid: string, name: string) { const s = await getDoc(D('clash_fr', uid)); if (!s.exists()) await setDoc(D('clash_fr', uid), { f: [], in: [], name: name.slice(0, 40) }); }
 export async function requestFriend(me: string, to: string) {
   const s = await getDoc(D('clash_fr', to));
