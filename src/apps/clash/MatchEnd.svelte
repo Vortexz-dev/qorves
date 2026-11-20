@@ -45,7 +45,7 @@
   </div>
   <div class="body" class:on={stage >= 2}>
     <div class="col rewards">
-      <div class="rw"><svg class="tro" viewBox="0 0 24 24"><path d="M7 3h10v3h3v2a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V18h3v3H8v-3h3v-3.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V6h3zM6 8a2 2 0 0 0 1 1.7V8zm11 0v1.7A2 2 0 0 0 18 8z" fill="#ffd257" /></svg><span>KUPA</span><b class:neg={info.dcr < 0}>{info.friendly ? '—' : (crShown >= 0 ? '+' : '') + crShown}</b><small>{info.friendly ? 'Dostluk maçı' : `Yeni: ${info.cr}`}</small></div>
+      <div class="rw"><svg class="tro" viewBox="0 0 24 24"><path d="M7 3h10v3h3v2a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V18h3v3H8v-3h3v-3.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V6h3zM6 8a2 2 0 0 0 1 1.7V8zm11 0v1.7A2 2 0 0 0 18 8z" fill="#ffd257" /></svg><span>KUPA</span><b class:neg={info.dcr < 0}>{info.friendly ? '—' : (crShown >= 0 ? '+' : '') + crShown}</b><small>{info.friendly ? info.tag : `Yeni: ${info.cr}`}</small></div>
       <div class="rw"><img src={`${IMG}cur_bit.webp`} alt="" /><span>BIT</span><b class="bit">+{bitShown}</b><small>Maç ödülü</small></div>
       <div class="rw">{#if info.chest === 'yes'}<img src={`${IMG}chest_win.webp`} alt="" class="ch" /><span>SANDIK</span><b class="chest">Veri Kasası</b><small>Yuvaya eklendi</small>{:else if info.chest === 'full'}<img src={`${IMG}chest_win.webp`} alt="" class="ch gray" /><span>SANDIK</span><b>Yuvalar dolu</b><small>Önce bir sandık aç</small>{:else}<span>SANDIK</span><b>—</b><small>Kazanınca sandık düşer</small>{/if}</div>
     </div>
@@ -73,8 +73,8 @@
 </div>
 
 <style>
-  .me{position:absolute;inset:0;z-index:40;display:grid;grid-template-rows:auto 1fr auto;padding:3vh 4vw;gap:2vh;background:radial-gradient(ellipse at top,rgba(0,40,60,.55),rgba(3,5,10,.94) 70%);animation:fade .4s both;color:#e6f2fa}
-  .me.lose{background:radial-gradient(ellipse at top,rgba(70,0,20,.55),rgba(3,5,10,.94) 70%)}
+  .me{position:absolute;inset:0;z-index:40;display:grid;grid-template-rows:auto 1fr auto;padding:3vh 4vw;gap:2vh;background:radial-gradient(ellipse at top,rgba(0,40,60,.75),rgba(3,5,10,.97) 70%);animation:fade .4s both;color:#e6f2fa}
+  .me.lose{background:radial-gradient(ellipse at top,rgba(70,0,20,.75),rgba(3,5,10,.97) 70%)}
   @keyframes fade{from{opacity:0}}
   .hd{display:grid;justify-items:center;gap:6px}
   .ttl{font:900 clamp(48px,8vw,96px) var(--f-disp,sans-serif);letter-spacing:.14em;color:#fff;text-shadow:0 0 30px #00e5ff;animation:slam .6s cubic-bezier(.2,1.6,.4,1) both}

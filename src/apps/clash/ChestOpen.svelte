@@ -60,7 +60,7 @@
   .ttl{position:absolute;top:6%;font:900 34px var(--f-disp,sans-serif);letter-spacing:.2em;color:#fff;text-shadow:0 0 20px #00e5ff;animation:tdrop .6s cubic-bezier(.2,1.4,.3,1) both}
   .legend .ttl{text-shadow:0 0 20px #ffd257;color:#fff3c4}
   @keyframes tdrop{from{transform:translateY(-60px);opacity:0}}
-  .rays{position:absolute;width:160vmax;height:160vmax;background:repeating-conic-gradient(from 0deg,rgba(255,230,140,.12) 0 6deg,transparent 6deg 18deg);opacity:0;transition:opacity .4s;animation:spin 14s linear infinite}
+  .rays{position:absolute;width:160vmax;height:160vmax;background:repeating-conic-gradient(from 0deg,rgba(255,230,140,.06) 0 5deg,transparent 5deg 20deg);mask-image:radial-gradient(circle,#000 10%,transparent 55%);-webkit-mask-image:radial-gradient(circle,#000 10%,transparent 55%);opacity:0;transition:opacity .4s;animation:spin 14s linear infinite}
   .rays.on{opacity:1}
   @keyframes spin{to{transform:rotate(360deg)}}
   .box{position:relative;width:min(40vmin,380px);aspect-ratio:1;animation:bdrop .55s cubic-bezier(.3,1.6,.5,1) both;transition:transform .6s cubic-bezier(.2,1,.3,1),width .6s}

@@ -337,7 +337,7 @@
     if (mode !== 'practice') persist().catch(() => {});
     const why = forfeit ? 'Rakip maçı terk etti' : st.reason === '3 taç' ? 'Ana kule düştü' : st.reason === 'süre' ? 'Süre doldu · taç farkı' : st.reason === 'ani ölüm' ? 'Uzatmada ani ölüm' : st.reason === 'eşitlik bozucu' ? 'Kule canı farkı' : st.reason || '';
     const desync = await checkDesync();
-    const info: EndInfo = { res, why, crowns, dcr, cr: inv.cr, bit, chest, foe: foe.name, foeBot: foe.bot, friendly: mode === 'friendly' || mode === 'practice', desync, theme: mTheme.id };
+    const info: EndInfo = { res, why, crowns, dcr, cr: inv.cr, bit, chest, foe: foe.name, foeBot: foe.bot, friendly: mode === 'friendly' || mode === 'practice', tag: mode === 'practice' ? 'Antrenman · kupasız' : mode === 'friendly' ? 'Dostluk maçı · kupasız' : '', desync, theme: mTheme.id };
     const ss = st.st, deck = inv.deck.slice(), side = me;
     music.level(0); setTimeout(() => (res === 'win' ? S.win() : res === 'lose' ? S.lose() : S.crown()), 600);
     setTimeout(() => { end = { info, st: ss, me: side, deck: match ? (match.decks as Record<number, DeckCard[]>)[side]!.map((c) => c.id) : deck }; scr = 'end'; net?.close(); net = null; }, 2000);
@@ -395,7 +395,7 @@
 
 <svelte:window onpointermove={move} onpointerup={up} />
 
-<div class="cl" style={`--acc:${(scr === 'match' || scr === 'vs' ? mTheme : theme).accent}`}>
+<div class="cl" data-nolb style={`--acc:${(scr === 'match' || scr === 'vs' ? mTheme : theme).accent}`}>
   <div class="bgk" style={`background-image:url(${IMG}${scr === 'intro' ? 'key' : theme.ground}.webp)`} class:dim={scr !== 'intro'}></div>
   <div class="scan"></div>
 
@@ -418,7 +418,7 @@
       <main class="page">
         {#if scr === 'home'}
           <div class="home">
-            <div class="hero" style={`background-image:url(${IMG}${theme.ground}.webp)`}>
+            <div class="hero" style={`background-image:linear-gradient(90deg,color-mix(in srgb,${theme.accent} 18%,transparent),transparent 50%),url(${IMG}key.webp)`}>
               <div class="hshade"></div>
               <div class="hl"><Logo size={0.62} anim={false} /></div>
               <div class="arena"><small class="mono">ARENA {THEMES.indexOf(theme) + 1}/5</small><b>{theme.name}</b><p>{theme.desc}</p>
@@ -511,7 +511,7 @@
               {#each board as p, i (p.uid)}
                 <button class="lr" class:mine={p.uid === u.uid} class:bot={p.bot} onclick={() => { peek = p; S.click(); }} style={`--d:${Math.min(i, 20) * 25}ms`} type="button">
                   <span class={'pos p' + (i + 1)}>{i + 1}</span><span class="klv sm">{p.lv}</span><span class="pn">{p.name}{#if p.bot}<em>BOT</em>{/if}{#if p.uid === u.uid}<em class="you">SEN</em>{/if}</span>
-                  <span class="ar mono">{themeFor(p.cr).name}</span><span class="wl mono">{p.w}G {p.l}M</span><b><Trophy size={14} /> {fmt(p.cr)}</b>
+                  <span class="ar mono">{themeFor(p.cr).name}</span><span class="lwl mono">{p.w}G {p.l}M</span><b><Trophy size={14} /> {fmt(p.cr)}</b>
                 </button>
               {:else}<p class="mono dim">Yükleniyor…</p>{/each}
             </div>
@@ -634,7 +634,7 @@
   .press{font-size:13px;letter-spacing:.4em;color:#fcee0a;opacity:0}.press.on{opacity:1;animation:bl 1.2s ease-in-out infinite}
   @keyframes bl{50%{opacity:.25}}
   /* kabuk */
-  .shell{position:absolute;inset:0;z-index:2;display:grid;grid-template-rows:64px 1fr 66px}
+  .shell{position:absolute;inset:46px 0 0 0;z-index:2;display:grid;grid-template-rows:64px 1fr 66px}
   .top{display:flex;align-items:center;gap:14px;padding:0 22px;background:linear-gradient(180deg,rgba(3,6,12,.92),rgba(3,6,12,.55));border-bottom:1px solid rgba(255,255,255,.07);animation:tdown .45s cubic-bezier(.2,1.2,.3,1) both}
   @keyframes tdown{from{transform:translateY(-100%)}}
   .top .me{display:flex;align-items:center;gap:10px;margin-right:auto}
@@ -677,7 +677,7 @@
   .train{padding:12px;border-radius:12px;border:1px solid rgba(0,229,255,.4);background:rgba(4,12,20,.75);cursor:pointer;font:800 15px var(--f-disp,sans-serif);letter-spacing:.12em}
   .train small{font:600 11px var(--f-mono,monospace);color:#8aa3b3;letter-spacing:.1em;margin-left:6px}
   .train:hover{background:rgba(0,229,255,.16)}
-  .wl{position:relative;grid-column:1;display:flex;gap:14px;margin-top:10px;font-size:12px;color:#9fb6c6}.wl .hot{color:#ffb347}
+  .wl{position:relative;grid-column:1;display:flex;gap:14px;margin-top:10px;font-size:13px;color:#cfe0ea;text-shadow:0 1px 3px #000}.wl .hot{color:#ffb347}
   .slots{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;height:150px}
   .slot{position:relative;border-radius:14px;background:linear-gradient(180deg,rgba(14,22,34,.92),rgba(6,10,18,.92));border:1px solid rgba(255,255,255,.12);display:grid;grid-template-rows:1fr auto auto;justify-items:center;padding:8px;cursor:pointer;animation:sin .5s cubic-bezier(.2,1.3,.4,1) var(--d) both;transition:transform .15s}
   @keyframes sin{from{opacity:0;transform:translateY(30px)}}
@@ -699,7 +699,7 @@
   @keyframes sw{50%{box-shadow:0 0 22px rgba(252,238,10,.35)}}
   .coll{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
   .det{min-height:0;overflow:auto;background:rgba(6,10,18,.82);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px;display:grid;gap:10px;align-content:start;animation:pin .4s both}
-  .det .big{position:relative;width:170px;aspect-ratio:3/4;justify-self:center;border-radius:12px;overflow:hidden;border:3px solid var(--rc);box-shadow:0 0 30px color-mix(in srgb,var(--rc) 50%,transparent);animation:bigin .45s cubic-bezier(.2,1.4,.4,1) both}
+  .det .big{position:relative;width:170px;height:227px;flex:none;justify-self:center;border-radius:12px;overflow:hidden;border:3px solid var(--rc);box-shadow:0 0 30px color-mix(in srgb,var(--rc) 50%,transparent);animation:bigin .45s cubic-bezier(.2,1.4,.4,1) both}
   @keyframes bigin{from{transform:rotateY(70deg) scale(.8);opacity:0}}
   .det .big img{width:100%;height:100%;object-fit:cover}
   .r-common{--rc:#6f8aa3}.r-rare{--rc:#ff9b2f}.r-epic{--rc:#c060ff}.r-legendary{--rc:#5ff2d6}
@@ -750,7 +750,7 @@
   .lr.mine{border-color:#fcee0a;background:rgba(252,238,10,.08)}
   .pos{font:900 18px var(--f-disp,sans-serif);color:#8aa3b3;text-align:center}.pos.p1{color:#ffd257}.pos.p2{color:#d6e2ea}.pos.p3{color:#e0904a}
   .pn{font-weight:800}.pn em{font:800 9px var(--f-mono,monospace);background:#33475a;padding:2px 5px;border-radius:3px;margin-left:8px;font-style:normal;vertical-align:middle}.pn em.you{background:#fcee0a;color:#111}
-  .lr .ar{font-size:11px;color:#8aa3b3}.lr .wl{font-size:11px;color:#8aa3b3;margin:0}.lr b{text-align:right;font-family:var(--f-mono,monospace);color:#ffd257}
+  .lr .ar{font-size:11px;color:#8aa3b3}.lr .lwl{font-size:11px;color:#8aa3b3}.lr b{text-align:right;font-family:var(--f-mono,monospace);color:#ffd257}
   .peek{position:absolute;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:5;animation:fd .2s both}
   @keyframes fd{from{opacity:0}}
   .pk{background:#0a111c;border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:18px;display:grid;gap:8px;width:min(760px,90%);animation:pin .3s both}
@@ -776,7 +776,7 @@
   .radar i:nth-child(2){animation-delay:.8s}.radar i:nth-child(3){animation-delay:1.6s}
   .radar.sm{width:80px;height:80px;margin:0}
   @keyframes rad{from{transform:scale(.1);opacity:1}to{transform:scale(1);opacity:0}}
-  .vs{position:absolute;inset:0;z-index:2;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;background-size:cover;background-position:center;overflow:hidden}
+  .vs{position:absolute;inset:46px 0 0 0;z-index:2;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;background-size:cover;background-position:center;overflow:hidden}
   .vs::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,40,70,.88),rgba(0,0,0,.5) 50%,rgba(70,0,20,.88))}
   .vsl,.vsr,.vsm{position:relative;display:grid;gap:8px;padding:0 5vw}
   .vsl{justify-items:end;animation:vl .55s cubic-bezier(.2,1.3,.3,1) both}.vsr{justify-items:start;animation:vr .55s cubic-bezier(.2,1.3,.3,1) both}
@@ -788,7 +788,7 @@
   .vsm small{font:700 13px var(--f-mono,monospace);letter-spacing:.3em;color:#fff;text-shadow:none}
   @keyframes vm{from{transform:scale(4);opacity:0}}
   /* maç */
-  .match{position:absolute;inset:0;z-index:2;display:grid;grid-template-columns:178px 1fr;animation:fd .4s both}
+  .match{position:absolute;inset:46px 0 0 0;z-index:2;display:grid;grid-template-columns:178px 1fr;animation:fd .4s both}
   .side{display:grid;grid-template-rows:auto 1fr auto auto auto;gap:8px;padding:10px;background:linear-gradient(90deg,rgba(2,6,12,.96),rgba(2,6,12,.82));border-right:1px solid rgba(0,229,255,.2);min-height:0}
   .mi b{display:block;font:800 14px var(--f-disp,sans-serif);color:#7ff6ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cr i{font-style:normal;font-size:20px;color:#26313d;margin-right:2px}.cr i.on{color:#3ff0ff;text-shadow:0 0 10px #3ff0ff;animation:cpop .4s cubic-bezier(.2,1.8,.4,1)}

@@ -68,4 +68,4 @@ export function trophyDelta(me: number, opp: number, res: 'win' | 'lose' | 'draw
 export function bitReward(res: 'win' | 'lose' | 'draw', crowns: number, cr: number) { const base = res === 'win' ? 40 : res === 'draw' ? 20 : 10; return base + crowns * 10 + Math.floor(cr / 200) * 2; }
 /** Oyuncu "seviyesi": destedeki kart seviyelerinin ortalaması (yuvarlak). */
 export const kingLv = (deck: { lv: number }[]) => Math.max(1, Math.round(deck.reduce((s, c) => s + c.lv, 0) / Math.max(1, deck.length)));
-export interface EndInfo { res: 'win' | 'lose' | 'draw'; why: string; crowns: [number, number]; dcr: number; cr: number; bit: number; chest: 'yes' | 'full' | 'no'; foe: string; foeBot: boolean; friendly: boolean; desync: boolean; theme: string }
+export interface EndInfo { res: 'win' | 'lose' | 'draw'; why: string; crowns: [number, number]; dcr: number; cr: number; bit: number; chest: 'yes' | 'full' | 'no'; foe: string; foeBot: boolean; friendly: boolean; tag: string; desync: boolean; theme: string }
