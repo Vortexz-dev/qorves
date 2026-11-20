@@ -55,23 +55,27 @@
     c.open = Date.now() + CHESTS[c.t].mins * 60_000; S.click(); persist().catch(() => {});
   }
   async function openChest(i: number) {
-    const c = inv.chests[i]!; const r = rollChest(c.t, inv);
-    inv.chests.splice(i, 1); applyDrops(inv, r.bit, r.drops);
-    try { await persist(); } catch { return; }
-    opening = { chest: c.t, ...r };
+    const before = $state.snapshot(inv) as Inv;
+    try {
+      const c = inv.chests[i]!; const r = rollChest(c.t, inv);
+      inv.chests.splice(i, 1); applyDrops(inv, r.bit, r.drops);
+      await persist(); opening = { chest: c.t, ...r };
+    } catch (e) { inv = before; S.deny(); say('Sandık açılamadı: ' + String((e as Error)?.message ?? e).slice(0, 90)); }
   }
   async function buyChest(t: ChestId) {
     const d = CHESTS[t]; if (!d.price) return;
     if (inv.qore < d.price) { S.deny(); say('QORE yetersiz.'); return; }
     if (!(await ask(`${d.name} al?`, `${d.price} QORE harcanacak. ${d.desc}`, `${d.price} QORE`, false))) return;
-    inv.qore -= d.price; const r = rollChest(t, inv); applyDrops(inv, r.bit, r.drops);
-    try { await persist(); } catch { return; }
-    S.buy(); opening = { chest: t, ...r };
+    const before = $state.snapshot(inv) as Inv;
+    try {
+      const r = rollChest(t, inv); inv.qore -= d.price; applyDrops(inv, r.bit, r.drops);
+      await persist(); S.buy(); opening = { chest: t, ...r };
+    } catch (e) { inv = before; S.deny(); say('Sandık alınamadı, QORE iade edildi: ' + String((e as Error)?.message ?? e).slice(0, 90)); }
   }
   async function buyBits(i: number) {
     const p = BITPACKS[i]!; if (inv.qore < p.qore) { S.deny(); say('QORE yetersiz.'); return; }
     if (!(await ask(`${p.bit.toLocaleString('tr-TR')} BIT al?`, `${p.qore} QORE harcanacak.`, `${p.qore} QORE`, false))) return;
-    inv.qore -= p.qore; inv.bit += p.bit; try { await persist(); S.coins(10); say(`+${p.bit.toLocaleString('tr-TR')} BIT`); } catch { /* */ }
+    const before = $state.snapshot(inv) as Inv; inv.qore -= p.qore; inv.bit += p.bit; try { await persist(); S.coins(10); say(`+${p.bit.toLocaleString('tr-TR')} BIT`); } catch { inv = before; S.deny(); }
   }
   /* ---------- QORE (gerçek BK) ---------- */
   let buying = $state(false);

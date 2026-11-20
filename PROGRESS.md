@@ -53,3 +53,9 @@ Dal: `clash-v2` (worktree `/workspace/qclash`), origin/main üstüne rebase edil
 - Motor: n dalgalı büyü (pulses), 'air' alan hasarı, mermi sersemletmesi.
 - Kurallar değişmedi (BIT sınırı yeterli). Smoke: t158.mjs (ana/kartlar/mağaza/arena açılışı/maç), hata yok.
 - YAYINDA: main d122f60, canlı index-DtMm21aZ.js (doğrulandı).
+
+## t159u hata düzeltmesi
+- Taç Kasası (ve şansa bağlı her sandık): Arena 1'de açık Efsanevi kart yok → rollChest boş havuzdan `undefined` seçip çöküyordu; QORE yalnız ekranda düşüyor, kayıt yok (F5 = iade). Düzeltme: açık kartı olmayan nadirlikte o nadirliğin tüm kartları havuza girer (garanti tutulur).
+- İstemci: sandık al/aç ve BIT paketi hata verirse durum geri alınır, Türkçe hata gösterilir.
+- DM: clash_buys kuralı yalnız role=='player' kabul ediyordu → DM QORE alamıyordu. Artık player+dm.
+- Kural testleri 17/17.

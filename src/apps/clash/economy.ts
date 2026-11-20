@@ -45,7 +45,8 @@ export function rollChest(c: ChestId, inv: Inv, r: () => number = Math.random): 
   const d = CHESTS[c]; const by: Record<Rarity, string[]> = { common: [], rare: [], epic: [], legendary: [] };
   const open = new Set(unlockedIds(inv.best ?? 0)); const total = chestCards(c, inv.best ?? 0);
   for (const k of CARDS) if (open.has(k.id)) by[k.rarity].push(k.id);
-  for (const k of ['legendary', 'epic', 'rare'] as Rarity[]) if (!by[k].length) by[k] = by[k === 'legendary' ? 'epic' : k === 'epic' ? 'rare' : 'common'].slice();
+  // Bu nadirlikte henüz açık kart yoksa (ör. Arena 1'de Efsanevi) o nadirliğin tüm kartları havuza girer: garanti her zaman tutulur.
+  for (const k of ['common', 'rare', 'epic', 'legendary'] as Rarity[]) if (!by[k].length) by[k] = CARDS.filter((x) => x.rarity === k).map((x) => x.id);
   const pickR = (): Rarity => { let x = r() * 100; for (const k of ['legendary', 'epic', 'rare', 'common'] as Rarity[]) { x -= d.odds[k]; if (x < 0) return k; } return 'common'; };
   const counts: Record<string, number> = {};
   const stacks = Math.min(7, 3 + Math.floor(total / 12));

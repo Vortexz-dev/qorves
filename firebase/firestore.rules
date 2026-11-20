@@ -457,7 +457,7 @@ service cloud.firestore {
       allow create: if signedIn() && request.resource.data.keys().hasOnly(['uid', 'name', 'pack', 'qore', 'bk', 'at', 'bal'])
         && request.resource.data.uid == request.auth.uid && packOk(request.resource.data)
         && request.resource.data.name is string && request.resource.data.name.size() <= 60
-        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role == 'player'
+        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role in ['player', 'dm']
         && request.resource.data.at is int && request.resource.data.at > request.time.toMillis() - 600000 && request.resource.data.at < request.time.toMillis() + 600000
         && getAfter(wPath(request.auth.uid)).data.get('lq', '') == bid
         && request.resource.data.bal == get(wPath(request.auth.uid)).data.bal.get('BK', 0) - request.resource.data.bk
