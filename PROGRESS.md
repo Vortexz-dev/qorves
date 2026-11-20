@@ -33,6 +33,9 @@ Dal: `clash-v2` (worktree `/workspace/qclash`), origin/main üstüne rebase edil
 - DÜZELTİLDİ: tüm sprite'larda 1–3 px yarı saydam kenar çerçevesi (kule/birim etrafında kutu).
 - Birimler %20 büyütüldü (sz ×1.55).
 - Yeni test: `qtest/ct8.mjs` (kısayolsuz tam kupalı bot maçı).
+- DÜZELTİLDİ: Orbitron'da Ş/Ğ/İ yoktu (public/fonts/orbitron-tr-*.woff, unicode-range ek).
+- Sıralama: 'senin sıran' çubuğu; BOT rozetleri kaldırıldı; bot adları oyun-içi takma ad.
+- Geçti (4cf1743): ct1, ct2, ct3 (toast + PvP 9/9 hash), ct5, ct7, crules 17/17.
+- ct6 düzeltildi (önce 550 QORE alıyor, Neon Kasa 160 QORE).
 ## Kalan
-- ct3 (arkadaş + masaüstü bildirimi + PvP), ct8, ct5 (sıralı PvP + bot + iki hesaptan sıralama), ct6 (premium sandık + DM kaydı + temalar), crules tekrar.
-- Ekran görüntülerini gözden geçir → düzelt → rebase origin/main → build/check → main'e birleştir → Pages + kurallar deploy → canlı hash.
+- Sırayla ct3, ct8, ct5, ct6, crules → görüntü kontrolü → rebase origin/main → build/check → main → Pages + kurallar → canlı hash.
