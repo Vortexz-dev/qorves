@@ -4,7 +4,7 @@
   import { flip } from 'svelte/animate';
   import type { Character } from '../../lib/backend';
   import { ask } from '../../lib/confirm.svelte';
-  import { ITEM_TYPES, maxCarry, hardCarry, carryOf, saveItem, dropItem, newItem, type InvItem, type ItemType } from '../../lib/persona';
+  import { ITEM_TYPES, maxCarry, hardCarry, carryOf, strOf, kgFmt, carryWhy, saveItem, dropItem, newItem, type InvItem, type ItemType } from '../../lib/persona';
   import { P } from './psfx';
   let { uid, c, inv, editable }: { uid: string; c: Character; inv: InvItem[]; editable: boolean } = $props();
   const IC: Record<string, string> = {
@@ -17,7 +17,7 @@
     other: 'M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z',
   };
   let typ = $state<'' | ItemType>(''), q = $state(''), sel = $state<string | null>(null), ed = $state<InvItem | null>(null), err = $state('');
-  const kg = $derived(carryOf(inv)), cap = $derived(maxCarry(c.stats?.STR ?? 10)), hard = $derived(hardCarry(c.stats?.STR ?? 10));
+  const kg = $derived(carryOf(inv)), cap = $derived(maxCarry(strOf(c))), hard = $derived(hardCarry(strOf(c)));
   const list = $derived(inv.filter((i) => (!typ || i.type === typ) && (!q.trim() || (i.name + ' ' + (i.note ?? '')).toLocaleLowerCase('tr').includes(q.trim().toLocaleLowerCase('tr')))));
   const cur = $derived(inv.find((i) => i.id === sel) ?? list[0] ?? null);
   const lab = (t: string) => ITEM_TYPES.find((x) => x.id === t)?.label ?? t;
@@ -33,7 +33,7 @@
   async function save() {
     if (!ed || !ed.name.trim()) { err = 'İsim gerekli.'; P.deny(); return; }
     const it = { ...ed, name: ed.name.trim(), kg: Math.max(0, +ed.kg || 0), qty: Math.max(1, Math.floor(+ed.qty || 1)), note: ed.note?.slice(0, 400), at: Date.now() };
-    if (carryOf([...inv.filter((i) => i.id !== it.id), it]) > hard) { err = `Sert taşıma limiti (${hard} kg) aşılır.`; P.deny(); return; }
+    if (carryOf([...inv.filter((i) => i.id !== it.id), it]) > hard) { err = `Sert taşıma limiti (${kgFmt(hard)} kg) aşılır.`; P.deny(); return; }
     try { await saveItem(uid, it); sel = it.id; ed = null; err = ''; P.confirm(); } catch (e) { err = String(e); P.deny(); }
   }
   async function del(it: InvItem) { if (!(await ask('Eşya silinsin mi?', `"${it.name}" envanterden kalkacak.`, 'Sil'))) return; await dropItem(uid, it.id); P.back(); if (sel === it.id) sel = null; ed = null; }
@@ -57,10 +57,10 @@
 
   <section class="gridw">
     <div class="top">
-      <div class="load" class:bad={kg > cap}>
+      <div class="load" class:bad={kg > cap} title={carryWhy(strOf(c))}>
         <span class="mono">TAŞIMA</span>
         <div class="bar">{#each Array(30) as _, i}<i class:on={i < Math.round((kg / hard) * 30)} class:over={i >= Math.round((cap / hard) * 30)}></i>{/each}</div>
-        <b>{kg.toFixed(1)}<small>/{cap} kg</small></b>
+        <b>{kg.toFixed(1)}<small>/{kgFmt(cap)} kg</small></b>
       </div>
       <input bind:value={q} placeholder="ARA…" class="mono" />
       {#if editable}<button class="add" onclick={() => { ed = newItem(); if (typ) ed.type = typ; err = ''; P.select(); }}>+ EŞYA</button>{/if}

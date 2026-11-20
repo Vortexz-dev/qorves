@@ -25,7 +25,8 @@ export const CAPITALS: Record<string, string> = { 'sys-aerendis': 'Elf İmparato
   'sys-ondrum': 'Ondrûm Krallığı başkenti', 'sys-harrow': 'Ostrav Loncası başkenti (Ostrav · Kotlina)', 'sys-meridian': 'Velmor Cemiyeti başkenti (Velmor · Aldane)', 'sys-imperion': 'Eski imparatorluk başkenti' };
 
 interface SysObj { d: SysData; pos: THREE.Vector3; group: THREE.Group; core: THREE.Sprite; halo: THREE.Sprite; haloOp: number; coreOp: number; extra: THREE.Object3D[]; terr: THREE.Mesh; label: HTMLDivElement; known: boolean; dim: number }
-export type PinTip = { kind: string; label: string; sys: string; clickable: boolean };
+export type PinTip = { kind: string; label: string; sys: string; clickable: boolean; id?: string };
+export type ClusterPin = { kind: string; label: string; id?: string; col?: string; note?: boolean; priv?: boolean };
 export interface Hooks { hover: (id: string | null) => void; select: (id: string | null) => void; pinHover?: (p: PinTip | null) => void; pinClick?: (p: PinTip) => void }
 
 const POINT_VS = `attribute float size; attribute vec3 color; attribute float tw; varying vec3 vC; varying float vT; uniform float uPR; uniform float uTime;
@@ -235,14 +236,16 @@ export class ClusterScene {
     this.resize();
   }
   /** DM işaretleri: sistem rozetleri + kümede görünür 3B gemi / dalga halkaları */
-  setMarkers(m: Map<string, { ships: string[]; pins: { kind: string; label: string }[] }>) {
+  setMarkers(m: Map<string, { ships: string[]; pins: ClusterPin[] }>) {
     const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
     for (const o of this.sys.values()) {
       const el = o.label.querySelector('.mk') as HTMLElement, x = m.get(o.d.id);
-      const pinN = x?.pins.length ?? 0, shipN = x?.ships.length ?? 0;
+      const dmp = x?.pins.filter((p) => !p.note) ?? [], nts = x?.pins.filter((p) => p.note) ?? [];
+      const pinN = dmp.length, shipN = x?.ships.length ?? 0, noteN = nts.length;
       let html = '';
       if (shipN) html += `<s class="sh" data-tip="${esc('Gemi: ' + x!.ships.join(', '))}">▲${shipN > 1 ? shipN : ''}</s>`;
-      if (pinN) html += `<s class="mi" data-tip="${esc(x!.pins.map((p) => p.label).join(', '))}">◆${pinN > 1 ? pinN : ''}</s>`;
+      if (pinN) html += `<s class="mi" data-tip="${esc(dmp.map((p) => p.label).join(', '))}">◆${pinN > 1 ? pinN : ''}</s>`;
+      if (noteN) html += `<s class="nt" style="--nc:${nts[0].col ?? '#00f0ff'}" data-tip="${esc('Notlar: ' + nts.map((p) => p.label).join(', '))}">✎${noteN > 1 ? noteN : ''}</s>`;
       el.innerHTML = html;
     }
     this.pinRoot.clear(); this.pins.forEach((p) => p.label?.remove()); this.pins = [];
@@ -257,10 +260,12 @@ export class ClusterScene {
         this.pinRoot.add(g); this.pins.push({ kind: 'ship', obj: g, tip });
       });
       x.pins.forEach((p, i) => {
-        const col = p.kind === 'alert' ? '#ff2a55' : p.kind === 'objective' ? '#fcee0a' : p.kind === 'poi' ? '#00f0ff' : '#ff9b2f';
-        const ring = this.sprite('ring', col, 0.85);
-        ring.position.set(o.pos.x, 0.3, o.pos.z); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(18 + i * 4);
-        const tip = { kind: p.kind, label: p.label, sys: o.d.id, clickable: p.kind !== 'ship' };
+        const col = p.col ?? (p.kind === 'alert' ? '#ff2a55' : p.kind === 'objective' ? '#fcee0a' : p.kind === 'poi' ? '#00f0ff' : '#ff9b2f');
+        const ring = this.sprite(p.note ? 'ret' : 'ring', col, p.note ? (p.priv ? 0.55 : 0.9) : 0.85);
+        // not: sistemin çevresinde küçük nişangâh (açıya göre dağılır); DM işareti: sistem halkası
+        if (p.note) { const a = (i * 2.4) + o.pos.z * 0.01; ring.position.set(o.pos.x + Math.cos(a) * 6, 1.2, o.pos.z + Math.sin(a) * 6); ring.scale.setScalar(1.7); }
+        else { ring.position.set(o.pos.x, 0.3, o.pos.z); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(18 + i * 4); }
+        const tip = { kind: p.kind, label: p.label, sys: o.d.id, clickable: p.kind !== 'ship', id: p.id };
         this.pinRoot.add(ring); this.pins.push({ kind: p.kind, obj: ring, ring, tip });
       });
     }

@@ -8,7 +8,7 @@
   import type { UserProfile } from '../lib/backend';
   import { CLASSES, RACES, CHROME_TIERS } from '../lib/data/character';
   import { watchSheet, watchInv, watchChrome, watchQuests, watchBounties, watchRels, ensureSheet, syncLevel, listPlayers,
-    maxHp, maxCarry, carryOf, moneyLine, xpToReach,
+    maxHp, maxCarry, carryOf, strOf, kgFmt, moneyLine, xpToReach,
     type Sheet, type InvItem, type ChromePiece, type Quest, type Bounty, type NpcRel } from '../lib/persona';
   import { P } from './persona/psfx';
   import HudBg from './persona/HudBg.svelte';
@@ -39,7 +39,7 @@
   const xpPct = $derived(Math.max(0, Math.min(1, (xp - xpToReach(lvl)) / Math.max(1, xpToReach(lvl + 1) - xpToReach(lvl)))));
   const hpMax = $derived(c ? maxHp(c.race, c.stats?.CON ?? 10) : 100);
   const hp = $derived(!sheet || sheet.hp < 0 ? hpMax : Math.min(sheet.hp, hpMax));
-  const kg = $derived(carryOf(inv)), cap = $derived(maxCarry(c?.stats?.STR ?? 10));
+  const kg = $derived(carryOf(inv)), cap = $derived(maxCarry(strOf(c)));
 
   function go(t: Tab) { if (t === tab) return; const a = TABS.findIndex((x) => x[0] === tab), b = TABS.findIndex((x) => x[0] === t); dir = b > a ? 1 : -1; tab = t; P.tab(); }
   function step(d: number) { const i = TABS.findIndex((x) => x[0] === tab); go(TABS[(i + d + TABS.length) % TABS.length]![0]); }
@@ -106,7 +106,7 @@
     </nav>
     <div class="res">
       <div class="rv"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.3-9A5.2 5.2 0 0 1 12 6a5.2 5.2 0 0 1 9.3 6c-2.3 4.4-9.3 9-9.3 9z" fill="currentColor"/></svg><b>{hp}</b><small>/{hpMax}</small></div>
-      <div class="rv" class:bad={kg > cap}><svg viewBox="0 0 24 24"><path d="M6 8h12l2 12H4zM9 8a3 3 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="2"/></svg><b>{kg.toFixed(1)}</b><small>/{cap} kg</small></div>
+      <div class="rv" class:bad={kg > cap}><svg viewBox="0 0 24 24"><path d="M6 8h12l2 12H4zM9 8a3 3 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="2"/></svg><b>{kg.toFixed(1)}</b><small>/{kgFmt(cap)} kg</small></div>
       <div class="rv y"><b class="mono">{moneyLine(wallet)}</b></div>
     </div>
   </header>

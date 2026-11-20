@@ -21,9 +21,12 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 // Yerel test: yalnız localhost'ta ve ?emu=1 iken Firebase emülatörlerine bağlan (canlı sitede etkisiz).
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (new URLSearchParams(location.search).has('emu') || sessionStorage.getItem('qv.emu'))) {
-  sessionStorage.setItem('qv.emu', '1');
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  // ?emu=1 → varsayılan portlar (9099/8080); ?emu=8180 → Firestore 8180, Auth 9199 (paralel test ortamı)
+  const ep = new URLSearchParams(location.search).get('emu') || sessionStorage.getItem('qv.emu') || '1';
+  sessionStorage.setItem('qv.emu', ep);
+  const fsPort = +ep > 1000 ? +ep : 8080, auPort = +ep > 1000 ? +ep + 1019 : 9099;
+  connectAuthEmulator(auth, `http://127.0.0.1:${auPort}`, { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', fsPort);
 }
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 

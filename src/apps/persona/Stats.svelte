@@ -4,11 +4,11 @@
   import type { Character } from '../../lib/backend';
   import { setProfileField } from '../../lib/live';
   import { ask } from '../../lib/confirm.svelte';
-  import { STATS, saveSheet, poolPoints, resetStats, maxHp, maxCarry, hardCarry, type Sheet } from '../../lib/persona';
+  import { STATS, saveSheet, poolPoints, resetStats, maxHp, maxCarry, hardCarry, kgFmt, type Sheet } from '../../lib/persona';
   import { P } from './psfx';
   let { uid, c, sheet, editable, canEdit, onsheet }: { uid: string; c: Character; sheet: Sheet; editable: boolean; canEdit: boolean; onsheet: (s: Sheet) => void } = $props();
   const META: Record<string, { n: string; h: string; ic: string }> = {
-    STR: { n: 'GÜÇ', h: 'Taşıma kapasitesi, yakın dövüş, ham kuvvet.', ic: 'M4 10h3v4H4zM17 10h3v4h-3zM7 11h10v2H7zM2 11h2v2H2zM20 11h2v2h-2z' },
+    STR: { n: 'GÜÇ', h: 'Taşıma kapasitesi (her puan +2,5 kg), yakın dövüş, ham kuvvet.', ic: 'M4 10h3v4H4zM17 10h3v4h-3zM7 11h10v2H7zM2 11h2v2H2zM20 11h2v2h-2z' },
     DEX: { n: 'ÇEVİKLİK', h: 'İsabet, gizlilik, refleks.', ic: 'M13 3l-6 9h5l-1 9 6-10h-5z' },
     CON: { n: 'DAYANIKLILIK', h: 'Can, zehir direnci, yorgunluk.', ic: 'M12 21s-7-4.6-9.3-9A5.2 5.2 0 0 1 12 6a5.2 5.2 0 0 1 9.3 6c-2.3 4.4-9.3 9-9.3 9z' },
     INT: { n: 'ZEKÂ', h: 'Ağ, teknik, bilgi.', ic: 'M9 3h6v3h3v3h3v6h-3v3h-3v3H9v-3H6v-3H3V9h3V6h3zM10 10h4v4h-4z' },
@@ -60,8 +60,9 @@
   <aside>
     <div class="card"><header class="mono">TÜRETİLMİŞ</header>
       <div class="kv"><span>Azami can</span><b>{maxHp(c.race, sv('CON') || 10)}</b></div>
-      <div class="kv"><span>Taşıma</span><b>{maxCarry(sv('STR') || 10)} kg</b></div>
-      <div class="kv"><span>Sert limit</span><b>{hardCarry(sv('STR') || 10)} kg</b></div>
+      <div class="kv"><span>Taşıma</span><b>{kgFmt(maxCarry(sv('STR')))} kg</b></div>
+      <div class="kv"><span>Formül</span><b class="fx">15 + {sv('STR')}×2,5</b></div>
+      <div class="kv"><span>Sert limit</span><b>{kgFmt(hardCarry(sv('STR')))} kg</b></div>
       <div class="kv"><span>Toplam dağıtılan</span><b>{STATS.reduce((a, k) => a + sv(k), 0)}</b></div>
     </div>
     <div class="card"><header class="mono">KURAL</header><p>Her seviye <b>+3</b> puan getirir. 1. seviyede 9 puan dağıtılır. Dağıtılan puan geri alınmaz; sıfırlamayı yalnız DM yapar.</p></div>
@@ -103,4 +104,5 @@
   .card p{margin:0;font-size:13.5px;line-height:1.5;color:#dcc}.card p b{color:var(--py)}
   .rst{background:none;border:1px solid var(--pr);color:var(--pr);padding:9px;font:600 12px var(--f-ui);letter-spacing:.2em;cursor:var(--cur-p)}.rst:hover{background:rgba(255,93,93,.12)}
   .e{color:var(--pr);font-size:13px}
+  .fx{font-family:var(--f-mono,monospace);font-size:12px;color:var(--mut)!important}
 </style>

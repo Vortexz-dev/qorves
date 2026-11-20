@@ -250,6 +250,29 @@ service cloud.firestore {
       allow read: if isDM() || (signedIn() && request.auth.uid in resource.data.players);
       allow write: if isDM();
     }
+    // Starmap oyuncu notları: 'pub' herkes, 'priv' yalnız yazan + DM. Yalnız kendi notunu yazar/düzenler; DM her notu silebilir.
+    function noteOk(d) {
+      return d.keys().hasOnly(['id', 'uid', 'by', 'sys', 'body', 'x', 'y', 'z', 'icon', 'col', 'label', 'text', 'vis', 'at', 'upd'])
+        && d.keys().hasAll(['id', 'uid', 'by', 'sys', 'icon', 'col', 'label', 'text', 'vis', 'at', 'upd'])
+        && d.uid == request.auth.uid
+        && d.by is string && d.by.size() > 0 && d.by.size() <= 48
+        && d.sys is string && d.sys.size() > 0 && d.sys.size() <= 64
+        && (!('body' in d) || (d.body is string && d.body.size() <= 80))
+        && (!('x' in d) || d.x is number) && (!('y' in d) || d.y is number) && (!('z' in d) || d.z is number)
+        && d.icon in ['pin', 'note', 'flag', 'eye', 'skull', 'cache']
+        && d.col is string && d.col.matches('^#[0-9a-fA-F]{6}$')
+        && d.label is string && d.label.size() > 0 && d.label.size() <= 60
+        && d.text is string && d.text.size() <= 600
+        && d.vis in ['pub', 'priv']
+        && d.at is number && d.upd is number;
+    }
+    match /mapnotes/{id} {
+      allow read: if isDM() || (signedIn() && (resource.data.vis == 'pub' || resource.data.uid == request.auth.uid));
+      allow create: if signedIn() && request.resource.data.id == id && noteOk(request.resource.data);
+      allow update: if signedIn() && resource.data.uid == request.auth.uid && request.resource.data.id == id
+        && request.resource.data.at == resource.data.at && noteOk(request.resource.data);
+      allow delete: if isDM() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
     // DM'in eklediği Timeline olayları: yayımlanınca herkes görür.
     match /tlevents/{id} {
       allow read: if isDM() || (signedIn() && resource.data.published == true);

@@ -9,7 +9,7 @@
   import {
     watchSheet, watchChrome, watchInv, watchQuests, watchBounties, watchRels, ensureSheet, saveSheet, saveChrome, dropChrome,
     saveItem, dropItem, saveQuest, dropQuest, saveBounty, dropBounty, saveRel, dropRel, resetStats, nid, now, blankSheet,
-    CHROME_SLOTS, QUEST_KINDS, ITEM_TYPES, chromeSlots, type Sheet, type ChromePiece, type InvItem, type Quest, type Bounty, type NpcRel, type StatusFx,
+    CHROME_SLOTS, QUEST_KINDS, REP_GROUPS, ITEM_TYPES, chromeSlots, type Sheet, type ChromePiece, type InvItem, type Quest, type Bounty, type NpcRel, type StatusFx,
   } from '../../lib/persona';
   let sub = $state<'sheet' | 'chrome' | 'inv' | 'log'>('sheet'), msg = $state('');
   let sheet = $state<Sheet | null>(null), chrome = $state<ChromePiece[]>([]), inv = $state<InvItem[]>([]), edI = $state<InvItem | null>(null);
@@ -73,6 +73,10 @@
       <div class="reps">{#each FACTIONS.filter((f) => f.id !== 'none') as f (f.id)}
         <label class="field"><span>{f.label}</span><input class="inp" type="number" value={sheet.reps[f.id] ?? 0} onchange={(e) => putSheet({ reps: { ...sheet!.reps, [f.id]: +(e.currentTarget as HTMLInputElement).value } })} /></label>
       {/each}</div>
+      <h4 class="mono">HALKLAR (−100…100)</h4>
+      <div class="reps">{#each REP_GROUPS as f (f.id)}
+        <label class="field"><span>{f.label}</span><input class="inp" type="number" value={sheet.reps[f.id] ?? 0} onchange={(e) => putSheet({ reps: { ...sheet!.reps, [f.id]: +(e.currentTarget as HTMLInputElement).value } })} /></label>
+      {/each}</div>
       <h4 class="mono">ARANMA (0–5)</h4>
       <div class="reps">{#each FACTIONS.filter((f) => f.id !== 'none') as f (f.id)}
         <label class="field"><span>{f.label}</span><input class="inp" type="number" min="0" max="5" value={sheet.wanted[f.id] ?? 0} onchange={(e) => putSheet({ wanted: { ...sheet!.wanted, [f.id]: +(e.currentTarget as HTMLInputElement).value } })} /></label>
@@ -134,15 +138,20 @@
       {/if}
       <h4 class="mono">ÖDÜLLER</h4>
       {#if edB}
-        <input class="inp" placeholder="Hedef" bind:value={edB.name} />
+        <div class="row">
+          <select class="inp" bind:value={edB.kind}><option value="hunt">Av kontratı (oyuncu avlar)</option><option value="onme">Oyuncunun başındaki ödül</option></select>
+          <select class="inp" bind:value={edB.status}><option value="open">Açık</option><option value="done">Teslim edildi</option><option value="failed">Kaçırıldı</option></select>
+          <select class="inp" bind:value={edB.terms}><option value="any">Ölü ya da diri</option><option value="alive">Canlı</option></select>
+        </div>
+        <input class="inp" placeholder={edB.kind === 'onme' ? 'Aranan (oyuncu adı)' : 'Hedef'} bind:value={edB.name} />
         <input class="inp" placeholder="Koyan" bind:value={edB.by} />
         <input class="inp" placeholder="Miktar (ör. 5000 BK)" bind:value={edB.amount} />
         <textarea class="inp" rows="2" bind:value={edB.note}></textarea>
         {#each dm.users as p (p.uid)}<label class="ck"><input type="checkbox" checked={edB.players.includes(p.uid)} onchange={(e) => edB && (edB.players = (e.currentTarget as HTMLInputElement).checked ? [...edB.players, p.uid] : edB.players.filter((x) => x !== p.uid))} />{pname(p.uid)}</label>{/each}
         <div class="row"><button class="btn" onclick={async () => { await saveBounty({ ...edB!, at: Date.now() }); edB = null; sfx.granted(); }}>Kaydet</button><button class="btn ghost" onclick={() => (edB = null)}>Vazgeç</button></div>
       {:else}
-        <button class="btn" onclick={() => (edB = { id: nid(), name: '', by: '', amount: '', players: dm.pid ? [dm.pid] : [], at: Date.now() })}>+ Ödül</button>
-        {#each bounties as b (b.id)}<div class="it"><b>{b.name}</b> {b.amount} <button class="btn ghost small" onclick={() => (edB = { ...b, players: [...b.players] })}>Düzenle</button> <button class="btn red small" onclick={() => dropBounty(b.id)}>Sil</button></div>{/each}
+        <button class="btn" onclick={() => (edB = { id: nid(), name: '', by: '', amount: '', note: '', kind: 'hunt', status: 'open', terms: 'any', players: dm.pid ? [dm.pid] : [], at: Date.now() })}>+ Ödül</button>
+        {#each bounties as b (b.id)}<div class="it"><b>{b.name}</b> {b.amount} <small class="mono">{b.kind === 'onme' ? 'BAŞINDA' : 'AV'} · {({ open: 'AÇIK', done: 'TESLİM', failed: 'KAÇTI' } as Record<string, string>)[b.status ?? 'open']}</small> <button class="btn ghost small" onclick={() => (edB = { kind: 'hunt', status: 'open', terms: 'any', note: '', ...b, players: [...b.players] })}>Düzenle</button> <button class="btn red small" onclick={() => dropBounty(b.id)}>Sil</button></div>{/each}
       {/if}
       <h4 class="mono">NPC İLİŞKİLERİ</h4>
       {#if edR}

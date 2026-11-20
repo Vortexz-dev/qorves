@@ -15,7 +15,7 @@ import { glowTex, softTex, nebulaTex, reticleTex } from './textures';
 import { lookOf } from './looks';
 import { STAR_VS, STAR_FS, CORONA_VS, CORONA_FS, PLANET_VS, PLANET_FS, RING_VS, RING_FS, DISK_FS, LENS_FS, BEAM_VS, BEAM_FS, FLOW_VS, FLOW_FS, WORM_FS } from './shaders';
 
-export type SysPin = { kind: string; label: string; body?: string; clickable: boolean };
+export type SysPin = { kind: string; label: string; body?: string; clickable: boolean; id?: string };
 export interface SysHooks { hover: (id: string | null) => void; select: (id: string | null) => void; pinHover?: (p: SysPin | null) => void; pinClick?: (p: SysPin) => void }
 /** Hat geçidi: kümedeki gerçek yöne göre sistemin kıyısında (lore'da AB verilen geçitlerde o uzaklıkta). */
 export interface LaneGate { id: string; name: string; ang: number; status: string; color: string; canon?: string; au?: number; host?: 'B' }
@@ -576,15 +576,18 @@ export class SystemScene {
     if (this.snapReq) { this.doSnapshot(); if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera); }
   };
   screenOf(id: string) { const o = this.byId.get(id); if (!o) return null; this.v.copy(o.pos).project(this.camera); return { x: (this.v.x * 0.5 + 0.5) * this.host.clientWidth, y: (-this.v.y * 0.5 + 0.5) * this.host.clientHeight }; }
-  setPins(ms: { kind: string; label: string; body?: string; x?: number; y?: number; z?: number }[]) {
+  setPins(ms: { kind: string; label: string; body?: string; x?: number; y?: number; z?: number; id?: string; col?: string; sub?: string; priv?: boolean }[]) {
     this.pins.forEach((p) => p.label.remove()); this.pinRoot.clear(); this.pins = [];
+    let loose = 0; // konumsuz notlar: yıldızın çevresine açıyla dağılır, üst üste binmez
     for (const m of ms) {
       const bid = m.body; const follow = bid ? this.objs.find((o) => o.id === bid || o.name.toLocaleLowerCase('tr') === bid.toLocaleLowerCase('tr')) : undefined;
       const g = new THREE.Group();
-      const tip: SysPin = { kind: m.kind, label: m.label, body: m.body, clickable: m.kind !== 'ship' };
+      const tip: SysPin = { kind: m.kind, label: m.label, body: m.body, clickable: m.kind !== 'ship', id: m.id };
       const lab = document.createElement('div');
-      lab.className = 'sb-lbl pin-lbl';
-      lab.innerHTML = `<b>${m.label.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))}</b><i>${m.kind === 'ship' ? 'GEMİ' : m.kind === 'mission' ? 'GÖREV' : m.kind === 'objective' ? 'HEDEF' : m.kind === 'alert' ? 'UYARI' : 'NOKTA'}</i>`;
+      const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+      lab.className = 'sb-lbl pin-lbl' + (m.sub ? ' note' : '') + (m.priv ? ' priv' : '');
+      if (m.col) lab.style.setProperty('--nc', m.col);
+      lab.innerHTML = `<b>${esc(m.label)}</b><i>${m.sub ? esc(m.sub) : m.kind === 'ship' ? 'GEMİ' : m.kind === 'mission' ? 'GÖREV' : m.kind === 'objective' ? 'HEDEF' : m.kind === 'alert' ? 'UYARI' : 'NOKTA'}</i>`;
       this.overlay.appendChild(lab);
       if (m.kind === 'ship') {
         g.add(buildShip(0.88));
@@ -592,12 +595,14 @@ export class SystemScene {
         const edge = this.extent * 0.85;
         g.position.set(m.x ?? edge, m.y ?? 3, m.z ?? 0);
       } else {
-        const col = m.kind === 'alert' ? '#ff2a55' : m.kind === 'objective' ? '#fcee0a' : m.kind === 'poi' ? '#00f0ff' : '#ff9b2f';
-        const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.ret, color: C(col), transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
-        ring.scale.setScalar(follow ? follow.r * 6 + 3 : 8);
+        const col = m.col ?? (m.kind === 'alert' ? '#ff2a55' : m.kind === 'objective' ? '#fcee0a' : m.kind === 'poi' ? '#00f0ff' : '#ff9b2f');
+        const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.ret, color: C(col), transparent: true, opacity: m.priv ? 0.6 : 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
+        ring.scale.setScalar(m.sub ? (follow ? follow.r * 3.2 + 1.6 : 3.2) : (follow ? follow.r * 6 + 3 : 8));
         g.add(ring);
+        if (m.sub) { const dot = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex.glow, color: C(col), transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending })); dot.scale.setScalar(0.9); g.add(dot); }
         if (m.x != null) g.position.set(m.x, m.y ?? 0, m.z ?? 0);
         else if (follow) g.position.copy(follow.pos);
+        else if (m.sub) { const a = 0.6 + loose++ * 1.25, r = Math.max(14, this.extent * 0.32); g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); }
         else g.position.set(this.extent * 0.4, 0, 0);
         this.pins.push({ obj: g, ring, follow, tip, label: lab }); this.pinRoot.add(g); continue;
       }

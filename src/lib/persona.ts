@@ -2,7 +2,7 @@
 import { doc, getDoc, setDoc, updateDoc, collection, onSnapshot, deleteDoc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from './backend/firebase';
 import { LIVE, nid, now, type Wallet } from './live';
-import { RACE_GROUPS, CHROME_TIERS } from './data/character';
+import { RACE_GROUPS, CHROME_TIERS, FACTIONS } from './data/character';
 
 export const STATS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'] as const;
 export type StatId = (typeof STATS)[number];
@@ -48,8 +48,29 @@ export interface Quest {
   id: string; kind: (typeof QUEST_KINDS)[number]['id']; title: string; body: string;
   status: 'open' | 'done' | 'failed'; faction?: string; players: string[]; at: number;
 }
+/** Ödül kaydı. kind 'hunt' (varsayılan): oyuncunun peşine düştüğü hedef (av kontratı).
+ *  kind 'onme': oyuncunun başına konmuş ödül (onu kim, ne kadara arıyor). */
 export interface Bounty {
   id: string; name: string; by: string; amount: string; note?: string; players: string[]; at: number;
+  kind?: 'hunt' | 'onme'; status?: 'open' | 'done' | 'failed'; terms?: 'alive' | 'any';
+}
+
+/** İtibar tablosu: hizipler (FACTIONS) + halklar. Değer −100…100; 0 nötr. */
+export const REP_FACTIONS = FACTIONS.filter((f) => f.id !== 'none');
+export const REP_GROUPS = [
+  { id: 'g-human', label: 'İnsanlar' }, { id: 'g-dwarf', label: 'Cüceler' }, { id: 'g-elf', label: 'Elfler' },
+] as const;
+export function repLabel(id: string) { return REP_FACTIONS.find((f) => f.id === id)?.label ?? REP_GROUPS.find((g) => g.id === id)?.label ?? id; }
+export function repTier(v: number): { l: string; c: string } {
+  if (v >= 60) return { l: 'MÜTTEFİK', c: '#39ff8a' };
+  if (v >= 30) return { l: 'DOST', c: '#5ef6ff' };
+  if (v >= 12) return { l: 'SAYGIN', c: '#5ef6ff' };
+  if (v >= 4) return { l: 'OLUMLU', c: '#9fe8ff' };
+  if (v > -4) return { l: 'NÖTR', c: '#8a96a6' };
+  if (v > -12) return { l: 'MESAFELİ', c: '#ffb36b' };
+  if (v > -30) return { l: 'SOĞUK', c: '#ff8a6b' };
+  if (v > -60) return { l: 'HASIM', c: '#ff5d5d' };
+  return { l: 'DÜŞMAN', c: '#ff2a55' };
 }
 export interface NpcRel {
   id: string; name: string; score: number; note: string; players: string[]; at: number;
@@ -64,8 +85,12 @@ export function raceHp(race: string) {
   return 100;
 }
 export function maxHp(race: string, con: number) { return Math.max(1, raceHp(race) + (con - 10) * 5); }
-export function maxCarry(str: number) { return Math.round(15 + str * 2.5); }
-export function hardCarry(str: number) { return Math.round(maxCarry(str) * 1.5); }
+/** Taşıma: 15 + GÜÇ×2,5 kg; sert sınır bunun 1,5 katı. GÜÇ 0 tabanlı dağıtılmış puandır (yoksa 0). */
+export function maxCarry(str: number) { return 15 + Math.max(0, +str || 0) * 2.5; }
+export function hardCarry(str: number) { return Math.round(maxCarry(str) * 1.5 * 2) / 2; }
+export const strOf = (c: { stats?: Record<string, number> } | null | undefined) => Math.max(0, Number(c?.stats?.STR) || 0);
+export const kgFmt = (n: number) => n.toLocaleString('tr-TR', { maximumFractionDigits: 1 });
+export const carryWhy = (str: number) => `GÜÇ ${str} · 15 + ${str}×2,5 = ${kgFmt(maxCarry(str))} kg · sert sınır ×1,5 = ${kgFmt(hardCarry(str))} kg`;
 export function chromeSlots(tier: string) {
   const t = CHROME_TIERS.find((x) => x.id === String(tier));
   const n = { '0': 0, '1': 2, '2': 4, '3': 6, '4': 9, '5': 12 }[String(tier)] ?? 0;

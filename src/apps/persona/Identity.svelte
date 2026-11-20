@@ -4,13 +4,13 @@
   import type { Character, UserProfile } from '../../lib/backend';
   import type { Wallet } from '../../lib/live';
   import { RACES, CLASSES, BACKGROUNDS, FACTIONS } from '../../lib/data/character';
-  import { STATS, maxHp, maxCarry, hardCarry, carryOf, armorOf, moneyLine, chromeSlots, hasChip, type Sheet, type InvItem, type ChromePiece } from '../../lib/persona';
+  import { STATS, maxHp, maxCarry, hardCarry, carryOf, strOf, kgFmt, carryWhy, armorOf, moneyLine, chromeSlots, hasChip, type Sheet, type InvItem, type ChromePiece } from '../../lib/persona';
   import { P } from './psfx';
   let { u, c, sheet, inv, chrome, wallet }: { u: UserProfile; c: Character; sheet: Sheet; inv: InvItem[]; chrome: ChromePiece[]; wallet: Wallet | null } = $props();
   const lab = (xs: readonly { id: string; label: string }[], id: string) => xs.find((x) => x.id === id)?.label ?? id;
   const hpMax = $derived(maxHp(c.race, c.stats?.CON ?? 10));
   const hp = $derived(sheet.hp < 0 ? hpMax : Math.min(sheet.hp, hpMax));
-  const kg = $derived(carryOf(inv)), cap = $derived(maxCarry(c.stats?.STR ?? 10)), hard = $derived(hardCarry(c.stats?.STR ?? 10));
+  const kg = $derived(carryOf(inv)), cap = $derived(maxCarry(strOf(c))), hard = $derived(hardCarry(strOf(c)));
   const arm = $derived(armorOf(inv, sheet.armor));
   const sub = $derived(CLASSES.find((x) => x.id === c.cls)?.subs.find((s) => s.id === c.sub)?.label);
   const NAME: Record<string, string> = { STR: 'GÜÇ', DEX: 'ÇEVİKLİK', CON: 'DAYANIKLILIK', INT: 'ZEKÂ', WIS: 'BİLGELİK', CHA: 'KARİZMA' };
@@ -36,11 +36,12 @@
       <div class="big"><b>{arm}</b></div>
       <small>kuşanılan zırh + düzeltme</small>
     </div>
-    <div class="card" class:bad={kg > cap}>
+    <div class="card" class:bad={kg > cap} title={carryWhy(strOf(c))}>
       <header class="mono">YÜK</header>
-      <div class="big"><b>{kg.toFixed(1)}</b><span>/{cap} kg</span></div>
+      <div class="big"><b>{kg.toFixed(1)}</b><span>/{kgFmt(cap)} kg</span></div>
       <div class="ld"><i style:width="{Math.min(100, (kg / hard) * 100)}%"></i><s style:left="{(cap / hard) * 100}%"></s></div>
       {#if kg > cap}<small class="w">{kg > hard ? 'SERT LİMİT' : 'AŞIRI YÜK'}</small>{/if}
+      <small class="why mono">GÜÇ {strOf(c)} · 15+{strOf(c)}×2,5 · SERT {kgFmt(hard)}</small>
     </div>
     <div class="card">
       <header class="mono">KREDİ</header>
@@ -147,4 +148,5 @@
   .sx p{margin:4px 0 0;font-size:12.5px;color:var(--mut)}
   .none{font-size:11px;letter-spacing:.22em;color:var(--mut);margin:4px 0}
   .eq{display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0;color:#fff}.eq small{color:var(--pc);letter-spacing:.2em;font-size:10px}
+  .why{display:block;margin-top:6px;font-size:9.5px;letter-spacing:.08em;white-space:nowrap;color:var(--mut)}
 </style>
