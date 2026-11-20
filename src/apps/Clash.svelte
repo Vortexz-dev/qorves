@@ -12,7 +12,7 @@
   import { CHESTS, PACKS, BITPACKS, SLOTS, skipCost, rollChest, chestCards, chestBit, applyDrops, canUpgrade, upgrade, trophyDelta, bitReward, freshInv, type Inv, type ChestId, type Drop, type EndInfo } from './clash/economy';
   import { Renderer, preload, EMOTES, EMOTE_TR, type Emote } from './clash/render';
   import { THEMES, themeFor, type Theme } from './clash/themes';
-  import { S, music } from './clash/audio';
+  import { S, music, cardSfx, spellImpact } from './clash/audio';
   import { crownLink } from './clash/link.svelte';
   import Logo from './clash/Logo.svelte';
   import CardTile from './clash/CardTile.svelte';
@@ -218,15 +218,15 @@
   function sounds(fx: Fx[]) {
     for (const f of fx) {
       switch (f.k) {
-        case 'deploy': S.deploy(); break; case 'cast': if (f.card === 'plasma' || f.card === 'nova') S.strikeWarn(); else S.spellCast(); break;
-        case 'melee': S.melee(); break; case 'hit': break; case 'die': S.die(); break; case 'tdie': S.tower(); break; case 'crown': setTimeout(S.crown, 400); break;
-        case 'boom': S.boom(Math.min(1.6, 0.5 + (f.v ?? 1) * 0.3)); break; case 'strike': S.strike(); break; case 'frostnova': case 'freeze': S.freeze(); break; case 'shatter': S.shatter(); break;
+        case 'deploy': S.deploy(); if (f.card) cardSfx(f.card, 'spawn'); break; case 'cast': if (f.card === 'plasma' || f.card === 'nova') S.strikeWarn(); else S.spellCast(); break;
+        case 'melee': if (f.card) cardSfx(f.card, 'atk'); else S.melee(); break; case 'hit': break; case 'die': if (f.card && Math.random() < 0.7) cardSfx(f.card, 'die'); else S.die(); break; case 'tdie': S.tower(); break; case 'crown': setTimeout(S.crown, 400); break;
+        case 'boom': S.boom(Math.min(1.6, 0.5 + (f.v ?? 1) * 0.3)); break; case 'strike': spellImpact(f.card ?? ''); break; case 'frostnova': case 'freeze': S.freeze(); break; case 'shatter': S.shatter(); break;
         case 'emp': S.emp(); break; case 'arc': S.arc(); break; case 'roll': S.roll(); break; case 'oc': S.overclock(); break; case 'pod': case 'podzone': S.pod(); break;
         case 'spawn': case 'deathspawn': S.spawn(); break; case 'pump': S.pump(); break; case 'crit': S.crit(); break; case 'charge': S.charge(); break; case 'chargehit': S.heavy(); break;
         case 'healpulse': case 'healwave': S.heal(); break; case 'shbreak': S.shield(); break; case 'ot': S.overtime(); break;
         case 'shot': {
           const c = f.card ?? ''; const p = CARD[c]?.proj;
-          if (c === 'king' || c === 'crown') S.bolt(c === 'king'); else if (p === 'rail') S.rail(); else if (p === 'tracer') S.tracer(); else if (p === 'plasma') S.plasma(); else if (p === 'snipe') S.snipe();
+          if (c === 'king' || c === 'crown') S.bolt(c === 'king'); else if (['flak', 'mortar', 'hexer', 'turret', 'sharp', 'archer'].includes(c)) { cardSfx(c, 'atk'); if (p === 'plasma') S.plasma(); } else if (p === 'rail') S.rail(); else if (p === 'tracer') S.tracer(); else if (p === 'plasma') S.plasma(); else if (p === 'snipe') S.snipe();
           else if (p === 'flame') S.flame(); else if (p === 'frost') S.frost(); else if (p === 'beam') S.beam(); else if (p === 'arc') S.arc(); else if (p === 'heal') S.heal(); else if (CARD[c]?.hp && (CARD[c]!.hp ?? 0) > 1500) S.heavy(); else S.melee();
           break;
         }

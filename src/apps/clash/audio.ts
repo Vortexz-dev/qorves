@@ -132,3 +132,54 @@ export const music = {
   get volume() { return musVol; },
   stop() { if (timer) clearInterval(timer); timer = null; if (out) { out.disconnect(); out = null; } },
 };
+
+/* ---------- kart başına ses kimliği (CR gibi: her kartın kendi çıkış / saldırı / ölüm sesi) ----------
+   t: ses ailesi, p: temel perde (Hz), n: gürültü rengi (Hz). Aynı aile içinde perde/renk farkı kartı ayırt ettirir. */
+type Fam = 'mech' | 'beast' | 'human' | 'tiny' | 'heavy' | 'magic' | 'flyer' | 'bldg' | 'dwarf';
+const V: Record<string, { t: Fam; p: number; n: number }> = {
+  chrome: { t: 'human', p: 180, n: 1800 }, archer: { t: 'human', p: 420, n: 5200 }, goblin: { t: 'tiny', p: 620, n: 3000 }, drone: { t: 'flyer', p: 900, n: 6000 },
+  breacher: { t: 'dwarf', p: 140, n: 900 }, tabaxi: { t: 'beast', p: 340, n: 4200 }, scrap: { t: 'tiny', p: 880, n: 2400 }, turret: { t: 'bldg', p: 520, n: 3500 },
+  enforcer: { t: 'human', p: 150, n: 1200 }, sharp: { t: 'human', p: 260, n: 2200 }, swarm: { t: 'flyer', p: 1300, n: 7000 }, rider: { t: 'mech', p: 210, n: 1500 },
+  foundry: { t: 'bldg', p: 160, n: 700 }, ogre: { t: 'beast', p: 90, n: 500 }, bomber: { t: 'flyer', p: 240, n: 900 }, cryo: { t: 'dwarf', p: 200, n: 6500 },
+  pylon: { t: 'bldg', p: 300, n: 2600 }, drake: { t: 'beast', p: 160, n: 1100 }, runner: { t: 'magic', p: 700, n: 4800 }, pump: { t: 'bldg', p: 440, n: 2000 },
+  medic: { t: 'human', p: 520, n: 6000 }, exo: { t: 'heavy', p: 70, n: 600 }, mech: { t: 'heavy', p: 55, n: 400 },
+  sappers: { t: 'tiny', p: 740, n: 1600 }, berserker: { t: 'beast', p: 120, n: 1400 }, flak: { t: 'bldg', p: 380, n: 1300 }, minotaur: { t: 'beast', p: 75, n: 800 },
+  mortar: { t: 'bldg', p: 110, n: 500 }, lancer: { t: 'beast', p: 240, n: 2600 }, hexer: { t: 'magic', p: 330, n: 1600 }, goliath: { t: 'heavy', p: 62, n: 900 },
+  skyblade: { t: 'flyer', p: 600, n: 4000 },
+};
+export function cardSfx(id: string, k: 'spawn' | 'atk' | 'die') {
+  const v = V[id]; if (!v) return; const { t, p, n } = v;
+  rl(id + k, k === 'atk' ? 70 : 90, () => {
+    if (k === 'spawn') {
+      if (t === 'mech' || t === 'heavy') { tone(p, 0.35, 'sawtooth', 0.07, p * 2); noise(0.12, 0.18, n, 1.2, 'bandpass', 0.25); tone(p * 0.6, 0.2, 'square', 0.1, -p * 0.3, 0.3); }
+      else if (t === 'beast') { tone(p, 0.45, 'sawtooth', 0.09, -p * 0.3); tone(p * 1.5, 0.4, 'sawtooth', 0.05, -p * 0.5, 0.03); noise(0.35, 0.08, n, 0.7, 'lowpass'); }
+      else if (t === 'human' || t === 'dwarf') { noise(0.08, 0.16, n * 0.4, 0.9, 'lowpass'); tone(p, 0.09, 'square', 0.06, p * 0.4, 0.08); tone(p * 1.25, 0.1, 'square', 0.05, 0, 0.17); if (t === 'dwarf') tone(p * 0.5, 0.25, 'triangle', 0.1, 0, 0.05); }
+      else if (t === 'tiny') { for (let i = 0; i < 3; i++) tone(p + i * 90, 0.05, 'square', 0.05, 200, i * 0.07); }
+      else if (t === 'magic') { [1, 1.26, 1.5, 2].forEach((m, i) => tone(p * m, 0.18, 'sine', 0.05, 0, i * 0.05)); noise(0.4, 0.04, n, 2, 'bandpass', 0, 2000); }
+      else if (t === 'flyer') { noise(0.4, 0.1, n * 0.5, 0.8, 'bandpass', 0, n); tone(p, 0.3, 'sawtooth', 0.03, p * 0.2); }
+      else { tone(p * 0.5, 0.08, 'square', 0.1); tone(p * 0.5, 0.08, 'square', 0.1, 0, 0.12); tone(p, 0.5, 'sine', 0.05, p * 0.5, 0.22); noise(0.1, 0.12, n, 1, 'bandpass', 0.1); }
+    } else if (k === 'atk') {
+      if (t === 'beast') { noise(0.09, 0.16, n, 1.1, 'bandpass', 0, -n * 0.5); tone(p * 0.8, 0.1, 'sawtooth', 0.06, -p * 0.4); }
+      else if (t === 'heavy' || t === 'dwarf') { noise(0.14, 0.22, n * 0.6, 0.8, 'lowpass'); tone(p, 0.18, 'sine', 0.28, -p * 0.4); tone(p * 6, 0.05, 'square', 0.04, 0, 0.01); }
+      else if (t === 'magic') { tone(p * 2, 0.16, 'sawtooth', 0.05, -p); noise(0.12, 0.06, n, 3, 'bandpass', 0, n); }
+      else if (t === 'tiny') { noise(0.04, 0.1, n * 1.4, 1.5); tone(p, 0.04, 'square', 0.04, -200); }
+      else if (t === 'flyer') { noise(0.06, 0.08, n, 1.2, 'bandpass', 0, -n * 0.4); tone(p * 1.5, 0.04, 'square', 0.03); }
+      else if (t === 'bldg') { noise(0.1, 0.14, n, 0.9, 'bandpass', 0, -n * 0.6); tone(p, 0.1, 'square', 0.05, -p * 0.5); }
+      else { noise(0.06, 0.12, n, 1.3); tone(p * 0.7, 0.07, 'square', 0.05, -p * 0.3); }
+    } else {
+      if (t === 'mech' || t === 'heavy' || t === 'bldg') { tone(p * 2, 0.6, 'sawtooth', 0.06, -p * 1.8); for (let i = 0; i < 4; i++) noise(0.04, 0.06, n * 2 + i * 600, 3, 'bandpass', i * 0.05); noise(0.5, 0.18, 500, 0.6, 'lowpass', 0.1, -300); }
+      else if (t === 'beast') { tone(p, 0.5, 'sawtooth', 0.08, -p * 0.6); noise(0.3, 0.08, n * 0.5, 0.7, 'lowpass', 0.05); }
+      else if (t === 'tiny') { tone(p * 1.2, 0.12, 'square', 0.05, -p); noise(0.08, 0.1, 2400, 1, 'bandpass', 0.05); }
+      else if (t === 'magic') { [2, 1.5, 1.26, 1].forEach((m, i) => tone(p * m, 0.15, 'sine', 0.04, 0, i * 0.05)); noise(0.3, 0.05, n, 1, 'highpass', 0.1); }
+      else if (t === 'flyer') { tone(p, 0.5, 'sawtooth', 0.05, -p * 0.8); noise(0.35, 0.12, 800, 0.6, 'lowpass', 0.35); }
+      else { tone(p, 0.22, 'square', 0.06, -p * 0.5); noise(0.15, 0.16, 400, 0.6, 'lowpass', 0.12); }
+    }
+  });
+}
+/** Büyü çarpma sesleri (kart başına). */
+export function spellImpact(id: string) {
+  if (id === 'rain') { for (let i = 0; i < 6; i++) { noise(0.12, 0.12, 1400 + i * 300, 1, 'bandpass', i * 0.06, -600); tone(900 - i * 60, 0.08, 'sawtooth', 0.03, -500, i * 0.06); } return; }
+  if (id === 'nova') return S.nova();
+  if (id === 'plasma') { S.strike(); tone(2400, 0.4, 'sine', 0.05, -2000); return; }
+  S.strike();
+}
