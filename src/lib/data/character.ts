@@ -1,15 +1,16 @@
 // Karakter oluşturma verileri — Oyuncu Rehberi (37 slayt) ile birebir.
 export type Opt = { id: string; label: string; hint?: string };
 
+// Irk Base HP. t152u (Phoenix): elfler İlk Doğan=110 temel alınıp eski oranla ölçeklendi (×110/70); Tabaxi 70, Küçük Halk 85, Goblin 55, Kobold 60. Diğerleri taslak_v4.
 export const RACE_GROUPS: { group: string; races: (Opt & { hp: number })[] }[] = [
   { group: 'İnsanlar', races: [
     { id: 'insan', label: 'İnsan', hint: 'teknoloji, krom, hack', hp: 100 },
     { id: 'tasarlanmis', label: 'Tasarlanmış', hint: 'büyüye karşı', hp: 120 } ] },
   { group: 'Elfler', races: [
-    { id: 'ilk-dogan', label: 'İlk Doğan', hint: 'büyü', hp: 70 },
-    { id: 'kok-dogan', label: 'Kök Doğan', hint: 'keşif, doğa', hp: 90 },
-    { id: 'yildiz-dogan', label: 'Yıldız Doğan', hint: 'ışık ve zaman', hp: 75 },
-    { id: 'bosluk-dogan', label: 'Boşluk Doğan', hint: 'boşluk, gizem', hp: 80 } ] },
+    { id: 'ilk-dogan', label: 'İlk Doğan', hint: 'büyü', hp: 110 },
+    { id: 'kok-dogan', label: 'Kök Doğan', hint: 'keşif, doğa', hp: 140 },
+    { id: 'yildiz-dogan', label: 'Yıldız Doğan', hint: 'ışık ve zaman', hp: 120 },
+    { id: 'bosluk-dogan', label: 'Boşluk Doğan', hint: 'boşluk, gizem', hp: 125 } ] },
   { group: 'Cüceler', races: [
     { id: 'ondrum', label: 'Ondrûm', hint: 'tören, hukuk', hp: 150 },
     { id: 'vargrund', label: 'Vargrund', hint: 'döküm, zırh', hp: 180 },
@@ -22,12 +23,12 @@ export const RACE_GROUPS: { group: string; races: (Opt & { hp: number })[] }[] =
     { id: 'ogre', label: 'Ogre', hint: 'ham güç', hp: 250 },
     { id: 'minotor', label: 'Minotor', hint: 'hat kılavuzu', hp: 225 } ] },
   { group: 'Yerli halklar', races: [
-    { id: 'tabaxi', label: 'Tabaxi', hint: 'gizlilik, kuryelik', hp: 60 },
+    { id: 'tabaxi', label: 'Tabaxi', hint: 'gizlilik, kuryelik', hp: 70 },
     { id: 'centaur', label: 'Centaur', hint: 'dayanıklılık', hp: 125 } ] },
   { group: 'Küçük yapılılar', races: [
-    { id: 'kucuk-halk', label: 'Küçük Halk', hint: 'hukuk, sözleşme', hp: 80 },
-    { id: 'goblin', label: 'Goblin', hint: 'çeviklik, borç ağı', hp: 40 },
-    { id: 'kobold', label: 'Kobold', hint: 'sezgi, direnç', hp: 40 } ] },
+    { id: 'kucuk-halk', label: 'Küçük Halk', hint: 'hukuk, sözleşme', hp: 85 },
+    { id: 'goblin', label: 'Goblin', hint: 'çeviklik, borç ağı', hp: 55 },
+    { id: 'kobold', label: 'Kobold', hint: 'sezgi, direnç', hp: 60 } ] },
 ];
 export const RACES = RACE_GROUPS.flatMap((g) => g.races);
 export const DWARVES = ['ondrum', 'vargrund', 'skarn', 'dolgrim', 'hrothmar'];
