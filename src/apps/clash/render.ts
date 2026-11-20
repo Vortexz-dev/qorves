@@ -25,6 +25,7 @@ export function preload(): Promise<void> {
 /** Sprite'ın doğal baktığı yön (+1 sağ, −1 sol). Yürüyüş yönüne göre aynalanır. */
 const FACE: Record<string, number> = { goblin: -1, swarm: -1 };
 /** Birim boyu (karo cinsinden, sprite yüksekliği) */
+const sz = (id: string) => (SIZE[id] ?? 1.6) * 1.3;
 const SIZE: Record<string, number> = { scrap: 1.0, goblin: 1.15, swarm: 0.9, drone: 1.05, archer: 1.55, runner: 1.6, sharp: 1.6, medic: 1.6, chrome: 1.75, tabaxi: 1.6, enforcer: 1.8, rider: 1.7, cryo: 1.75, drake: 2.1, bomber: 2.2, breacher: 2.0, ogre: 2.5, exo: 2.6, mech: 2.7, turret: 2.3, pylon: 2.9, foundry: 2.4, pump: 2.4 };
 type P = { x: number; y: number; z: number; vx: number; vy: number; vz: number; life: number; max: number; c: string; s: number; k: 'spark' | 'dust' | 'ring' | 'beam' | 'bolt' | 'text' | 'debris' | 'flash' | 'smoke' | 'shard'; r?: number; t?: string; pts?: number[]; add?: boolean };
 const ME = '#29d3ff', FOE = '#ff3355';
@@ -215,7 +216,7 @@ export class Renderer {
     const r = c.radius ?? (c.range && c.kind !== 'spell' ? 0 : 0); if (r) { x.beginPath(); x.arc(X, Y, r * ts, 0, 7); x.stroke(); }
     if (c.kind !== 'spell' && c.range && c.range > 2) { x.globalAlpha = 0.35; x.beginPath(); x.arc(X, Y, c.range * ts, 0, 7); x.stroke(); }
     x.setLineDash([]); x.globalAlpha = 0.55; const img = IMG[c.sprite ?? c.id];
-    if (img?.naturalWidth) { const h = ts * (SIZE[c.id] ?? 1.6); const w = (h * img.naturalWidth) / img.naturalHeight; x.drawImage(img, X - w / 2, Y - h * 0.85, w, h); }
+    if (img?.naturalWidth) { const h = ts * sz(c.id); const w = (h * img.naturalWidth) / img.naturalHeight; x.drawImage(img, X - w / 2, Y - h * 0.85, w, h); }
     else { x.fillStyle = d.ok ? '#fff' : '#ff3355'; x.beginPath(); x.arc(X, Y, ts * 0.4, 0, 7); x.fill(); }
     x.restore();
   }
@@ -227,13 +228,13 @@ export class Renderer {
     if (Math.abs(vx) > 0.3) d.face = vx > 0 ? 1 : -1; d.flash = Math.max(0, d.flash - dt); d.mv = Math.max(0, d.mv - dt);
     if (e.kind === 'tower') return this.tower(e, d, s);
     const c = CARD[e.card]!; const mine = e.side === this.me; const img = IMG[c.sprite ?? c.id]; const tier = evoTier(e.lv);
-    const hgt = ts * (SIZE[e.card] ?? 1.6) * (e.dep > 0 ? 1 - e.dep / HZ * 0.3 : 1);
+    const hgt = ts * sz(e.card) * (e.dep > 0 ? 1 - e.dep / HZ * 0.3 : 1);
     const lift = e.fly ? ts * 1.1 + Math.sin(this.t * 3 + d.bob) * ts * 0.12 : 0;
     const walk = e.kind === 'troop' && !e.fly ? Math.abs(Math.sin(this.t * 9 + d.bob)) * ts * 0.06 : 0;
     // gölge + takım halkası
-    x.save(); x.fillStyle = 'rgba(0,0,0,.45)'; x.beginPath(); x.ellipse(d.x, d.y + ts * 0.1, ts * (e.kind === 'building' ? 1.0 : 0.55) * (SIZE[e.card] ?? 1.6) / 1.6, ts * 0.22 * (SIZE[e.card] ?? 1.6) / 1.6, 0, 0, 7); x.fill();
-    x.strokeStyle = mine ? ME : FOE; x.lineWidth = 2; x.globalAlpha = 0.85; x.beginPath(); x.ellipse(d.x, d.y + ts * 0.1, ts * 0.5 * (SIZE[e.card] ?? 1.6) / 1.6 + 2, ts * 0.2 * (SIZE[e.card] ?? 1.6) / 1.6 + 1, 0, 0, 7); x.stroke();
-    if (tier > 0) { x.globalAlpha = 0.5 + Math.sin(this.t * 4) * 0.2; x.strokeStyle = tier === 2 ? '#ffcf3f' : '#c77dff'; x.lineWidth = tier === 2 ? 3 : 2; x.beginPath(); x.ellipse(d.x, d.y + ts * 0.1, ts * 0.65 * (SIZE[e.card] ?? 1.6) / 1.6 + 4, ts * 0.26 * (SIZE[e.card] ?? 1.6) / 1.6 + 2, 0, 0, 7); x.stroke(); }
+    x.save(); x.fillStyle = 'rgba(0,0,0,.45)'; x.beginPath(); x.ellipse(d.x, d.y + ts * 0.1, ts * (e.kind === 'building' ? 1.0 : 0.55) * sz(e.card) / 1.6, ts * 0.22 * sz(e.card) / 1.6, 0, 0, 7); x.fill();
+    x.strokeStyle = mine ? ME : FOE; x.lineWidth = 2; x.globalAlpha = 0.85; x.beginPath(); x.ellipse(d.x, d.y + ts * 0.1, ts * 0.5 * sz(e.card) / 1.6 + 2, ts * 0.2 * sz(e.card) / 1.6 + 1, 0, 0, 7); x.stroke();
+    if (tier > 0) { x.globalAlpha = 0.5 + Math.sin(this.t * 4) * 0.2; x.strokeStyle = tier === 2 ? '#ffcf3f' : '#c77dff'; x.lineWidth = tier === 2 ? 3 : 2; x.beginPath(); x.ellipse(d.x, d.y + ts * 0.1, ts * 0.65 * sz(e.card) / 1.6 + 4, ts * 0.26 * sz(e.card) / 1.6 + 2, 0, 0, 7); x.stroke(); }
     x.restore();
     const top = d.y - lift - walk - hgt * 0.92;
     if (img?.naturalWidth) {

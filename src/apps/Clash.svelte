@@ -143,7 +143,7 @@
   }
   function declineInvite(d: DuelInv) { invites = invites.filter((x) => x.id !== d.id); N.declineDuel(d.id); S.unpick(); }
   async function linkDuel(id: string) { crownLink.duel = ''; const d = await N.getDuel(id).catch(() => null); if (d && d.st === 'open' && d.to === u.uid && Date.now() - d.at < 120_000) acceptInvite(d); else say('Davet artık geçerli değil.'); }
-  $effect(() => { if (ready && crownLink.duel && (scr === 'home' || scr === 'cards' || scr === 'shop' || scr === 'rank' || scr === 'friends')) linkDuel(crownLink.duel); });
+  $effect(() => { if (ready && crownLink.duel && scr === 'intro') { scr = 'home'; music.level(0); } if (ready && crownLink.duel && (scr === 'home' || scr === 'cards' || scr === 'shop' || scr === 'rank' || scr === 'friends')) linkDuel(crownLink.duel); });
 
   /* ---------- arama ---------- */
   let seekT = $state(0), seekStop: (() => void) | null = null, seekTimer: ReturnType<typeof setInterval> | null = null, seekErr = $state('');
@@ -195,7 +195,7 @@
     const dk = m.decks as Record<number, DeckCard[]>; begin(m.seed, [dk[0]!.slice(), dk[1]!.slice()], 0);
   }
   function begin(seed: number, decks: [DeckCard[], DeckCard[]], startAt: number) {
-    cmds = new Map(); hk = {}; snaps = []; pending = []; seq = 0; end = null; lastRate = 1; lastSec = -1; emoOpen = false; emoCd = 0; botEmoCd = 0; nextBait = 0;
+    finished = false; cmds = new Map(); hk = {}; snaps = []; pending = []; seq = 0; end = null; lastRate = 1; lastSec = -1; emoOpen = false; emoCd = 0; botEmoCd = 0; nextBait = 0;
     st = init(seed, decks); snaps.push(clone(st));
     music.theme(mTheme);
     scr = 'vs'; S.whoosh(); setTimeout(() => S.stamp(), 650);
@@ -317,8 +317,9 @@
     if (k >= 1 && k <= 4) { pick = pick === k - 1 ? -1 : k - 1; S.click(); } else if (e.key === 'e' || e.key === 'E') { emoOpen = !emoOpen; S.click(); }
   }
 
+  let finished = false;
   async function finish(forfeit: boolean) {
-    if (end || !st) return;
+    if (finished || end || !st) return; finished = true;
     cancelAnimationFrame(raf);
     const w = forfeit ? me : st.winner; const res: 'win' | 'lose' | 'draw' = w === me ? 'win' : w === 2 || w === -1 ? 'draw' : 'lose';
     const crowns: [number, number] = [ui.crowns[0]!, ui.crowns[1]!];
@@ -351,6 +352,7 @@
     if (scr !== 'match' || !st || st.over) { toHome(); return; }
     const ranked = mode === 'ranked' || mode === 'pvp';
     if (await ask('Maçtan çık?', ranked ? 'Çıkarsan maçı kaybedersin ve kupa düşer.' : 'Maç sonlanacak.', 'Çık', true)) {
+      if (finished) return; finished = true;
       if (net) { net.leave(); net.close(); net = null; }
       cancelAnimationFrame(raf);
       if (ranked) { inv.cr = Math.max(0, inv.cr + trophyDelta(inv.cr, foe.cr, 'lose')); inv.l++; inv.streak = 0; persist().catch(() => {}); if (foeBot) N.botResult(foeBot, 'win', inv.cr).catch(() => {}); }

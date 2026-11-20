@@ -39,7 +39,7 @@ export function pubOf(uid: string, name: string, inv: Inv): Omit<Pub, 'uid'> & {
 }
 
 /* ---------- kalıcı botlar ---------- */
-const BOT_NAMES = ['Kroz', 'NeonVex', 'Hrothmar_Jr', 'Ash.Rin', 'Vanta', 'Mira-7', 'Scrapjaw', 'KAEL', 'Dusk0', 'Ignis', 'Talon', 'Sable', 'Rook', 'Juno.exe', 'Grimwick', 'Vesper', 'Nyx', 'Oskar_Q', 'BoltBrann', 'Tessa', 'Ozymandi', 'RedLantern', 'Hexa', 'Kurogane', 'Wraith', 'Pip', 'Torque', 'Lyra', 'Nebbin', 'Mox', 'Zephyrine', 'Cinder', 'Halvard', 'Quill', 'Bramble', 'Static', 'Orrin', 'Fen', 'Volt', 'Morrow'];
+const BOT_NAMES = ['Kroz', 'NeonVex', 'Hrothmar_Jr', 'Ash.Rin', 'Vanta', 'Mira-7', 'Scrapjaw', 'Kade', 'Dusk0', 'Ignis', 'Talon', 'Sable', 'Rook', 'Juno.exe', 'Grimwick', 'Vesper', 'Nyx', 'Oskar_Q', 'BoltBrann', 'Tessa', 'Ozymandi', 'RedLantern', 'Hexa', 'Kurogane', 'Wraith', 'Pip', 'Torque', 'Lyra', 'Nebbin', 'Mox', 'Zephyrine', 'Cinder', 'Halvard', 'Quill', 'Bramble', 'Static', 'Orrin', 'Fen', 'Volt', 'Morrow'];
 const ARCH: string[][] = [
   ['chrome', 'archer', 'goblin', 'drone', 'breacher', 'tabaxi', 'plasma', 'emp'],
   ['ogre', 'bomber', 'medic', 'archer', 'emp', 'plasma', 'turret', 'scrap'],
