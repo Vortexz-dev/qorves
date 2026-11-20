@@ -10,8 +10,8 @@ export interface ChestDef { id: ChestId; name: string; img: string; cards: numbe
 export const CHESTS: Record<ChestId, ChestDef> = {
   win: { id: 'win', name: 'Veri Kasası', img: 'chest_win', cards: 12, bit: [60, 110], odds: { common: 78, rare: 18, epic: 3.6, legendary: 0.4 }, mins: 30, desc: 'Her galibiyette kazanılır.' },
   tour: { id: 'tour', name: 'Turnuva Kasası', img: 'chest_tour', cards: 30, bit: [220, 300], odds: { common: 60, rare: 30, epic: 9, legendary: 1 }, guar: 'rare', mins: 0, desc: 'Etkinlik ödülü (şimdilik kapalı).' },
-  neon: { id: 'neon', name: 'Neon Kasa', img: 'chest_neon', cards: 45, bit: [450, 600], odds: { common: 45, rare: 38, epic: 15, legendary: 2 }, guar: 'epic', mins: 0, price: 160, desc: 'En az 1 Destansı garantili.' },
-  leg: { id: 'leg', name: 'Taç Kasası', img: 'chest_leg', cards: 36, bit: [900, 1100], odds: { common: 35, rare: 40, epic: 20, legendary: 5 }, guar: 'legendary', mins: 0, price: 520, desc: 'En az 1 Efsanevi garantili.' },
+  neon: { id: 'neon', name: 'Neon Kasa', img: 'chest_neon', cards: 20, bit: [450, 600], odds: { common: 45, rare: 38, epic: 15, legendary: 2 }, guar: 'epic', mins: 0, price: 160, desc: 'En az 1 Destansı garantili.' },
+  leg: { id: 'leg', name: 'Taç Kasası', img: 'chest_leg', cards: 16, bit: [900, 1100], odds: { common: 35, rare: 40, epic: 20, legendary: 5 }, guar: 'legendary', mins: 0, price: 520, desc: 'En az 1 Efsanevi garantili.' },
 };
 /** QORE paketleri: BK ile (gerçek karakter parası). Kurallar aynı tabloyu doğrular. */
 export const PACKS = [
@@ -38,7 +38,7 @@ export function normInv(x: Partial<Inv> | undefined): Inv {
 export interface Drop { id: string; n: number; isNew: boolean }
 /** Sandık içeriği üret. r: [0,1) rastgele. Kartlar CR gibi birkaç yığına bölünür. */
 /** Arena ölçeği (CR gibi): her arena sandıktaki kart ve BIT miktarını artırır. */
-const PER_ARENA: Record<ChestId, number> = { win: 5, tour: 10, neon: 12, leg: 8 };
+const PER_ARENA: Record<ChestId, number> = { win: 5, tour: 10, neon: 3, leg: 3 };
 export const chestCards = (c: ChestId, best: number) => CHESTS[c].cards + PER_ARENA[c] * arenaIdx(best);
 export const chestBit = (c: ChestId, best: number): [number, number] => { const m = 1 + 0.5 * arenaIdx(best); const b = CHESTS[c].bit; return [Math.round(b[0] * m), Math.round(b[1] * m)]; };
 export function rollChest(c: ChestId, inv: Inv, r: () => number = Math.random): { bit: number; drops: Drop[] } {
