@@ -381,7 +381,7 @@
     unFr = N.watchFr(u.uid, (f) => { if (f.in.length > fr.in.length) S.notify(); fr = f; if (f.f.length || f.in.length) loadFriends(); });
     unInv = N.watchInvites(u.uid, (d) => { const fresh = d.filter((x) => !invites.some((y) => y.id === x.id)); if (fresh.length) S.notify(); invites = d; });
     clockT = setInterval(() => (clock = Date.now()), 1000);
-    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) (window as unknown as Record<string, unknown>).__clash = { get st() { return st; }, play, get ui() { return ui; }, get scr() { return scr; }, get inv() { return inv; }, practice: () => startBot(null, 'practice'), ranked: async () => startBot(await N.pickBot(inv.cr), 'ranked'), me: () => me, hk: () => hk, emote: sendEmote, go, slotClick, finishNow: () => { if (st) { st.over = true; st.winner = me; st.reason = '3 taç'; st.crowns[me] = 3; } } };
+    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) (window as unknown as Record<string, unknown>).__clash = { get st() { return st; }, get R() { return R; }, play, get ui() { return ui; }, get scr() { return scr; }, get inv() { return inv; }, practice: () => startBot(null, 'practice'), ranked: async () => startBot(await N.pickBot(inv.cr), 'ranked'), me: () => me, hk: () => hk, emote: sendEmote, go, slotClick, finishNow: () => { if (st) { st.over = true; st.winner = me; st.reason = '3 taç'; st.crowns[me] = 3; } } };
     return () => { ts.forEach(clearTimeout); removeEventListener('keydown', key); };
   });
   onDestroy(() => { cancelAnimationFrame(raf); stopSeek(false); stopWait(); if (net && st && !st.over) net.leave(); net?.close(); music.stop(); coreBack.go = null; ro?.disconnect(); unFr?.(); unInv?.(); if (clockT) clearInterval(clockT); });

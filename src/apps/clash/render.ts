@@ -59,14 +59,16 @@ export class Renderer {
     const gi = IMG[th.ground];
     g.fillStyle = '#05070c'; g.fillRect(0, 0, cw, ch);
     if (gi?.naturalWidth) {
-      g.save(); g.filter = 'blur(6px) brightness(.35) saturate(.8)'; const sc = Math.max(cw / gi.naturalWidth, ch / gi.naturalHeight) * 1.05; g.drawImage(gi, (cw - gi.naturalWidth * sc) / 2, (ch - gi.naturalHeight * sc) / 2, gi.naturalWidth * sc, gi.naturalHeight * sc); g.restore();
+      // ctx.filter yok (bazı GPU/yazılım çizicilerde tuvali siler, Safari desteklemez): küçült-büyüt bulanıklığı + karartma
+      const sm = document.createElement('canvas'); sm.width = 96; sm.height = 54; sm.getContext('2d')!.drawImage(gi, 0, 0, 96, 54);
+      g.save(); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(sm, -cw * 0.025, -ch * 0.025, cw * 1.05, ch * 1.05); g.fillStyle = 'rgba(3,4,8,.66)'; g.fillRect(0, 0, cw, ch); g.restore();
     }
-    // arena tabanı
+    // arena tabanı (kırpma içindeki tam kaplamalar fillRect değil yol ile: Chrome'un 'üstüne çizim' eniyilemesi önceki katmanları siliyordu)
     g.save(); g.beginPath(); g.roundRect(AX, AY, AW, AH, ts * 0.6); g.clip();
     if (gi?.naturalWidth) { const sc = Math.max(AW / gi.naturalWidth, AH / gi.naturalHeight); g.drawImage(gi, AX + (AW - gi.naturalWidth * sc) / 2, AY + (AH - gi.naturalHeight * sc) / 2, gi.naturalWidth * sc, gi.naturalHeight * sc); }
-    g.fillStyle = th.shade; g.fillRect(AX, AY, AW, AH);
+    g.fillStyle = th.shade; g.beginPath(), g.rect(AX, AY, AW, AH), g.fill();
     // taraf tonları (sol ben, sağ rakip)
-    let gr = g.createLinearGradient(AX, 0, AX + AW, 0); gr.addColorStop(0, th.tint[0]); gr.addColorStop(0.46, 'rgba(0,0,0,0)'); gr.addColorStop(0.54, 'rgba(0,0,0,0)'); gr.addColorStop(1, th.tint[1]); g.fillStyle = gr; g.fillRect(AX, AY, AW, AH);
+    let gr = g.createLinearGradient(AX, 0, AX + AW, 0); gr.addColorStop(0, th.tint[0]); gr.addColorStop(0.46, 'rgba(0,0,0,0)'); gr.addColorStop(0.54, 'rgba(0,0,0,0)'); gr.addColorStop(1, th.tint[1]); g.fillStyle = gr; g.beginPath(), g.rect(AX, AY, AW, AH), g.fill();
     // yerleştirme ızgarası (ince)
     g.strokeStyle = 'rgba(255,255,255,.035)'; g.lineWidth = 1;
     for (let i = 1; i < H; i++) { const X = AX + i * ts; g.beginPath(); g.moveTo(X, AY); g.lineTo(X, AY + AH); g.stroke(); }
@@ -83,12 +85,14 @@ export class Renderer {
     const RX = this.sx(0, RIVER), rw = ts * 1.9;
     gr = g.createLinearGradient(RX - rw / 2, 0, RX + rw / 2, 0); gr.addColorStop(0, 'rgba(0,0,0,.6)'); gr.addColorStop(0.15, th.river[0]); gr.addColorStop(0.5, th.river[0]); gr.addColorStop(0.85, th.river[0]); gr.addColorStop(1, 'rgba(0,0,0,.6)');
     g.fillStyle = gr; g.fillRect(RX - rw / 2, AY, rw, AH);
-    g.strokeStyle = th.river[1]; g.globalAlpha = 0.55; g.lineWidth = 2; g.shadowColor = th.river[1]; g.shadowBlur = 14;
-    g.beginPath(); g.moveTo(RX - rw / 2, AY); g.lineTo(RX - rw / 2, AY + AH); g.moveTo(RX + rw / 2, AY); g.lineTo(RX + rw / 2, AY + AH); g.stroke(); g.globalAlpha = 1; g.shadowBlur = 0;
+    // kıyı ışığı: shadowBlur yerine katmanlı çizgi (uzun yolda shadowBlur Chrome'da tüm tuvali boşaltabiliyor)
+    g.strokeStyle = th.river[1]; g.beginPath(); g.moveTo(RX - rw / 2, AY); g.lineTo(RX - rw / 2, AY + AH); g.moveTo(RX + rw / 2, AY); g.lineTo(RX + rw / 2, AY + AH);
+    for (const [lw, a] of [[12, 0.05], [7, 0.08], [4, 0.14], [2, 0.5]] as const) { g.lineWidth = lw; g.globalAlpha = a; g.stroke(); }
+    g.globalAlpha = 1;
     // köprüler
     for (const bx of BRIDGES) this.bridge(g, RX, this.sy(bx), rw);
     // kenar gölgesi
-    const vg = g.createRadialGradient(AX + AW / 2, AY + AH / 2, AH * 0.35, AX + AW / 2, AY + AH / 2, AW * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)'); g.fillStyle = vg; g.fillRect(AX, AY, AW, AH);
+    const vg = g.createRadialGradient(AX + AW / 2, AY + AH / 2, AH * 0.35, AX + AW / 2, AY + AH / 2, AW * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)'); g.fillStyle = vg; g.beginPath(), g.rect(AX, AY, AW, AH), g.fill();
     g.restore();
     // çerçeve
     g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 2; g.beginPath(); g.roundRect(AX, AY, AW, AH, ts * 0.6); g.stroke();
