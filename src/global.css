@@ -1,3 +1,7 @@
+/* Orbitron'da Türkçe Ş Ğ İ yok: aynı aileye bileşik glifli küçük ek (yalnız bu 5 harf) */
+@font-face{font-family:'Orbitron';font-weight:400 600;font-display:swap;src:url('/fonts/orbitron-tr-500.woff') format('woff');unicode-range:U+011E-011F,U+0130,U+015E-015F}
+@font-face{font-family:'Orbitron';font-weight:601 800;font-display:swap;src:url('/fonts/orbitron-tr-700.woff') format('woff');unicode-range:U+011E-011F,U+0130,U+015E-015F}
+@font-face{font-family:'Orbitron';font-weight:801 1000;font-display:swap;src:url('/fonts/orbitron-tr-900.woff') format('woff');unicode-range:U+011E-011F,U+0130,U+015E-015F}
 :root{
   --bg:#05060b; --bg2:#0b0e17; --panel:rgba(10,13,22,.86); --line:rgba(0,240,255,.22);
   --cy:#00f0ff; --ye:#fcee0a; --rd:#ff2a55; --mg:#ff3cf2; --tx:#d8f6ff; --mut:#7d8ea3;

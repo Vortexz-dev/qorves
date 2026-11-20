@@ -39,7 +39,7 @@ export function pubOf(uid: string, name: string, inv: Inv): Omit<Pub, 'uid'> & {
 }
 
 /* ---------- kalıcı botlar ---------- */
-const BOT_NAMES = ['Kroz', 'NeonVex', 'Hrothmar_Jr', 'Ash.Rin', 'Vanta', 'Mira-7', 'Scrapjaw', 'Kade', 'Dusk0', 'Ignis', 'Talon', 'Sable', 'Rook', 'Juno.exe', 'Grimwick', 'Vesper', 'Nyx', 'Oskar_Q', 'BoltBrann', 'Tessa', 'Ozymandi', 'RedLantern', 'Hexa', 'Kurogane', 'Wraith', 'Pip', 'Torque', 'Lyra', 'Nebbin', 'Mox', 'Zephyrine', 'Cinder', 'Halvard', 'Quill', 'Bramble', 'Static', 'Orrin', 'Fen', 'Volt', 'Morrow'];
+const BOT_NAMES = ['Kr0z', 'NeonVex', 'Hrothmar_Jr', 'Ash.Rin', 'VantaBlak', 'Mira-7', 'Scrapjaw', 'KadeRunner', 'Dusk0', 'Ignis_Prime', 'TalonKCX', 'Sable//Null', 'RookOfAurum', 'Juno.exe', 'Grimwick', 'VesperDrift', 'NyxByte', 'Oskar_Q', 'BoltBrann', 'TessaChrome', 'Ozymandi4s', 'RedLantern', 'HexaDolgrim', 'Kurogane', 'Wraith.sys', 'PipTheKobold', 'TorqueDwarf', 'LyraStarborn', 'Nebbin_Rust', 'MoxRipper', 'Zephyrine', 'CinderOrk', 'Halvard_Ironjaw', 'QuillNet', 'BrambleRoot', 'StaticVoid', 'OrrinTheDock', 'FenGhost', 'Volt_Corvallis', 'Morrow.Crown'];
 const ARCH: string[][] = [
   ['chrome', 'archer', 'goblin', 'drone', 'breacher', 'tabaxi', 'plasma', 'emp'],
   ['ogre', 'bomber', 'medic', 'archer', 'emp', 'plasma', 'turret', 'scrap'],

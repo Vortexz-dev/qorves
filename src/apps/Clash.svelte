@@ -507,21 +507,26 @@
           </div>
         {:else if scr === 'rank'}
           <div class="rank">
-            <div class="rh"><h3>SIRALAMA <small>Oyuncular ve arena botları · botlar da maç yapar, kupa kazanır</small></h3><button class="btn" onclick={() => loadRank(true)} type="button">Yenile</button></div>
+            <div class="rh"><h3>SIRALAMA <small>Qorves ağındaki tüm Crown Clash oyuncuları · kupaya göre</small></h3><button class="btn" onclick={() => loadRank(true)} type="button">Yenile</button></div>
             {#if boardErr}<p class="err">{boardErr}</p>{/if}
             <div class="list">
               {#each board as p, i (p.uid)}
                 <button class="lr" class:mine={p.uid === u.uid} class:bot={p.bot} onclick={() => { peek = p; S.click(); }} style={`--d:${Math.min(i, 20) * 25}ms`} type="button">
-                  <span class={'pos p' + (i + 1)}>{i + 1}</span><span class="klv sm">{p.lv}</span><span class="pn">{p.name}{#if p.bot}<em>BOT</em>{/if}{#if p.uid === u.uid}<em class="you">SEN</em>{/if}</span>
+                  <span class={'pos p' + (i + 1)}>{i + 1}</span><span class="klv sm">{p.lv}</span><span class="pn">{p.name}{#if p.uid === u.uid}<em class="you">SEN</em>{/if}</span>
                   <span class="ar mono">{themeFor(p.cr).name}</span><span class="lwl mono">{p.w}G {p.l}M</span><b><Trophy size={14} /> {fmt(p.cr)}</b>
                 </button>
               {:else}<p class="mono dim">Yükleniyor…</p>{/each}
             </div>
-            {#if board.length && !myRank}<p class="mono dim">Sen: {fmt(inv.cr)} kupa · ilk 60'ta değilsin.</p>{/if}
+            {#if board.length}
+              {@const up = myRank > 1 ? board[myRank - 2] : null}
+              <div class="mebar"><span class="klv sm">{board[myRank - 1]?.lv ?? 1}</span><b>{myRank ? '#' + myRank : '60+'}</b><span>Senin sıran · <Trophy size={13} /> {fmt(inv.cr)}</span>
+                {#if up}<span class="mono dim">Sıradaki hedef: <b>{up.name}</b> · +{fmt(Math.max(1, up.cr - inv.cr + 1))} kupa</span>{:else if myRank === 1}<span class="mono gold">Zirvedesin</span>{:else}<span class="mono dim">İlk 60'a girmek için kupa topla</span>{/if}
+                {#if myRank}<button class="btn sm" onclick={() => document.querySelector('.rank .lr.mine')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} type="button">Bul</button>{/if}</div>
+            {/if}
             {#if peek}
               <div class="peek" role="presentation" onclick={() => (peek = null)}>
                 <div class="pk" role="presentation" onclick={(e) => e.stopPropagation()}>
-                  <b>{peek.name}{#if peek.bot}<em>BOT</em>{/if}</b><span class="mono">{fmt(peek.cr)} kupa · en iyi {fmt(peek.best ?? peek.cr)} · Kral Sv {peek.lv}</span>
+                  <b>{peek.name}</b><span class="mono">{fmt(peek.cr)} kupa · en iyi {fmt(peek.best ?? peek.cr)} · Kral Sv {peek.lv}</span>
                   <div class="pd">{#each peek.deck as id, i}<CardTile {id} lv={peek.dl[i] ?? 1} small delay={i * 40} />{/each}</div>
                 </div>
               </div>
@@ -569,7 +574,7 @@
     <div class="vs" style={`background-image:url(${IMG}${mTheme.ground}.webp)`}>
       <div class="vsl"><b>{NAME}</b><span><Trophy size={16} /> {fmt(inv.cr)} · Sv {kLv}</span></div>
       <div class="vsm">VS<small>{mTheme.name}{mode === 'friendly' ? ' · dostluk' : mode === 'practice' ? ' · antrenman' : ''}</small></div>
-      <div class="vsr"><b>{foe.name}{#if foe.bot && mode !== 'practice'}<em>BOT</em>{/if}</b><span><Trophy size={16} /> {fmt(foe.cr)} · Sv {foe.lv}</span></div>
+      <div class="vsr"><b>{foe.name}</b><span><Trophy size={16} /> {fmt(foe.cr)} · Sv {foe.lv}</span></div>
     </div>
   {:else if scr === 'match' || scr === 'end'}
     <div class="match">
@@ -595,7 +600,7 @@
         <canvas bind:this={canvas}></canvas>
         <div class="hud">
           <div class="tm" class:ot={ui.ot} class:low={ui.time <= 30}><b>{mmss(ui.time)}</b>{#if ui.ot}<small>UZATMA</small>{:else if ui.rate > 1}<small>{ui.rate}× İKSİR</small>{/if}</div>
-          <div class="fo"><span class="cr">{#each [0, 1, 2] as i}<i class:on={i < ui.crowns[1]!}>♛</i>{/each}</span><b>{foe.name}{#if foe.bot && mode !== 'practice'}<em>BOT</em>{/if}</b></div>
+          <div class="fo"><span class="cr">{#each [0, 1, 2] as i}<i class:on={i < ui.crowns[1]!}>♛</i>{/each}</span><b>{foe.name}</b></div>
         </div>
         {#if ui.count}<div class="count">{ui.count}</div>{/if}
       </div>
@@ -855,4 +860,5 @@
   .inv b{color:#fcee0a}
   .note{position:absolute;bottom:84px;left:50%;transform:translateX(-50%);z-index:80;padding:10px 18px;border-radius:10px;background:rgba(6,10,18,.96);border:1px solid var(--acc);font-size:13.5px;animation:nup .3s both;max-width:70%}
   @keyframes nup{from{opacity:0;transform:translate(-50%,16px)}}
+.mebar{display:flex;align-items:center;gap:14px;margin-top:8px;padding:10px 16px;border:1px solid color-mix(in srgb,var(--acc) 55%,transparent);background:linear-gradient(90deg,color-mix(in srgb,var(--acc) 18%,transparent),rgba(10,14,22,.9));border-radius:10px;font-size:15px}.mebar>b{font:900 20px var(--f-disp,sans-serif);color:#fff;min-width:54px}.mebar .btn{margin-left:auto}.mebar .gold{color:#ffd166}
 </style>
