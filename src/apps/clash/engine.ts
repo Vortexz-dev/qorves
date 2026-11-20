@@ -1,4 +1,4 @@
-/* CHROME CROWN — belirlenimci simülasyon. Sabit adım 20 Hz. Yalnız + − × ÷ ve sqrt kullanılır
+/* CROWN CLASH — belirlenimci simülasyon. Sabit adım 20 Hz. Yalnız + − × ÷ ve sqrt kullanılır
    (trigonometri yok) — iki tarayıcı aynı komutlardan bit bit aynı sonucu üretir. Ağ katmanı yalnız komut taşır.
    Koordinatlar: x ∈ [0,18] (kanatlar), y ∈ [0,32] (taraf 0 altta y büyük). Ekranda yatay çizilir (render.ts). */
 import { CARD, eff, type Card, type DeckCard } from './cards';

@@ -1,4 +1,4 @@
-/* CHROME CROWN — kart tanımları. Birimler: mesafe = karo, süre = saniye, hız = karo/sn.
+/* CROWN CLASH — kart tanımları. Birimler: mesafe = karo, süre = saniye, hız = karo/sn.
    Sayılar 1. seviye içindir; seviye çarpanı ve evrim (Evo I @4, Evo II @7) aşağıda. Tasarım tablosu: docs/CHROME_CROWN_DESIGN.md */
 export type Kind = 'troop' | 'building' | 'spell';
 export type Tgt = 'ground' | 'both' | 'build' | 'air';
