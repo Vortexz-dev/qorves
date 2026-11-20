@@ -155,11 +155,13 @@ service cloud.firestore {
       allow write: if isDM();
       allow create, update: if signedIn() && walletByTransfer(uid);
       allow update: if isMe(uid) && walletByDuel(uid);
+      allow update: if isMe(uid) && walletByClash(uid);
       match /tx/{tid} {
         allow read: if isMe(uid) || isDM();
         allow write: if isDM();
         allow create: if signedIn() && !exists(trPath(tid)) && txByTransfer(uid, tid);
         allow create: if isMe(uid) && txByDuel(uid, tid);
+        allow create: if isMe(uid) && txByClash(uid, tid);
       }
     }
     function txByTransfer(uid, tid) {
@@ -183,6 +185,24 @@ service cloud.firestore {
         && request.resource.data.bal.get('BK', -1) == old + g.delta && old + g.delta >= 0 && g.bal == old + g.delta
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bal', 'at', 'lg'])
         && request.resource.data.bal.diff(resource.data.bal).affectedKeys().hasOnly(['BK']);
+    }
+    // CROWN CLASH QORE alımı: cüzdandan BK düşer (lq = alım kimliği); clash_buys kaydına bağlı.
+    function walletByClash(uid) {
+      let bid = request.resource.data.get('lq', '');
+      let b = getAfter(/databases/$(db)/documents/clash_buys/$(bid)).data;
+      let old = resource.data.bal.get('BK', 0);
+      return bid is string && bid.size() > 0 && !exists(/databases/$(db)/documents/clash_buys/$(bid)) && b.uid == uid
+        && request.resource.data.bal.get('BK', -1) == old - b.bk && old - b.bk >= 0
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bal', 'at', 'lq'])
+        && request.resource.data.bal.diff(resource.data.bal).affectedKeys().hasOnly(['BK']);
+    }
+    function txByClash(uid, tid) {
+      let b = getAfter(/databases/$(db)/documents/clash_buys/$(tid)).data;
+      let d = request.resource.data;
+      return !exists(/databases/$(db)/documents/clash_buys/$(tid)) && b.uid == uid
+        && d.keys().hasOnly(['cur', 'amt', 'reason', 'at', 'bal', 'q'])
+        && d.cur == 'BK' && d.amt == -b.bk && d.q == tid && d.at == b.at && d.bal == b.bal
+        && d.reason is string && d.reason.size() <= 200;
     }
     function txByDuel(uid, tid) {
       let g = getAfter(gPath(tid)).data;
@@ -402,10 +422,110 @@ service cloud.firestore {
       }
     }
 
-    // SPIRE//CLASH — deste/kupa, eşleşme kuyruğu ve komut kilit-adımı (Spark: maç başına ~50–120 yazma).
+    // CROWN CLASH — profil/envanter, ortak sıralama (oyuncu + kalıcı bot), arkadaş/düello, QORE satın alma ve komut kilit-adımı.
+    // Spark: maç başına ~50–120 komut yazması; maç sonu 2–3 yazma. Sandık RNG'si istemcide; kurallar artışları sınırlar.
+    function invPath(u) { return /databases/$(db)/documents/clash_inv/$(u); }
+    function buyPath(b) { return /databases/$(db)/documents/clash_buys/$(b); }
+    function invKeys(d) {
+      return d.keys().hasOnly(['bit', 'qore', 'cards', 'chests', 'deck', 'cr', 'best', 'w', 'l', 'd', 'streak', 'at', 'lb'])
+        && d.bit is int && d.bit >= 0 && d.qore is int && d.qore >= 0 && d.cards is map && d.chests is list && d.chests.size() <= 4
+        && d.deck is list && d.deck.size() == 8 && d.cr is int && d.cr >= 0 && d.w is int && d.l is int && d.d is int;
+    }
+    match /clash_inv/{uid} {
+      allow read: if isMe(uid) || isDM();
+      allow create: if isMe(uid) && invKeys(request.resource.data) && request.resource.data.qore == 0 && request.resource.data.bit <= 600
+        && request.resource.data.cr <= 1500 && request.resource.data.w == 0 && !('lb' in request.resource.data);
+      // olağan kayıt: QORE yalnız harcanır; BIT artışı sınırlı (+QORE ile alınan BIT paketi); kupa maç başına en çok ±60.
+      allow update: if isMe(uid) && invKeys(request.resource.data)
+        && request.resource.data.qore <= resource.data.qore
+        && request.resource.data.bit - resource.data.bit <= 2400 + (resource.data.qore - request.resource.data.qore) * 23
+        && request.resource.data.cr - resource.data.cr <= 60 && resource.data.cr - request.resource.data.cr <= 60
+        && request.resource.data.w - resource.data.w <= 1 && request.resource.data.w >= resource.data.w
+        && request.resource.data.get('lb', '') == resource.data.get('lb', '');
+      // satın alma: yalnız qore + lb değişir; aynı toplu yazımdaki clash_buys kaydına bağlı.
+      allow update: if isMe(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['qore', 'lb', 'at'])
+        && request.resource.data.lb is string && !exists(buyPath(request.resource.data.lb))
+        && getAfter(buyPath(request.resource.data.lb)).data.uid == uid
+        && request.resource.data.qore == resource.data.qore + getAfter(buyPath(request.resource.data.lb)).data.qore;
+      allow delete: if isDM();
+    }
+    function packOk(d) {
+      return (d.pack == 'p1' && d.qore == 100 && d.bk == 500) || (d.pack == 'p2' && d.qore == 550 && d.bk == 2500) || (d.pack == 'p3' && d.qore == 1200 && d.bk == 5000);
+    }
+    match /clash_buys/{bid} {
+      allow read: if isDM() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['uid', 'name', 'pack', 'qore', 'bk', 'at', 'bal'])
+        && request.resource.data.uid == request.auth.uid && packOk(request.resource.data)
+        && request.resource.data.name is string && request.resource.data.name.size() <= 60
+        && get(/databases/$(db)/documents/users/$(request.auth.uid)).data.role == 'player'
+        && request.resource.data.at is int && request.resource.data.at > request.time.toMillis() - 600000 && request.resource.data.at < request.time.toMillis() + 600000
+        && getAfter(wPath(request.auth.uid)).data.get('lq', '') == bid
+        && request.resource.data.bal == get(wPath(request.auth.uid)).data.bal.get('BK', 0) - request.resource.data.bk
+        && getAfter(wPath(request.auth.uid)).data.bal.BK == request.resource.data.bal && request.resource.data.bal >= 0
+        && existsAfter(/databases/$(db)/documents/wallet/$(request.auth.uid)/tx/$(bid))
+        && getAfter(invPath(request.auth.uid)).data.get('lb', '') == bid;
+      allow update, delete: if isDM();
+    }
     match /clash_decks/{uid} {
       allow read: if signedIn();
-      allow write: if isMe(uid) && request.resource.data.deck is list && request.resource.data.deck.size() == 8;
+      allow write: if isMe(uid) && request.resource.data.keys().hasOnly(['uid', 'name', 'cr', 'best', 'w', 'l', 'd', 'deck', 'dl', 'lv', 'at'])
+        && request.resource.data.deck is list && request.resource.data.deck.size() == 8 && request.resource.data.dl is list && request.resource.data.dl.size() == 8
+        && request.resource.data.name is string && request.resource.data.name.size() <= 40
+        && request.resource.data.cr == getAfter(invPath(uid)).data.cr;
+      allow delete: if isDM();
+    }
+    match /clash_bots/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && id.matches('b[0-9]{2}') && request.resource.data.keys().hasOnly(['name', 'cr', 'best', 'w', 'l', 'd', 'deck', 'dl', 'lv', 'bot', 'at'])
+        && request.resource.data.cr is int && request.resource.data.cr <= 3300 && request.resource.data.w == 0 && request.resource.data.l == 0
+        && request.resource.data.deck is list && request.resource.data.deck.size() == 8;
+      allow update: if signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cr', 'best', 'w', 'l', 'lv', 'dl', 'at'])
+        && request.resource.data.cr is int && request.resource.data.cr >= 0
+        && request.resource.data.cr - resource.data.cr <= 60 && resource.data.cr - request.resource.data.cr <= 60
+        && request.resource.data.w - resource.data.w <= 1 && request.resource.data.w >= resource.data.w
+        && request.resource.data.l - resource.data.l <= 1 && request.resource.data.l >= resource.data.l
+        && request.resource.data.lv is int && request.resource.data.lv >= 1 && request.resource.data.lv <= 9
+        && request.resource.data.dl is list && request.resource.data.dl.size() == 8;
+      allow delete: if isDM();
+    }
+    // Arka plan bot maçları: tüm oyuncular arasında en fazla 10 dakikada bir.
+    match /clash_meta/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn() && id == 'sim' && request.resource.data.keys().hasOnly(['at', 'n']) && request.resource.data.at == request.time
+        && (resource == null || request.time > resource.data.at + duration.value(10, 'm'));
+    }
+    // Arkadaşlar: kendi belgen serbest; başkasının belgesine yalnız kendini istek olarak ekle, isteği kabul edince kendini arkadaş ekle, ya da kendini çıkar.
+    match /clash_fr/{uid} {
+      allow read: if signedIn();
+      allow write: if isMe(uid) && request.resource.data.keys().hasOnly(['f', 'in', 'name'])
+        && request.resource.data.f is list && request.resource.data.f.size() <= 100 && request.resource.data.in is list && request.resource.data.in.size() <= 100;
+      allow create, update: if signedIn() && !isMe(uid) && frOther(uid);
+    }
+    function frOther(uid) {
+      let me = request.auth.uid;
+      let of = resource == null ? [] : resource.data.f;
+      let oi = resource == null ? [] : resource.data.get('in', []);
+      let nf = request.resource.data.f;
+      let ni = request.resource.data.in;
+      return request.resource.data.keys().hasOnly(['f', 'in', 'name']) && nf is list && ni is list
+        && (resource == null || request.resource.data.name == resource.data.name)
+        && (
+          (nf.toSet() == of.toSet() && ni.toSet().difference(oi.toSet()).hasOnly([me]) && oi.toSet().difference(ni.toSet()).size() == 0 && ni.size() <= 100)
+          || (ni.toSet() == oi.toSet() && uid in get(/databases/$(db)/documents/clash_fr/$(me)).data.get('in', [])
+              && nf.toSet().difference(of.toSet()).hasOnly([me]) && of.toSet().difference(nf.toSet()).size() == 0)
+          || (ni.toSet() == oi.toSet() && nf.toSet() == of.toSet().difference([me].toSet()))
+        );
+    }
+    // Düello davetleri: davet eden yazar; davet edilen kabul/ret eder.
+    match /clash_duels/{id} {
+      allow read: if signedIn() && (request.auth.uid == resource.data.from || request.auth.uid == resource.data.to);
+      allow create: if signedIn() && request.resource.data.from == request.auth.uid && request.resource.data.st == 'open'
+        && request.resource.data.keys().hasOnly(['from', 'to', 'fromName', 'toName', 'deck', 'cr', 'st', 'at'])
+        && request.resource.data.to is string && request.resource.data.to != request.auth.uid && request.resource.data.deck is list && request.resource.data.deck.size() == 8;
+      allow update: if signedIn() && (
+        (request.auth.uid == resource.data.to && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['st', 'match']) && request.resource.data.st in ['ok', 'no'])
+        || (request.auth.uid == resource.data.from && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['st']) && request.resource.data.st == 'gone'));
+      allow delete: if isDM() || (signedIn() && (request.auth.uid == resource.data.from || request.auth.uid == resource.data.to));
     }
     match /clash_queue/{uid} {
       allow read: if signedIn();
