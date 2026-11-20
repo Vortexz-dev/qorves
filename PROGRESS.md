@@ -40,3 +40,15 @@ Dal: `clash-v2` (worktree `/workspace/qclash`), origin/main üstüne rebase edil
 ## Kalan
 - YAYINDA: main 3c32e44, Pages index-DYLpy3zC.js doğrulandı, Firestore kuralları yüklendi (Spark). Discord duyurusu Phoenix onayı bekliyor.
 - yeni kart görselleri + 3 sprite + 7 yürüme sayfası üretildi (qtest/c3/*.txt eşlemeleri). Kalan: 13 mevcut birimin yürüme sayfası, kod.
+
+## t158u (Phoenix revizyonu) — tamam
+- 10 yeni kart (toplam 40): sappers, berserker, flak, minotaur, mortar, rain, lancer, hexer, goliath, skyblade. Gerçekçi kart görseli + sprite.
+- Arena kilitleri: ARENA_CARDS/ARENA_CR (cards.ts). En iyi kupaya göre açılır, geri kilitlenmez. Sandık havuzu yalnız açık arenalar. UI: ana sayfada "sonraki arena açar" şeridi, koleksiyon arenaya göre gruplu, kilitli kart açıklaması, "YENİ ARENA" açılış ekranı.
+- Eşleştirme: canlı kuyruk ±(250+60·sn) penceresi; yoksa findOpponent: botlar + gerçek oyuncular (hayalet: kendi destesi, YZ) ±150/300/600. Rakip kart seviyeleri oyuncunun ortalamasına ±1 sıkıştırılır; bot desteleri fitDeck ile kendi arenasına uydurulur; hayalet maçında yalnız benim kupam değişir.
+- Birim boyu ×1.55 → ×1.3. 20 bacaklı birime 4 karelik yürüme sayfası (walk_<id>.webp), hareket ederken döner.
+- VFX: ateş topu patlaması, şok dalgası, yanık izi, namlu alevi, vuruş kıvılcımı; Nova füzesi gökten iner, Drop Pod/Plasma Rain meteor düşüşü + çarpma; void mermisi + iz.
+- SFX: kart başına çıkış/saldırı/ölüm (aile + perde kimliği), büyü başına çarpma.
+- Font: Orbitron değişken font kendimizde + Ş ş Ğ ğ İ bileşik glifleri (aynı font → aynı ağırlık/boy). Google Orbitron kaldırıldı.
+- Sandık: win 12+5/arena, tour 30+10, neon 45+12, leg 36+8 kart; BIT ×(1+0.5·arena). Kopya maliyetleri aynı (dik).
+- Motor: n dalgalı büyü (pulses), 'air' alan hasarı, mermi sersemletmesi.
+- Kurallar değişmedi (BIT sınırı yeterli). Smoke: t158.mjs (ana/kartlar/mağaza/arena açılışı/maç), hata yok.
