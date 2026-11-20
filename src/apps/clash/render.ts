@@ -25,7 +25,7 @@ export function preload(): Promise<void> {
 /** Sprite'ın doğal baktığı yön (+1 sağ, −1 sol). Yürüyüş yönüne göre aynalanır. */
 const FACE: Record<string, number> = { goblin: -1, swarm: -1 };
 /** Birim boyu (karo cinsinden, sprite yüksekliği) */
-const sz = (id: string) => (SIZE[id] ?? 1.6) * 1.3;
+const sz = (id: string) => (SIZE[id] ?? 1.6) * 1.55;
 const SIZE: Record<string, number> = { scrap: 1.0, goblin: 1.15, swarm: 0.9, drone: 1.05, archer: 1.55, runner: 1.6, sharp: 1.6, medic: 1.6, chrome: 1.75, tabaxi: 1.6, enforcer: 1.8, rider: 1.7, cryo: 1.75, drake: 2.1, bomber: 2.2, breacher: 2.0, ogre: 2.5, exo: 2.6, mech: 2.7, turret: 2.3, pylon: 2.9, foundry: 2.4, pump: 2.4 };
 type P = { x: number; y: number; z: number; vx: number; vy: number; vz: number; life: number; max: number; c: string; s: number; k: 'spark' | 'dust' | 'ring' | 'beam' | 'bolt' | 'text' | 'debris' | 'flash' | 'smoke' | 'shard'; r?: number; t?: string; pts?: number[]; add?: boolean };
 const ME = '#29d3ff', FOE = '#ff3355';
