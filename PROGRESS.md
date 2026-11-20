@@ -52,3 +52,4 @@ Dal: `clash-v2` (worktree `/workspace/qclash`), origin/main üstüne rebase edil
 - Sandık: win 12+5/arena, tour 30+10, neon 45+12, leg 36+8 kart; BIT ×(1+0.5·arena). Kopya maliyetleri aynı (dik).
 - Motor: n dalgalı büyü (pulses), 'air' alan hasarı, mermi sersemletmesi.
 - Kurallar değişmedi (BIT sınırı yeterli). Smoke: t158.mjs (ana/kartlar/mağaza/arena açılışı/maç), hata yok.
+- YAYINDA: main d122f60, canlı index-DtMm21aZ.js (doğrulandı).
