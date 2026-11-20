@@ -125,17 +125,17 @@ Taban seviye (Sv 1) değerleri. Rol ve evrimler oyundaki metinle aynıdır.
 
 ### Arketipler ve kombolar
 - **Chrome Beatdown** (varsayılan): Chrome Brawler + Dwarf Breacher; Elf Marksman ve Wasp Drones arkadan destek verir. EMP ve Orbital Strike yolu açar.
-- **Ogre Push:** Ogre Hauler önde, Synth Medic arkada, Hover Bomber alan hasarı. Turret ve Scrap Bots savunmayı tutar.
+- **Ogre Push:** Ogre Hauler önde, Synth Medic arkada, Hover Bomber alan hasarı. Arc Turret ve Scrap Bots savunmayı tutar.
 - **Rider Cycle:** Rail Rider, Tabaxi Shadow ve Goblin Gang ile hızlı döngü. Freeze + Rail Rider kule baskını yapar.
-- **Exo Pump:** Elixir Pump ekonomisi, ardından Exo Titan + Ember Drake. Nova Missile bitirir.
+- **Exo Pump:** Elixir Pump ekonomisi, ardından Exo Juggernaut + Ember Drake. Nova Missile bitirir.
 - **Mech Siege:** Siege Mech arkada; Synth Medic iyileştirir, Locust Swarm hava baskısı kurar.
-- **Bait / Pod:** Drop Pod, Overclock ve Goblin Gang ile rakibin büyüsünü harcatır.
-- **Build Control:** Cryo Runesmith, Inferno Pylon ve Mag Roller ile kontrol.
+- **Bait / Pod:** Drop Pod, Overclock ve Goblin Gang ile rakibin büyüsünü harcatır; Arc Turret savunur.
+- **Build Control:** Cryo Runesmith, Inferno Pylon ve Mag Roller ile kontrol; Riot Enforcer ön hat.
 
 ### Denge (bot-bot simülasyonu, mulberry32 RNG, 3×2000 maç / seviye)
 - Taraf dengesi Sv 1'de 2994 / 2984 / 22 beraberlik çıktı (≈%50).
 - Kart galibiyet oranı (dahil olduğu destelerde) Sv 1'de %44.1–55.9, Sv 5'te %45–56.8 aralığında.
 - Uçlarda kalan kartlar ve sebepleri:
   - Elf Marksman, Corp Sharpshooter ve Siege Mech üstte.
-  - Foundry, Dwarf Breacher ve Rail Rider altta. Bunun sebebi kartların zayıflığı değil, botun yapı ve kule-hedefli kartları zayıf kullanması.
+  - Scrap Foundry, Dwarf Breacher ve Rail Rider altta. Bunun sebebi kartların zayıflığı değil, botun yapı ve kule-hedefli kartları zayıf kullanması.
 - Ham dosyalar: `qtest/c2/BAL_FINAL_lv1.txt`, `BAL_FINAL_lv5.txt` (repo dışında).
