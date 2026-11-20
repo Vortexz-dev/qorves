@@ -39,3 +39,4 @@ Dal: `clash-v2` (worktree `/workspace/qclash`), origin/main üstüne rebase edil
 - ct6 düzeltildi (önce 550 QORE alıyor, Neon Kasa 160 QORE).
 ## Kalan
 - YAYINDA: main 3c32e44, Pages index-DYLpy3zC.js doğrulandı, Firestore kuralları yüklendi (Spark). Discord duyurusu Phoenix onayı bekliyor.
+- yeni kart görselleri + 3 sprite + 7 yürüme sayfası üretildi (qtest/c3/*.txt eşlemeleri). Kalan: 13 mevcut birimin yürüme sayfası, kod.
