@@ -38,4 +38,4 @@ Dal: `clash-v2` (worktree `/workspace/qclash`), origin/main üstüne rebase edil
 - Geçti (4cf1743): ct1, ct2, ct3 (toast + PvP 9/9 hash), ct5, ct7, crules 17/17.
 - ct6 düzeltildi (önce 550 QORE alıyor, Neon Kasa 160 QORE).
 ## Kalan
-- Sırayla ct3, ct8, ct5, ct6, crules → görüntü kontrolü → rebase origin/main → build/check → main → Pages + kurallar → canlı hash.
+- Testler geçti (ct3, ct8, ct5, ct6, crules 17/17). Kalan: rebase → build/check → main → Pages + kurallar → canlı hash.
