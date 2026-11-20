@@ -140,14 +140,13 @@ export const declineFriend = (me: string, from: string) => updateDoc(D('clash_fr
 export async function removeFriend(me: string, who: string) { const b = writeBatch(db); b.update(D('clash_fr', me), { f: arrayRemove(who) }); b.update(D('clash_fr', who), { f: arrayRemove(me) }); await b.commit().catch(() => updateDoc(D('clash_fr', me), { f: arrayRemove(who) })); }
 
 /* ---------- düello davetleri ---------- */
-export interface DuelInv { id: string; from: string; to: string; fromName: string; toName: string; deck: DeckCard[]; cr: number; st: 'open' | 'ok' | 'no' | 'gone'; at: number; match?: string }
+import type { DuelInv } from './invites';
+export type { DuelInv };
 export async function sendDuel(me: { uid: string; name: string; deck: DeckCard[]; cr: number }, to: string, toName: string) {
   const id = nid(); const d: Omit<DuelInv, 'id'> = { from: me.uid, to, fromName: me.name.slice(0, 40), toName: toName.slice(0, 40), deck: me.deck, cr: me.cr, st: 'open', at: now() };
   await setDoc(D('clash_duels', id), d); return id;
 }
-/** Bana gelen açık davetler (masaüstü bildirimi için; uygulama kapalıyken de). */
-export const watchInvites = (uid: string, cb: (d: DuelInv[]) => void) =>
-  onSnapshot(query(collection(db, 'clash_duels'), where('to', '==', uid), where('st', '==', 'open')), (s) => cb(s.docs.map((d) => ({ ...(d.data() as DuelInv), id: d.id })).filter((d) => now() - d.at < 120_000)), () => cb([]));
+export { watchInvites } from './invites';
 export const watchDuel = (id: string, cb: (d: DuelInv | null) => void) => onSnapshot(D('clash_duels', id), (s) => cb(s.exists() ? { ...(s.data() as DuelInv), id } : null));
 export const cancelDuel = (id: string) => updateDoc(D('clash_duels', id), { st: 'gone' }).catch(() => {});
 export const declineDuel = (id: string) => updateDoc(D('clash_duels', id), { st: 'no' }).catch(() => {});
@@ -164,7 +163,7 @@ export async function loadMatch(id: string): Promise<Match> { const s = await ge
 
 /* ---------- QORE satın alma (gerçek BK) ---------- */
 /** Tek toplu yazım: clash_buys/{bid} + cüzdan BK düşüşü (lq = bid) + tx kaydı + envanter QORE artışı (lb = bid). Kurallar her parçayı bağlar. */
-export async function buyQore(u: { uid: string; name: string }, packId: string): Promise<{ qore: number; bal: number }> {
+export async function buyQore(u: { uid: string; name: string }, packId: string): Promise<{ qore: number; bal: number; bid: string }> {
   const p = PACKS.find((x) => x.id === packId); if (!p) throw new Error('Paket yok');
   const bid = nid(), at = now();
   return runTransaction(db, async (t) => {
@@ -176,9 +175,9 @@ export async function buyQore(u: { uid: string; name: string }, packId: string):
     const q0 = (is.data().qore as number) ?? 0; const nb = old - p.bk;
     t.set(D('clash_buys', bid), { uid: u.uid, name: u.name.slice(0, 60), pack: p.id, qore: p.qore, bk: p.bk, at, bal: nb });
     t.update(wr, { 'bal.BK': nb, at, lq: bid });
-    t.set(D('wallet', u.uid, 'tx', bid), { cur: 'BK', amt: -p.bk, reason: `CROWN CLASH · ${p.qore} QORE`, at, bal: nb, q: bid });
+    t.set(doc(db, 'wallet', u.uid, 'tx', bid), { cur: 'BK', amt: -p.bk, reason: `CROWN CLASH · ${p.qore} QORE`, at, bal: nb, q: bid });
     t.update(ir, { qore: q0 + p.qore, lb: bid, at });
-    return { qore: q0 + p.qore, bal: nb };
+    return { qore: q0 + p.qore, bal: nb, bid };
   });
 }
 export async function walletBK(uid: string) { const s = await getDoc(D('wallet', uid)); return (s.data()?.bal?.BK as number) ?? 0; }

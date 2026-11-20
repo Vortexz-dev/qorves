@@ -23,6 +23,7 @@
   import RadioTab from './dm/RadioTab.svelte';
   import NewsTab from './dm/NewsTab.svelte';
   import HackTab from './dm/HackTab.svelte';
+  import ClashBuys from './dm/ClashBuys.svelte';
   let { arg }: { arg?: string } = $props();
   const ok = session.user?.role === 'dm';
   const SECTIONS: { h: string; tabs: [string, string][] }[] = [
@@ -31,7 +32,7 @@
     { h: 'Harita', tabs: [['markers', 'İşaretler ve gemiler']] },
     { h: 'İletişim', tabs: [['notify', 'Bildirim'], ['npc', 'ghOS-Net']] },
     { h: 'Masa', tabs: [['sess', 'Oturum'], ['gods', "God's Eye"], ['ship', 'Gemi']] },
-    { h: 'Finans', tabs: [['wallet', 'Cüzdan'], ['dice', 'Zar akışı'], ['duel', 'Zar Düellosu']] },
+    { h: 'Finans', tabs: [['wallet', 'Cüzdan'], ['dice', 'Zar akışı'], ['duel', 'Zar Düellosu'], ['clash', 'Crown Clash alımları']] },
     { h: 'Sızma', tabs: [['hack', 'ghOS-Key']] },
   ];
   const TABS = SECTIONS.flatMap((s) => s.tabs);
@@ -71,7 +72,8 @@
     {:else if tab === 'persona'}<PersonaTab />
     {:else if tab === 'radio'}<RadioTab />
     {:else if tab === 'news'}<NewsTab />
-    {:else if tab === 'hack'}<HackTab />{/if}
+    {:else if tab === 'hack'}<HackTab />
+    {:else if tab === 'clash'}<ClashBuys />{/if}
   </main>
 </div>
 {/if}
