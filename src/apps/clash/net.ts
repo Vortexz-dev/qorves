@@ -5,7 +5,7 @@
    • Arkadaşlar, düello davetleri, QORE satın alma (BK cüzdanından tek toplu yazım, kurallar bağlar). Bkz. docs/CLASH_NET.md */
 import { doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, query, where, getDocs, runTransaction, serverTimestamp, Timestamp, updateDoc, orderBy, limit, writeBatch, arrayUnion, arrayRemove, type Unsubscribe } from 'firebase/firestore';
 import { db } from '../../lib/backend/firebase';
-import { CARD, CARDS, validDeck, type DeckCard } from './cards';
+import { CARD, CARDS, validDeck, fitDeck, type DeckCard } from './cards';
 import { init, step, type Cmd, type Side } from './engine';
 import { makeBot } from './bot';
 import { normInv, PACKS, trophyDelta, type Inv } from './economy';
@@ -78,6 +78,27 @@ export async function pickBot(cr: number): Promise<Pub> {
   const all = s.docs.map((d) => ({ ...(d.data() as Pub), uid: d.id, bot: true }));
   const near = all.sort((a, b) => Math.abs(a.cr - cr) - Math.abs(b.cr - cr)).slice(0, 5);
   return near[Math.floor(Math.random() * near.length)] ?? seedBots()[0]!;
+}
+/** Eşleştirme: kupası yakın botlar + gerçek oyuncular (hayalet: kendi destesi/seviyeleri, yapay zekâ oynar).
+ *  Pencere ±150 → ±300 → ±600 → en yakınlar. Kart seviyeleri oyuncunun seviyesine ±1 sıkıştırılır (adil). */
+export interface Opp extends Pub { ghost?: boolean }
+export async function findOpponent(cr: number, myUid: string, myLv: number): Promise<Opp> {
+  const bs = await getDocs(query(collection(db, 'clash_bots'), orderBy('cr', 'desc'), limit(60)));
+  const bots: Opp[] = bs.docs.map((d) => ({ ...(d.data() as Pub), uid: d.id, bot: true }));
+  let ghosts: Opp[] = [];
+  try {
+    const ps = await getDocs(query(collection(db, 'clash_decks'), where('cr', '>=', Math.max(0, cr - 600)), where('cr', '<=', cr + 600), limit(30)));
+    ghosts = ps.docs.map((d) => ({ ...(d.data() as Pub), uid: d.id, bot: true, ghost: true })).filter((p) => p.uid !== myUid && validDeck(p.deck) && Array.isArray(p.dl));
+  } catch { /* oyuncu havuzu yoksa yalnız botlar */ }
+  const all = [...bots, ...ghosts];
+  let pool: Opp[] = [];
+  for (const w of [150, 300, 600]) { pool = all.filter((o) => Math.abs(o.cr - cr) <= w); if (pool.length >= 3) break; }
+  if (!pool.length) pool = all.sort((a, b) => Math.abs(a.cr - cr) - Math.abs(b.cr - cr)).slice(0, 4);
+  const o = pool[Math.floor(Math.random() * pool.length)] ?? seedBots()[0]!;
+  const deck = o.ghost ? o.deck.slice() : fitDeck(o.deck, Math.max(o.best ?? o.cr, o.cr));
+  const lo = Math.max(1, myLv - 1), hi = Math.min(9, myLv + 1);
+  const dl = deck.map((id) => { const i = o.deck.indexOf(id); const v = i >= 0 ? o.dl[i] ?? botLv(o.cr) : botLv(o.cr); return Math.max(lo, Math.min(hi, v)); });
+  return { ...o, deck, dl, lv: Math.max(1, Math.round(dl.reduce((a, b) => a + b, 0) / 8)) };
 }
 /** Bot sonucu: |Δ| ≤ 60, kurallar sınırlar. */
 export async function botResult(b: Pub, res: 'win' | 'lose' | 'draw', vsCr: number) {
@@ -198,7 +219,7 @@ const okDeck = (d: unknown): d is DeckCard[] => Array.isArray(d) && d.length ===
 
 /** Rakip ara. Bulunca onMatch çağrılır. Dönen fonksiyon aramayı iptal eder. */
 export function seek(me: { uid: string; name: string; deck: DeckCard[]; cr: number }, onMatch: (m: Match, side: Side, offset: number) => void, onErr: (e: unknown) => void): () => void {
-  let stop = false, un: Unsubscribe | null = null, poll: ReturnType<typeof setInterval> | null = null, off = 0;
+  let stop = false, un: Unsubscribe | null = null, poll: ReturnType<typeof setInterval> | null = null, off = 0; const t0 = now();
   const qref = D('clash_queue', me.uid);
   const done = async (mid: string) => {
     if (stop) return; stop = true; un?.(); if (poll) clearInterval(poll);
@@ -214,7 +235,8 @@ export function seek(me: { uid: string; name: string; deck: DeckCard[]; cr: numb
       if (stop) return;
       const since = Timestamp.fromMillis(now() + off - 45000);
       const qs = await getDocs(query(collection(db, 'clash_queue'), where('at', '>', since)));
-      const others = qs.docs.filter((d) => d.id !== me.uid && !d.data().match && okDeck(d.data().deck)).sort((a, b) => (a.data().at?.toMillis?.() ?? 0) - (b.data().at?.toMillis?.() ?? 0));
+      const win = 250 + 60 * Math.max(0, (now() - t0) / 1000); // kupa penceresi beklerken genişler
+      const others = qs.docs.filter((d) => d.id !== me.uid && !d.data().match && okDeck(d.data().deck) && Math.abs(((d.data().cr as number) ?? 0) - me.cr) <= win).sort((a, b) => (a.data().at?.toMillis?.() ?? 0) - (b.data().at?.toMillis?.() ?? 0));
       for (const o of others) {
         try {
           const mid = await runTransaction(db, async (tx) => {

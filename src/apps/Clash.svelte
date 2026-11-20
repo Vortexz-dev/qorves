@@ -4,12 +4,12 @@
   import { session } from '../lib/session.svelte';
   import { wm, coreBack } from '../desktop/wm.svelte';
   import { ask } from '../lib/confirm.svelte';
-  import { CARDS, CARD, avgCost, eff, upCost, evoTier, EVO_LV, MAX_LV, RARITY_TR, type DeckCard } from './clash/cards';
+  import { CARDS, CARD, avgCost, eff, upCost, evoTier, EVO_LV, MAX_LV, RARITY_TR, ARENA_CARDS, ARENA_CR, arenaIdx, arenaOf, type DeckCard } from './clash/cards';
   import { init, step, hand, nextCard, timeLeft, elixRate, canDeploy, clone, hash, HZ, type State, type Cmd, type Side, type Fx, type MatchStats } from './clash/engine';
   import { makeBot } from './clash/bot';
   import * as N from './clash/net';
   import type { Pub, Match, DuelInv, Fr } from './clash/net';
-  import { CHESTS, PACKS, BITPACKS, SLOTS, skipCost, rollChest, applyDrops, canUpgrade, upgrade, trophyDelta, bitReward, freshInv, type Inv, type ChestId, type Drop, type EndInfo } from './clash/economy';
+  import { CHESTS, PACKS, BITPACKS, SLOTS, skipCost, rollChest, chestCards, chestBit, applyDrops, canUpgrade, upgrade, trophyDelta, bitReward, freshInv, type Inv, type ChestId, type Drop, type EndInfo } from './clash/economy';
   import { Renderer, preload, EMOTES, EMOTE_TR, type Emote } from './clash/render';
   import { THEMES, themeFor, type Theme } from './clash/themes';
   import { S, music } from './clash/audio';
@@ -31,6 +31,8 @@
   const say = (m: string, ms = 2600) => { note = m; if (noteT) clearTimeout(noteT); noteT = setTimeout(() => (note = ''), ms); };
   const theme = $derived(themeFor(inv.cr));
   const nextTheme = $derived(THEMES.find((t) => t.cr > inv.cr));
+  const aIdx = $derived(arenaIdx(inv.best));
+  let arenaUp = $state(-1);
   const deckLv = $derived(inv.deck.map((id) => ({ id, lv: inv.cards[id]?.lv ?? 1 })) as DeckCard[]);
   const kLv = $derived(Math.max(1, Math.round(deckLv.reduce((a, c) => a + c.lv, 0) / 8)));
   let clock = $state(Date.now());
@@ -155,7 +157,7 @@
   }
   async function botFallback() {
     stopSeek(false); seekStop = null;
-    const b = await N.pickBot(inv.cr).catch(() => N.seedBots()[0]!);
+    const b = await N.findOpponent(inv.cr, u.uid, kLv).catch(() => N.seedBots()[0]!);
     startBot(b, 'ranked');
   }
   function stopSeek(cancel = true) { if (seekTimer) clearInterval(seekTimer); seekTimer = null; if (seekStop) seekStop(); seekStop = null; if (cancel) { scr = 'home'; S.unpick(); } }
@@ -163,7 +165,7 @@
   /* ---------- maç ---------- */
   let canvas: HTMLCanvasElement | undefined = $state(), arenaBox: HTMLDivElement | undefined = $state();
   let R: Renderer | null = null, st = $state.raw<State | null>(null), me: Side = 0, mode = $state<'ranked' | 'practice' | 'pvp' | 'friendly'>('practice');
-  let foe = $state<{ name: string; cr: number; lv: number; bot: boolean }>({ name: 'BOT', cr: 0, lv: 1, bot: true }), foeBot: Pub | null = null;
+  let foe = $state<{ name: string; cr: number; lv: number; bot: boolean; ghost?: boolean }>({ name: 'BOT', cr: 0, lv: 1, bot: true }), foeBot: (Pub & { ghost?: boolean }) | null = null;
   let mTheme = $state<Theme>(THEMES[0]!);
   let raf = 0, t0 = 0, off = 0, bot: ((s: State) => Cmd | null) | null = null;
   let cmds = new Map<number, Cmd[]>(), snaps: State[] = [], net: ReturnType<typeof N.channel> | null = null, match: Match | null = null, seq = 0;
@@ -176,11 +178,11 @@
   const myLv = () => Object.fromEntries(deckLv.map((c) => [c.id, c.lv]));
 
   function addCmd(c: Cmd) { const a = cmds.get(c.t) ?? []; if (a.some((x) => x.side === c.side && x.n === c.n)) return false; a.push(c); a.sort((x, y) => x.side - y.side || x.n - y.n); cmds.set(c.t, a); return true; }
-  function startBot(b: Pub | null, m: 'ranked' | 'practice') {
+  function startBot(b: (Pub & { ghost?: boolean }) | null, m: 'ranked' | 'practice') {
     mode = m; me = 0; net = null; match = null;
     let deck1: DeckCard[]; let skill = 2;
-    if (b) { foeBot = b; deck1 = b.deck.map((id, i) => ({ id, lv: b.dl[i] ?? 1 })); skill = N.botSkill(b.cr); foe = { name: b.name, cr: b.cr, lv: b.lv, bot: true }; }
-    else { foeBot = null; const pool = CARDS.map((c) => c.id).sort(() => Math.random() - 0.5).slice(0, 8); deck1 = pool.map((id) => ({ id, lv: Math.max(1, kLv - 1) })); foe = { name: 'Antrenman Botu', cr: inv.cr, lv: Math.max(1, kLv - 1), bot: true }; }
+    if (b) { foeBot = b; deck1 = b.deck.map((id, i) => ({ id, lv: b.dl[i] ?? 1 })); skill = N.botSkill(b.cr); foe = { name: b.name, cr: b.cr, lv: b.lv, bot: true, ghost: !!b.ghost }; }
+    else { foeBot = null; const pool = ARENA_CARDS.slice(0, aIdx + 1).flat().sort(() => Math.random() - 0.5).slice(0, 8); deck1 = pool.map((id) => ({ id, lv: Math.max(1, kLv - 1) })); foe = { name: 'Antrenman Botu', cr: inv.cr, lv: Math.max(1, kLv - 1), bot: true }; }
     const seed = (Math.random() * 2 ** 31) | 0;
     bot = makeBot(1, seed ^ 0x5bd1e995, skill);
     mTheme = themeFor(Math.max(inv.cr, b?.cr ?? 0));
@@ -330,9 +332,11 @@
     if (ranked && res === 'win') { if (inv.chests.length < SLOTS) { inv.chests.push({ t: 'win', id: N.nid(), open: 0 }); chest = 'yes'; } else chest = 'full'; }
     if (net && match) await net.result(w, hash(st), st.crowns);
     // bot sonucu
-    if (mode === 'ranked' && foeBot) N.botResult(foeBot, res === 'win' ? 'lose' : res === 'lose' ? 'win' : 'draw', inv.cr).catch(() => {});
+    if (mode === 'ranked' && foeBot && !foeBot.ghost) N.botResult(foeBot, res === 'win' ? 'lose' : res === 'lose' ? 'win' : 'draw', inv.cr).catch(() => {});
     if (bot) setTimeout(() => { if (R) { const e: Emote = res === 'lose' ? (Math.random() < 0.5 ? 'laugh' : 'gg') : Math.random() < 0.6 ? 'gg' : 'cry'; R.emote(1, e); S.emote(e); } }, 500);
+    const aBefore = arenaIdx(inv.best);
     if (ranked) { inv.cr = Math.max(0, inv.cr + dcr); inv.best = Math.max(inv.best, inv.cr); }
+    if (arenaIdx(inv.best) > aBefore) arenaUp = arenaIdx(inv.best);
     if (mode !== 'practice') { if (res === 'win') inv.w++; else if (res === 'lose') inv.l++; else inv.d++; inv.streak = res === 'win' ? inv.streak + 1 : 0; }
     inv.bit += bit;
     if (mode !== 'practice') persist().catch(() => {});
@@ -381,7 +385,7 @@
     unFr = N.watchFr(u.uid, (f) => { if (f.in.length > fr.in.length) S.notify(); fr = f; if (f.f.length || f.in.length) loadFriends(); });
     unInv = N.watchInvites(u.uid, (d) => { const fresh = d.filter((x) => !invites.some((y) => y.id === x.id)); if (fresh.length) S.notify(); invites = d; });
     clockT = setInterval(() => (clock = Date.now()), 1000);
-    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) (window as unknown as Record<string, unknown>).__clash = { get st() { return st; }, get R() { return R; }, play, get ui() { return ui; }, get scr() { return scr; }, get inv() { return inv; }, practice: () => startBot(null, 'practice'), ranked: async () => startBot(await N.pickBot(inv.cr), 'ranked'), me: () => me, hk: () => hk, emote: sendEmote, go, slotClick, finishNow: () => { if (st) { st.over = true; st.winner = me; st.reason = '3 taç'; st.crowns[me] = 3; } } };
+    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) (window as unknown as Record<string, unknown>).__clash = { set au(v: number) { arenaUp = v; }, get st() { return st; }, get R() { return R; }, play, get ui() { return ui; }, get scr() { return scr; }, get inv() { return inv; }, practice: () => startBot(null, 'practice'), ranked: async () => startBot(await N.pickBot(inv.cr), 'ranked'), me: () => me, hk: () => hk, emote: sendEmote, go, slotClick, finishNow: () => { if (st) { st.over = true; st.winner = me; st.reason = '3 taç'; st.crowns[me] = 3; } } };
     return () => { ts.forEach(clearTimeout); removeEventListener('keydown', key); };
   });
   onDestroy(() => { cancelAnimationFrame(raf); stopSeek(false); stopWait(); if (net && st && !st.over) net.leave(); net?.close(); music.stop(); coreBack.go = null; ro?.disconnect(); unFr?.(); unInv?.(); if (clockT) clearInterval(clockT); });
@@ -425,6 +429,7 @@
               <div class="hl"><Logo size={0.62} anim={false} /></div>
               <div class="arena"><small class="mono">ARENA {THEMES.indexOf(theme) + 1}/5</small><b>{theme.name}</b><p>{theme.desc}</p>
                 {#if nextTheme}<div class="prog"><i style={`width:${Math.min(100, ((inv.cr - theme.cr) / (nextTheme.cr - theme.cr)) * 100)}%`}></i><span>{nextTheme.name}: {fmt(nextTheme.cr)} <Trophy size={12} /></span></div>{:else}<div class="prog max"><span>Son arena · en iyi {fmt(inv.best)}</span></div>{/if}
+                {#if aIdx < 4}<div class="nxu"><small class="mono">{THEMES[aIdx + 1]!.name} AÇAR · {fmt(ARENA_CR[aIdx + 1]!)} kupa</small><div>{#each ARENA_CARDS[aIdx + 1]! as id (id)}<img src={`${IMG}card_${id}.webp`} alt={CARD[id]!.name} title={CARD[id]!.name} />{/each}</div></div>{/if}
               </div>
               <div class="cta">
                 <button class="battle" onclick={startSeek} onmouseenter={S.hover} type="button"><b>SAVAŞ</b><small>Kupalı maç · oyuncu ya da sıralama botu</small></button>
@@ -450,7 +455,8 @@
               <div class="h mono">SAVAŞ DESTESİ · ort. {avgCost(inv.deck).toFixed(1)} iksir {#if swapIn}<em class="swap">{CARD[swapIn]!.name} için değiştirilecek kartı seç · <button onclick={() => (swapIn = null)} type="button">vazgeç</button></em>{/if}</div>
               <div class="deck8" class:swapping={!!swapIn}>{#each inv.deck as id, i (id)}{@const o = inv.cards[id]!}<div class="dwrap"><CardTile {id} lv={o.lv} n={o.n} sel={selId === id} up={canUpgrade(inv, id)} delay={i * 40} onclick={() => cardClick(id)} /></div>{/each}</div>
               <div class="h mono">KOLEKSİYON · {Object.keys(inv.cards).length}/{CARDS.length}</div>
-              <div class="coll">{#each sortedAll.filter((c) => !inv.deck.includes(c.id)) as c, i (c.id)}{@const o = inv.cards[c.id]}<CardTile id={c.id} lv={o?.lv ?? 1} n={o ? o.n : -1} locked={!o} small sel={selId === c.id} up={!!o && canUpgrade(inv, c.id)} delay={i * 20} onclick={() => cardClick(c.id)} />{/each}</div>
+              {#each ARENA_CARDS as list, ai (ai)}<div class="arh mono" class:off={ai > aIdx}><b>ARENA {ai + 1} · {THEMES[ai]!.name}</b><span>{ai > aIdx ? `🔒 ${fmt(ARENA_CR[ai]!)} kupada açılır` : 'açık · sandıklardan düşer'}</span></div>
+              <div class="coll" class:arlock={ai > aIdx}>{#each sortedAll.filter((c) => list.includes(c.id) && !inv.deck.includes(c.id)) as c, i (c.id)}{@const o = inv.cards[c.id]}<CardTile id={c.id} lv={o?.lv ?? 1} n={o ? o.n : -1} locked={!o} small sel={selId === c.id} up={!!o && canUpgrade(inv, c.id)} delay={i * 20} onclick={() => cardClick(c.id)} />{/each}</div>{/each}
             </div>
             <aside class="det">
               {#key selId}
@@ -475,7 +481,7 @@
                   {#if !inv.deck.includes(selId)}<button class="use" onclick={() => useCard(selId)} type="button">Desteye al</button>{/if}
                 </div>
                 <div class="ctr mono">Karşı: {sel.counters}</div>
-              {:else}<div class="lockd">Bu kart henüz yok. Sandıklardan çıkar.</div>{/if}
+              {:else}<div class="lockd">{arenaOf(selId) > aIdx ? `🔒 ${THEMES[arenaOf(selId)]!.name} arenasında açılır (${fmt(ARENA_CR[arenaOf(selId)]!)} kupa). Sonra sandıklardan düşer.` : 'Bu arenada açık · sandıklardan çıkar.'}</div>{/if}
               {/key}
             </aside>
           </div>
@@ -492,11 +498,11 @@
               <h3>PREMIUM SANDIKLAR <small>QORE ile · anında açılır</small></h3>
               <div class="row3">{#each ['neon', 'leg'] as t, i}{@const d = CHESTS[t as ChestId]}
                 <button class="offer ch" onclick={() => buyChest(t as ChestId)} onmouseenter={S.hover} style={`--d:${200 + i * 70}ms`} type="button">
-                  <img src={`${IMG}${d.img}.webp`} alt="" class="cimg" /><b>{d.name}</b><small>{d.desc} · {d.cards} kart · {d.bit[0]}–{d.bit[1]} BIT</small>
+                  <img src={`${IMG}${d.img}.webp`} alt="" class="cimg" /><b>{d.name}</b><small>{d.desc} · {chestCards(d.id, inv.best)} kart · {chestBit(d.id, inv.best)[0]}–{chestBit(d.id, inv.best)[1]} BIT</small>
                   <div class="odds mono">{#each Object.entries(d.odds) as [r, v]}<span class={'o-' + r}>{RARITY_TR[r as keyof typeof RARITY_TR]} %{v}</span>{/each}</div>
                   <span class="price"><img src={`${IMG}cur_qore.webp`} alt="" />{d.price}</span>
                 </button>{/each}
-                <div class="offer info"><b>Veri Kasası</b><small>Kupalı galibiyetlerde düşer · {CHESTS.win.mins} dk kilit · {CHESTS.win.cards} kart</small><div class="odds mono">{#each Object.entries(CHESTS.win.odds) as [r, v]}<span class={'o-' + r}>{RARITY_TR[r as keyof typeof RARITY_TR]} %{v}</span>{/each}</div></div>
+                <div class="offer info"><b>Veri Kasası</b><small>Kupalı galibiyetlerde düşer · {CHESTS.win.mins} dk kilit · {chestCards('win', inv.best)} kart · arena yükseldikçe artar</small><div class="odds mono">{#each Object.entries(CHESTS.win.odds) as [r, v]}<span class={'o-' + r}>{RARITY_TR[r as keyof typeof RARITY_TR]} %{v}</span>{/each}</div></div>
               </div>
             </section>
             <section>
@@ -574,7 +580,7 @@
     <div class="vs" style={`background-image:url(${IMG}${mTheme.ground}.webp)`}>
       <div class="vsl"><b>{NAME}</b><span><Trophy size={16} /> {fmt(inv.cr)} · Sv {kLv}</span></div>
       <div class="vsm">VS<small>{mTheme.name}{mode === 'friendly' ? ' · dostluk' : mode === 'practice' ? ' · antrenman' : ''}</small></div>
-      <div class="vsr"><b>{foe.name}</b><span><Trophy size={16} /> {fmt(foe.cr)} · Sv {foe.lv}</span></div>
+      <div class="vsr"><b>{foe.name}</b><span><Trophy size={16} /> {fmt(foe.cr)} · Sv {foe.lv}</span>{#if foe.ghost}<small class="gh">gerçek oyuncu · kendi destesi, YZ oynuyor</small>{/if}</div>
     </div>
   {:else if scr === 'match' || scr === 'end'}
     <div class="match">
@@ -623,6 +629,13 @@
     <div class="invs">{#each invites as d (d.id)}<div class="inv"><b>{d.fromName}</b><span>seni düelloya davet etti</span><button class="ok" onclick={() => acceptInvite(d)} type="button">Kabul</button><button class="x" onclick={() => declineInvite(d)} type="button">Reddet</button></div>{/each}</div>
   {/if}
   {#if note}<div class="note">{note}</div>{/if}
+  {#if arenaUp > 0 && scr !== 'match' && scr !== 'vs'}
+    <div class="aup" style={`--acc:${THEMES[arenaUp]!.accent};background-image:linear-gradient(rgba(3,5,10,.72),rgba(3,5,10,.9)),url(${IMG}${THEMES[arenaUp]!.ground}.webp)`}>
+      <small class="mono">YENİ ARENA · {arenaUp + 1}/5</small><b>{THEMES[arenaUp]!.name}</b><p>Yeni kartlar açıldı. Artık sandıklardan düşer.</p>
+      <div class="aupc">{#each ARENA_CARDS[arenaUp]! as id, i (id)}<div style={`--d:${300 + i * 120}ms`}><img src={`${IMG}card_${id}.webp`} alt="" /><span>{CARD[id]!.name}</span></div>{/each}</div>
+      <button class="btn" onclick={() => { arenaUp = -1; S.click(); }} type="button">Harika!</button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -704,6 +717,13 @@
   .deck8{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px;margin-bottom:18px;padding:12px;border-radius:12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08)}
   .deck8.swapping{border-color:#fcee0a;animation:sw 1s ease-in-out infinite}
   @keyframes sw{50%{box-shadow:0 0 22px rgba(252,238,10,.35)}}
+  .nxu{margin-top:8px}.nxu small{font-size:10.5px;letter-spacing:.18em;color:var(--acc)}.nxu div{display:flex;gap:5px;margin-top:4px}.nxu img{width:34px;height:45px;object-fit:cover;border-radius:5px;border:1px solid rgba(255,255,255,.25);filter:grayscale(.6) brightness(.8)}
+  .arh{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,.12);font-size:11px;letter-spacing:.08em}.arh b{color:var(--acc)}.arh span{color:#8aa3b3}.arh.off b{color:#6c7f8c}
+  .coll.arlock{opacity:.55;filter:grayscale(.7)}
+  .aup{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background-size:cover;background-position:center;animation:fin .4s both;text-align:center}
+  .aup small{letter-spacing:.35em;color:var(--acc);font-size:12px}.aup b{font:900 52px var(--f-disp,sans-serif);letter-spacing:.05em;text-shadow:0 0 28px var(--acc);animation:lvp .7s .1s cubic-bezier(.2,1.8,.4,1) both}.aup p{color:#cfe3ee;margin:0 0 6px}
+  .aupc{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:900px}.aupc div{width:110px;animation:lvp .6s var(--d) cubic-bezier(.2,1.8,.4,1) both}.aupc img{width:110px;height:147px;object-fit:cover;border-radius:10px;border:2px solid var(--acc);box-shadow:0 0 24px color-mix(in srgb,var(--acc) 60%,transparent)}.aupc span{display:block;font-size:12px;margin-top:4px}
+  .gh{display:block;font-size:11px;color:#9fb6c6;margin-top:4px}
   .coll{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
   .det{min-height:0;overflow:auto;background:rgba(6,10,18,.82);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px;display:grid;gap:10px;align-content:start;animation:pin .4s both}
   .det .big{position:relative;width:170px;height:227px;flex:none;justify-self:center;border-radius:12px;overflow:hidden;border:3px solid var(--rc);box-shadow:0 0 30px color-mix(in srgb,var(--rc) 50%,transparent);animation:bigin .45s cubic-bezier(.2,1.4,.4,1) both}
@@ -848,6 +868,7 @@
   @keyframes swp{from{background-position:150% 0}to{background-position:-60% 0}}
   .ut{display:grid;gap:10px}.ut b{font:900 40px var(--f-disp,sans-serif)}
   .ut .lv{font:900 64px var(--f-disp,sans-serif);color:#fff}.ut .lv s{color:#7d97a8;text-decoration:none;font-size:40px}.ut .lv em{font-style:normal;color:#7dff7a;display:inline-block;animation:lvp .6s .4s cubic-bezier(.2,1.8,.4,1) both;text-shadow:0 0 24px rgba(125,255,122,.7)}
+  @keyframes fin{from{opacity:0}}
   @keyframes lvp{from{transform:scale(3);opacity:0}}
   .et{font:900 30px var(--f-disp,sans-serif);letter-spacing:.12em;background:linear-gradient(90deg,#c48bff,#ffd257);-webkit-background-clip:text;background-clip:text;color:transparent;animation:lvp .7s 1s cubic-bezier(.2,1.8,.4,1) both}
   .ut p{margin:0;color:#e8d8ff;max-width:340px}

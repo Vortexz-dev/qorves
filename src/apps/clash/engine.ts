@@ -12,8 +12,8 @@ export interface Ent {
   cd: number; tgt: number; dep: number; stun: number; life: number; fx: number; fy: number; atk: number; king?: boolean; lane?: number; active?: boolean; wake?: number;
   src: string; slow: number; slowF: number; buf: number; bufF: number; chg: number; hits: number; rampT: number; spT: number; elT: number; frz: number;
 }
-export interface Proj { id: number; side: Side; kind: string; x: number; y: number; sx: number; sy: number; tgt: number; tx: number; ty: number; dmg: number; splash: number; both: boolean; slow: number; slowT: number; t: number; T: number; card: string; lv: number; vis: string }
-export interface Pend { side: Side; card: string; lv: number; x: number; y: number; at: number; k?: string; m?: number }
+export interface Proj { id: number; side: Side; kind: string; x: number; y: number; sx: number; sy: number; tgt: number; tx: number; ty: number; dmg: number; splash: number; both: boolean; air?: boolean; st?: number; slow: number; slowT: number; t: number; T: number; card: string; lv: number; vis: string }
+export interface Pend { side: Side; card: string; lv: number; x: number; y: number; at: number; k?: string; m?: number; pn?: number }
 export interface Zone { side: Side; k: 'oc' | 'pod'; x: number; y: number; r: number; until: number; f: number; n: number; every: number; next: number; lv: number; dmg: number }
 export interface Roll { side: Side; x: number; y: number; dir: number; left: number; w: number; kb: number; dmg: number; tow: number; stun: number; hit: number[]; lv: number }
 export interface Cmd { t: number; side: Side; card: string; x: number; y: number; n: number }
@@ -144,11 +144,12 @@ function onDeath(s: State, e: Ent, fx?: Fx[]) {
   if (c.deathElixir) s.elix[e.side] = Math.min(10, s.elix[e.side] + c.deathElixir);
   if (c.deathSpawn || c.deathElixir) fx?.push({ k: 'deathspawn', x: e.x, y: e.y, side: e.side, card: e.card });
 }
-function area(s: State, side: Side, x: number, y: number, rad: number, dmg: number, tow: number, tgt: 'ground' | 'both', fx: Fx[] | undefined, card: string, stun = 0, slow = 0, slowT = 0, knock = 0) {
+function area(s: State, side: Side, x: number, y: number, rad: number, dmg: number, tow: number, tgt: 'ground' | 'both' | 'air', fx: Fx[] | undefined, card: string, stun = 0, slow = 0, slowT = 0, knock = 0) {
   const r2 = rad * rad;
   for (const e of s.ents) {
     if (e.side === side || e.hp <= 0) continue;
     if (tgt === 'ground' && e.fly) continue;
+    if (tgt === 'air' && !e.fly) continue;
     const rr = rad + e.r * 0.6;
     if (d2(e, { x, y }) <= Math.max(r2, rr * rr)) {
       damage(s, e, e.kind === 'tower' ? Math.round(dmg * tow) : dmg, fx, side, card);
@@ -209,7 +210,7 @@ function castSpell(s: State, p: Pend, fx?: Fx[]) {
     fx?.push({ k: 'freeze', x: p.x, y: p.y, v: c.radius, side: p.side, card: p.card }); return;
   }
   area(s, p.side, p.x, p.y, c.radius!, Math.round(c.dmg * m), c.tower ?? 1, 'both', fx, p.card, c.stun ?? 0, 0, 0, c.knock ? 0.9 : 0);
-  if (c.pulses && m === 1) s.pend.push({ side: p.side, card: p.card, lv: p.lv, x: p.x, y: p.y, at: s.tick + 12, m: 0.4 });
+  const pn = p.pn ?? 0; if (c.pulses && pn < c.pulses - 1) { const multi = c.pulses > 2 || c.id === 'rain'; s.pend.push({ side: p.side, card: p.card, lv: p.lv, x: p.x, y: p.y, at: s.tick + (multi ? 9 : 12), m: multi ? 1 : 0.4, pn: pn + 1 }); }
   fx?.push({ k: p.card === 'emp' ? 'emp' : p.card === 'nova' ? 'nova' : 'strike', x: p.x, y: p.y, v: c.radius, side: p.side, card: p.card });
 }
 function attack(s: State, e: Ent, t: Ent, c: Card | undefined, fx?: Fx[]) {
@@ -249,7 +250,7 @@ function attack(s: State, e: Ent, t: Ent, c: Card | undefined, fx?: Fx[]) {
   } else {
     const spd = kind === 'plasma' ? 7 : kind === 'rail' || kind === 'snipe' ? 24 : kind === 'tracer' ? 18 : kind === 'frost' ? 11 : kind === 'flame' ? 10 : 14;
     const L = Math.sqrt(d2(e, t)); const T = Math.max(1, Math.round((L / spd) * HZ));
-    s.proj.push({ id: s.nid++, side: e.side, kind, x: e.x, y: e.y, sx: e.x, sy: e.y, tgt: t.id, tx: t.x, ty: t.y, dmg, splash: c?.splash ?? 0, both: c?.tgt === 'both', slow: c?.slow ?? 0, slowT: c?.slowT ?? 0, t: 0, T, card, lv: e.lv, vis: isT ? card : e.card });
+    s.proj.push({ id: s.nid++, side: e.side, kind, x: e.x, y: e.y, sx: e.x, sy: e.y, tgt: t.id, tx: t.x, ty: t.y, dmg, splash: c?.splash ?? 0, both: c?.tgt === 'both', air: c?.tgt === 'air', st: c?.charge ? 0 : c?.stun ?? 0, slow: c?.slow ?? 0, slowT: c?.slowT ?? 0, t: 0, T, card, lv: e.lv, vis: isT ? card : e.card });
     if (c?.towerStun || c?.lifesteal) onHit(t);
     fx?.push({ k: 'shot', x: e.x, y: e.y, x2: t.x, y2: t.y, side: e.side, card: isT ? card : e.card, id: e.id });
   }
@@ -333,8 +334,8 @@ export function step(s: State, cmds: Cmd[], fx?: Fx[]) {
     const k = Math.min(1, p.t / p.T);
     p.x = p.sx + (p.tx - p.sx) * k; p.y = p.sy + (p.ty - p.sy) * k;
     if (p.t >= p.T) {
-      if (p.splash) { area(s, p.side, p.tx, p.ty, p.splash, p.dmg, 1, p.both ? 'both' : 'ground', fx, p.card, 0, p.slow, p.slowT); fx?.push({ k: 'boom', x: p.tx, y: p.ty, v: p.splash, card: p.vis }); }
-      else if (t && t.hp > 0) { damage(s, t, p.dmg, fx, p.side, p.card); if (p.slow && t.kind !== 'tower') { t.slow = Math.max(t.slow, Math.round(p.slowT * HZ)); t.slowF = Math.max(t.slowF, p.slow); } }
+      if (p.splash) { area(s, p.side, p.tx, p.ty, p.splash, p.dmg, 1, p.air ? 'air' : p.both ? 'both' : 'ground', fx, p.card, p.st ?? 0, p.slow, p.slowT); fx?.push({ k: 'boom', x: p.tx, y: p.ty, v: p.splash, card: p.vis }); }
+      else if (t && t.hp > 0) { damage(s, t, p.dmg, fx, p.side, p.card); if (p.st && t.kind !== 'tower') t.stun = Math.max(t.stun, Math.round(p.st * HZ)); if (p.slow && t.kind !== 'tower') { t.slow = Math.max(t.slow, Math.round(p.slowT * HZ)); t.slowF = Math.max(t.slowF, p.slow); } }
     }
   }
   s.proj = s.proj.filter((p) => p.t < p.T);

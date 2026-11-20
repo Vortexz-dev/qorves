@@ -15,7 +15,7 @@ export interface Stats {
 }
 export interface Card extends Stats {
   id: string; name: string; role: string; cost: number; kind: Kind; rarity: Rarity; tags: Tag[]; color: string;
-  proj?: 'rail' | 'bolt' | 'plasma' | 'tracer' | 'arc' | 'flame' | 'beam' | 'snipe' | 'frost' | 'heal' | 'none';
+  proj?: 'rail' | 'bolt' | 'plasma' | 'tracer' | 'arc' | 'flame' | 'beam' | 'snipe' | 'frost' | 'heal' | 'void' | 'none';
   desc: string; counters: string; evo: [Partial<Stats>, Partial<Stats>]; evoTxt: [string, string]; sprite?: string;
 }
 const C = (c: Card) => c;
@@ -85,6 +85,27 @@ export const CARDS: Card[] = [
     desc: 'Vibro-kılıçlı dev zırh. Tek vuruşta tank söker; sürüler onu oyalar.', counters: 'Goblin Gang, Scrap Bots, Locust Swarm, Drop Pod', evo: [{ lifesteal: 0.15 }, { lifesteal: 0.15, splash: 1.0 }], evoTxt: ['%15 can emme', 'Kılıç savurması alan'] }),
   C({ id: 'mech', name: 'Siege Mech', role: 'Alan topçusu', cost: 7, kind: 'troop', rarity: 'legendary', tags: ['tank', 'splash', 'win'], color: '#ff7a1a', hp: 2650, dmg: 230, hs: 2.0, range: 5.0, speed: 0.6, tgt: 'ground', splash: 1.5, r: 0.8, proj: 'plasma',
     desc: 'Omuz toplu yürüyen kuşatma makinesi. Uzaktan sürüleri ve kuleyi döver.', counters: 'Tabaxi, Exo, Locust Swarm, Inferno Pylon', evo: [{ splash: 1.8 }, { splash: 1.8, deathDmg: 400, deathR: 2.5 }], evoTxt: ['Alan 1.8', 'Reaktör patlaması 400'] }),
+  // ——— t158: yeni 10 kart (arena kilitli) ———
+  C({ id: 'sappers', name: 'Kobold Sappers', role: 'Bina avcısı ×3 · ölünce patlar', cost: 2, kind: 'troop', rarity: 'common', tags: ['swarm', 'win', 'cycle'], color: '#e0a040', count: 3, hp: 220, dmg: 60, hs: 1.0, range: 0.6, speed: 1.4, tgt: 'build', r: 0.3, proj: 'none', deathDmg: 160, deathR: 1.2,
+    desc: 'Sırtında şarjör taşıyan üç kobold. Yalnız binalara koşar, ölünce patlar.', counters: 'EMP Pulse, Mag Roller, Goblin Gang', evo: [{ count: 4 }, { count: 4, deathDmg: 220 }], evoTxt: ['4 kobold', 'Patlama 220'] }),
+  C({ id: 'berserker', name: 'Orc Berserker', role: 'Can emen dövüşçü', cost: 3, kind: 'troop', rarity: 'common', tags: ['tank', 'dps'], color: '#d24a2a', hp: 1000, dmg: 120, hs: 0.8, range: 0.9, speed: 1.3, tgt: 'ground', r: 0.5, proj: 'none', lifesteal: 0.2,
+    desc: 'Hızlı balta savuran ork. Her vuruşta can emer; uzun dövüşte güçlenir.', counters: 'Goblin Gang, Cryo Bomb, Tabaxi', evo: [{ lifesteal: 0.3 }, { lifesteal: 0.3, firstHit: 2 }], evoTxt: ['%30 can emme', 'İlk vuruş ×2'] }),
+  C({ id: 'flak', name: 'Flak Cannon', role: 'Hava savunma yapısı', cost: 4, kind: 'building', rarity: 'common', tags: ['bldg', 'aa', 'splash'], color: '#9fb4c8', hp: 1050, dmg: 115, hs: 1.0, range: 6.5, tgt: 'air', splash: 1.3, life: 30, r: 0.9, proj: 'tracer',
+    desc: 'Yalnız havayı vuran çift namlulu top. Dron ve sürü sürülerini gökte patlatır.', counters: 'Kobold Sappers, Rail Rider, Orbital Strike', evo: [{ range: 7.2 }, { range: 7.2, stun: 0.3 }], evoTxt: ['Menzil 7.2', 'Şarapnel sersemletir'] }),
+  C({ id: 'minotaur', name: 'Minotaur Ram', role: 'Hücumlu kuşatma', cost: 5, kind: 'troop', rarity: 'rare', tags: ['tank', 'win'], color: '#a0522d', hp: 2300, dmg: 330, hs: 1.6, range: 0.9, speed: 1.1, tgt: 'build', charge: true, r: 0.7, proj: 'none',
+    desc: 'Zırhlı boynuzlu koç. Binaya hücum eder, ilk darbesi ikiye katlanır.', counters: 'Exo Juggernaut, Goblin Gang, Cryo Bomb', evo: [{ shield: 500 }, { shield: 500, towerStun: 0.5 }], evoTxt: ['500 kalkan', 'Kuleyi 0.5 sn sersemletir'] }),
+  C({ id: 'mortar', name: 'Dolgrim Mortar', role: 'Uzun menzil yapı', cost: 4, kind: 'building', rarity: 'rare', tags: ['bldg', 'splash', 'win'], color: '#c08040', hp: 1000, dmg: 210, hs: 4.5, range: 10, tgt: 'ground', splash: 1.5, life: 30, r: 0.9, proj: 'plasma',
+    desc: 'Cüce havan topu. Nehrin ötesinden sürüleri ve kuleyi döver; yakını vuramaz gibi yavaştır.', counters: 'Rail Rider, Minotaur Ram, Wasp Drones', evo: [{ splash: 1.8 }, { splash: 1.8, stun: 0.4 }], evoTxt: ['Alan 1.8', 'Mermi sersemletir'] }),
+  C({ id: 'rain', name: 'Plasma Rain', role: 'Büyü · 3 dalga', cost: 3, kind: 'spell', rarity: 'rare', tags: ['spell'], color: '#ff6ad5', dmg: 90, radius: 3.0, tower: 0.35, delay: 0.4, pulses: 3,
+    desc: 'Gökten üç dalga plazma yağar. Sürüleri ve destek birimlerini eritir.', counters: 'Goblin Gang, Scrap Bots, Medic, Marksman', evo: [{ radius: 3.4 }, { radius: 3.4, pulses: 4 }], evoTxt: ['Yarıçap 3.4', '4 dalga'] }),
+  C({ id: 'lancer', name: 'Centaur Lancer', role: 'Hücumlu mızrakçı', cost: 4, kind: 'troop', rarity: 'epic', tags: ['dps', 'win'], color: '#d4af37', hp: 1150, dmg: 210, hs: 1.2, range: 1.6, speed: 1.6, tgt: 'ground', charge: true, r: 0.6, proj: 'none',
+    desc: 'Mızraklı sentor. Koşarak gelir, ilk darbesi ikiye katlanır; menzili kısa ama uzundur.', counters: 'Goblin Gang, Tabaxi, Arc Turret', evo: [{ hp: 1300 }, { hp: 1300, splash: 1.0 }], evoTxt: ['Can 1300', 'Mızrak alanı'] }),
+  C({ id: 'hexer', name: 'Voidborn Hexer', role: 'Menzilli lanetçi', cost: 5, kind: 'troop', rarity: 'epic', tags: ['support', 'splash', 'aa'], color: '#9b5cff', hp: 820, dmg: 150, hs: 1.7, range: 5.5, speed: 1.0, tgt: 'both', splash: 1.2, stun: 0.25, r: 0.45, proj: 'void',
+    desc: 'Boşluk büyücüsü. Lanet küresi alanı vurur ve kısa sersemletir.', counters: 'Tabaxi, Orbital Strike, Rail Rider', evo: [{ splash: 1.5 }, { splash: 1.5, slow: 0.4, slowT: 2 }], evoTxt: ['Alan 1.5', 'Lanet yavaşlatır'] }),
+  C({ id: 'goliath', name: 'Goliath Warden', role: 'Kalkanlı dev', cost: 6, kind: 'troop', rarity: 'epic', tags: ['tank', 'splash'], color: '#7a8ca0', hp: 3600, shield: 900, dmg: 200, hs: 1.5, range: 1.0, speed: 0.8, tgt: 'ground', splash: 1.4, r: 0.8, proj: 'none',
+    desc: 'Taş kalkanlı muhafız. Kalkan önce erir; çekici sürüleri dağıtır.', counters: 'Inferno Pylon, Exo Juggernaut, Sharpshooter', evo: [{ shield: 1300 }, { shield: 1300, deathDmg: 350, deathR: 2.5 }], evoTxt: ['1300 kalkan', 'Düşerken sarsıntı 350'] }),
+  C({ id: 'skyblade', name: 'Starborn Skyblade', role: 'Hava · suikast', cost: 5, kind: 'troop', rarity: 'legendary', tags: ['air', 'dps', 'aa'], color: '#7fe0ff', fly: true, hp: 1250, dmg: 270, hs: 1.1, range: 1.0, speed: 1.5, tgt: 'both', firstHit: 2, r: 0.55, proj: 'none',
+    desc: 'Yıldız kanatlı kılıç ustası. Havadan dalar; ilk darbesi ikiye katlanır.', counters: 'Flak Cannon, Wasp Drones, Netrunner', evo: [{ firstHit: 3 }, { firstHit: 3, lifesteal: 0.25 }], evoTxt: ['İlk vuruş ×3', '%25 can emme'] }),
 ];
 export const CARD: Record<string, Card> = Object.fromEntries(CARDS.map((c) => [c.id, c]));
 export const MAX_LV = 9, EVO_LV: [number, number] = [4, 7];
@@ -112,3 +133,26 @@ export const RARITY_TR: Record<Rarity, string> = { common: 'Yaygın', rare: 'Nad
 export const COPIES: Record<Rarity, number[]> = { common: [2, 4, 10, 20, 40, 80, 150, 300], rare: [1, 2, 4, 8, 16, 30, 60, 120], epic: [1, 1, 2, 4, 8, 15, 30, 60], legendary: [1, 1, 1, 2, 3, 6, 12, 24] };
 export const GOLD = [50, 150, 400, 1000, 2500, 6000, 12000, 25000];
 export function upCost(id: string, lv: number) { const r = CARD[id]!.rarity; return lv >= MAX_LV ? null : { copies: COPIES[r][lv - 1]!, gold: GOLD[lv - 1]! * (r === 'legendary' ? 2 : r === 'epic' ? 1.5 : 1) }; }
+/** Arenalar: her arena kendi kartlarını açar (en yüksek kupaya göre; kilit geri gelmez). */
+export const ARENA_CR = [0, 400, 1000, 2000, 3000];
+export const ARENA_CARDS: string[][] = [
+  [...STARTER, 'sappers', 'berserker', 'sharp', 'swarm'],
+  ['rider', 'foundry', 'flak', 'overclock', 'ogre', 'bomber'],
+  ['cryo', 'pylon', 'minotaur', 'mortar', 'drake', 'freeze'],
+  ['runner', 'pod', 'rain', 'pump', 'lancer', 'medic', 'nova'],
+  ['exo', 'mech', 'hexer', 'goliath', 'skyblade'],
+];
+export const arenaIdx = (cr: number) => ARENA_CR.reduce((a, t, i) => (cr >= t ? i : a), 0);
+export const arenaOf = (id: string) => Math.max(0, ARENA_CARDS.findIndex((l) => l.includes(id)));
+export const unlockedIds = (best: number) => ARENA_CARDS.slice(0, arenaIdx(best) + 1).flat();
+/** Arenada henüz açılmamış kartları aynı rol/maliyete yakın açık kartla değiştir (bot/hayalet desteleri). */
+export function fitDeck(deck: string[], best: number): string[] {
+  const ok = new Set(unlockedIds(best)); const out: string[] = [];
+  for (const id of deck) {
+    if (ok.has(id) && !out.includes(id)) { out.push(id); continue; }
+    const c = CARD[id]; const pool = [...ok].filter((x) => !out.includes(x) && !deck.includes(x));
+    pool.sort((a, b) => score(CARD[b]!, c) - score(CARD[a]!, c)); out.push(pool[0] ?? STARTER.find((x) => !out.includes(x))!);
+  }
+  return out;
+}
+function score(a: Card, c?: Card) { if (!c) return 0; return (a.kind === c.kind ? 4 : 0) - Math.abs(a.cost - c.cost) + a.tags.filter((t) => c.tags.includes(t)).length * 1.5; }

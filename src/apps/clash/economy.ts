@@ -1,5 +1,5 @@
 /* CROWN CLASH ekonomisi — saf fonksiyonlar (test edilebilir). BIT: maç sonu kazanılan yumuşak para. QORE: yalnız gerçek BK ile alınan premium para. */
-import { CARDS, CARD, STARTER, DEFAULT_DECK, MAX_LV, upCost, type Rarity } from './cards';
+import { CARDS, CARD, STARTER, DEFAULT_DECK, MAX_LV, upCost, arenaIdx, unlockedIds, type Rarity } from './cards';
 
 export interface Owned { lv: number; n: number }
 export interface Slot { t: ChestId; id: string; open: number /* açılma zamanı (ms), 0 = kilitli bekliyor */ }
@@ -8,10 +8,10 @@ export type ChestId = 'win' | 'tour' | 'neon' | 'leg';
 export interface ChestDef { id: ChestId; name: string; img: string; cards: number; bit: [number, number]; odds: Record<Rarity, number>; guar?: Rarity; mins: number; price?: number; desc: string }
 /** Olasılıklar kart başına nadirlik payı (%). */
 export const CHESTS: Record<ChestId, ChestDef> = {
-  win: { id: 'win', name: 'Veri Kasası', img: 'chest_win', cards: 8, bit: [60, 110], odds: { common: 78, rare: 18, epic: 3.6, legendary: 0.4 }, mins: 30, desc: 'Her galibiyette kazanılır.' },
-  tour: { id: 'tour', name: 'Turnuva Kasası', img: 'chest_tour', cards: 20, bit: [220, 300], odds: { common: 60, rare: 30, epic: 9, legendary: 1 }, guar: 'rare', mins: 0, desc: 'Etkinlik ödülü (şimdilik kapalı).' },
-  neon: { id: 'neon', name: 'Neon Kasa', img: 'chest_neon', cards: 30, bit: [450, 600], odds: { common: 45, rare: 38, epic: 15, legendary: 2 }, guar: 'epic', mins: 0, price: 160, desc: 'En az 1 Destansı garantili.' },
-  leg: { id: 'leg', name: 'Taç Kasası', img: 'chest_leg', cards: 24, bit: [900, 1100], odds: { common: 35, rare: 40, epic: 20, legendary: 5 }, guar: 'legendary', mins: 0, price: 520, desc: 'En az 1 Efsanevi garantili.' },
+  win: { id: 'win', name: 'Veri Kasası', img: 'chest_win', cards: 12, bit: [60, 110], odds: { common: 78, rare: 18, epic: 3.6, legendary: 0.4 }, mins: 30, desc: 'Her galibiyette kazanılır.' },
+  tour: { id: 'tour', name: 'Turnuva Kasası', img: 'chest_tour', cards: 30, bit: [220, 300], odds: { common: 60, rare: 30, epic: 9, legendary: 1 }, guar: 'rare', mins: 0, desc: 'Etkinlik ödülü (şimdilik kapalı).' },
+  neon: { id: 'neon', name: 'Neon Kasa', img: 'chest_neon', cards: 45, bit: [450, 600], odds: { common: 45, rare: 38, epic: 15, legendary: 2 }, guar: 'epic', mins: 0, price: 160, desc: 'En az 1 Destansı garantili.' },
+  leg: { id: 'leg', name: 'Taç Kasası', img: 'chest_leg', cards: 36, bit: [900, 1100], odds: { common: 35, rare: 40, epic: 20, legendary: 5 }, guar: 'legendary', mins: 0, price: 520, desc: 'En az 1 Efsanevi garantili.' },
 };
 /** QORE paketleri: BK ile (gerçek karakter parası). Kurallar aynı tabloyu doğrular. */
 export const PACKS = [
@@ -37,21 +37,27 @@ export function normInv(x: Partial<Inv> | undefined): Inv {
 }
 export interface Drop { id: string; n: number; isNew: boolean }
 /** Sandık içeriği üret. r: [0,1) rastgele. Kartlar CR gibi birkaç yığına bölünür. */
+/** Arena ölçeği (CR gibi): her arena sandıktaki kart ve BIT miktarını artırır. */
+const PER_ARENA: Record<ChestId, number> = { win: 5, tour: 10, neon: 12, leg: 8 };
+export const chestCards = (c: ChestId, best: number) => CHESTS[c].cards + PER_ARENA[c] * arenaIdx(best);
+export const chestBit = (c: ChestId, best: number): [number, number] => { const m = 1 + 0.5 * arenaIdx(best); const b = CHESTS[c].bit; return [Math.round(b[0] * m), Math.round(b[1] * m)]; };
 export function rollChest(c: ChestId, inv: Inv, r: () => number = Math.random): { bit: number; drops: Drop[] } {
   const d = CHESTS[c]; const by: Record<Rarity, string[]> = { common: [], rare: [], epic: [], legendary: [] };
-  for (const k of CARDS) by[k.rarity].push(k.id);
+  const open = new Set(unlockedIds(inv.best ?? 0)); const total = chestCards(c, inv.best ?? 0);
+  for (const k of CARDS) if (open.has(k.id)) by[k.rarity].push(k.id);
+  for (const k of ['legendary', 'epic', 'rare'] as Rarity[]) if (!by[k].length) by[k] = by[k === 'legendary' ? 'epic' : k === 'epic' ? 'rare' : 'common'].slice();
   const pickR = (): Rarity => { let x = r() * 100; for (const k of ['legendary', 'epic', 'rare', 'common'] as Rarity[]) { x -= d.odds[k]; if (x < 0) return k; } return 'common'; };
   const counts: Record<string, number> = {};
-  const stacks = Math.min(6, 2 + Math.floor(d.cards / 8));
+  const stacks = Math.min(7, 3 + Math.floor(total / 12));
   const ids: string[] = []; for (let i = 0; i < stacks; i++) { const rr = pickR(); const pool = by[rr]; ids.push(pool[Math.floor(r() * pool.length)]!); }
   if (d.guar && !ids.some((id) => CARD[id]!.rarity === d.guar || (d.guar === 'rare' && CARD[id]!.rarity !== 'common') || (d.guar === 'epic' && CARD[id]!.rarity === 'legendary'))) { const pool = by[d.guar]; ids[ids.length - 1] = pool[Math.floor(r() * pool.length)]!; }
   // yığın büyüklükleri: nadirlik ağırlığıyla dağıt
   const wt = (id: string) => ({ common: 6, rare: 3, epic: 1.2, legendary: 0.5 })[CARD[id]!.rarity];
   const tw = ids.reduce((s, id) => s + wt(id), 0);
-  for (const id of ids) counts[id] = (counts[id] ?? 0) + Math.max(1, Math.round((d.cards * wt(id)) / tw));
+  for (const id of ids) counts[id] = (counts[id] ?? 0) + Math.max(1, Math.round((total * wt(id)) / tw));
   const drops = Object.entries(counts).map(([id, n]) => ({ id, n, isNew: !inv.cards[id] }))
     .sort((a, b) => ['common', 'rare', 'epic', 'legendary'].indexOf(CARD[a.id]!.rarity) - ['common', 'rare', 'epic', 'legendary'].indexOf(CARD[b.id]!.rarity));
-  return { bit: Math.round(d.bit[0] + r() * (d.bit[1] - d.bit[0])), drops };
+  const bb = chestBit(c, inv.best ?? 0); return { bit: Math.round(bb[0] + r() * (bb[1] - bb[0])), drops };
 }
 export function applyDrops(inv: Inv, bit: number, drops: Drop[]) {
   inv.bit += bit;
