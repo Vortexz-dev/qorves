@@ -9,13 +9,15 @@
   let step = $state(0), busy = $state(false), err = $state('');
   let avatar = $state(''), file: File | null = $state(null);
   const c = $state<Character>({ name: '', age: '', race: '', origin: '', faction: 'none', clan: '', job: '', cls: '', sub: '', cls2: '', sub2: '',
-    level: 1, background: '', chrome: '0', visibleChrome: false, stats: { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 }, bio: '' });
+    level: 1, background: '', chrome: '0', visibleChrome: false, stats: { STR: 0, DEX: 0, CON: 0, INT: 0, WIS: 0, CHA: 0 }, bio: '' });
   let username = $state(''), pw = $state(''), pw2 = $state('');
 
   const cls = $derived(CLASSES.find((x) => x.id === c.cls));
   const cls2 = $derived(CLASSES.find((x) => x.id === c.cls2));
   const race = $derived(RACES.find((x) => x.id === c.race));
   const rules = $derived([...checkCombo(c.race, c.cls, c.sub, c.background), ...(c.cls2 ? checkCombo(c.race, c.cls2, c.sub2, c.background) : [])]);
+  const pool = $derived(9 + 3 * (Math.max(1, +c.level || 1) - 1));
+  const spent = $derived(Object.values(c.stats).reduce((a, v) => a + (+v || 0), 0));
   const blocked = $derived(rules.some((r) => r.level === 'block'));
 
   function valid(s: number): string {
@@ -23,7 +25,9 @@
     if (s === 1 && (!c.race || !c.origin)) return 'Irk ve doğduğu yer gerekli.';
     if (s === 2) { if (!c.cls || !c.background) return 'Sınıf ve geçmiş gerekli.'; if (blocked) return 'Seçilen birleşim kurallara aykırı.';
       if (c.level >= 3 && !c.sub) return '3. seviye ve üstünde dal seçilmeli.'; if (c.cls2 && c.level < 6) return 'İkinci sınıf için ilk sınıf en az 5. seviye olmalı.';
-      if (c.cls2 && c.cls2 === c.cls) return 'İkinci sınıf farklı olmalı.'; }
+      if (c.cls2 && c.cls2 === c.cls) return 'İkinci sınıf farklı olmalı.';
+      if (Object.values(c.stats).some((v) => !Number.isInteger(+v) || +v < 0 || +v > 15)) return 'Her stat 0–15 arasında tam sayı olmalı.';
+      if (spent !== pool) return `Stat puanlarının tamamı dağıtılmalı: ${spent} / ${pool}.`; }
     if (s === 4) { if (!/^[a-z0-9][a-z0-9._-]{2,23}$/i.test(username)) return 'Kullanıcı adı 3–24 karakter: harf, rakam, . _ -';
       if (pw.length < 8) return 'Şifre en az 8 karakter olmalı.'; if (pw !== pw2) return 'Şifreler aynı değil.'; }
     return '';
@@ -114,7 +118,8 @@
           <label class="chk clickable"><input type="checkbox" bind:checked={c.visibleChrome} /> <span>Görünür kromu var</span></label>
         </div>
         {#if c.background}<div class="info mono">{BACKGROUNDS.find((b) => b.id === c.background)?.hint}</div>{/if}
-        <div class="stats">{#each Object.keys(c.stats) as s}<label class="field"><span>{s}</span><input class="inp" type="number" min="1" max="30" bind:value={c.stats[s]} /></label>{/each}</div>
+        <div class="stats">{#each Object.keys(c.stats) as s}<label class="field"><span>{s}</span><input class="inp" type="number" min="0" max="15" bind:value={c.stats[s]} /></label>{/each}</div>
+        <div class="info mono" class:warn={spent !== pool}>STAT PUANI {spent} / {pool} · statlar 0'dan başlar, MOD = ⌊stat/5⌋</div>
         {#each rules as r}<div class={'rule mono ' + r.level}>{r.level === 'block' ? '✖' : '⚠'} {r.text}</div>{/each}
       {:else if step === 3}
         <label class="field"><span>Kısa tanıtım / görünüş / kişilik</span><textarea class="inp" rows="6" bind:value={c.bio} maxlength="3000"></textarea></label>
@@ -186,4 +191,5 @@
   .sum div{font-size:13px;line-height:1.6;color:var(--mut)}.sum b{color:var(--ye)}
   .err{color:var(--rd);font-size:13px;border-left:2px solid var(--rd);padding:6px 10px;background:rgba(255,42,85,.08)}
   footer{display:flex;justify-content:space-between;padding:16px 30px 22px;border-top:1px solid var(--line)}
+  .info.warn{color:var(--ye,#fcee0a)}
 </style>

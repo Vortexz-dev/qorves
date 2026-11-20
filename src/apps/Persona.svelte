@@ -8,7 +8,7 @@
   import type { UserProfile } from '../lib/backend';
   import { CLASSES, RACES, CHROME_TIERS } from '../lib/data/character';
   import { watchSheet, watchInv, watchChrome, watchQuests, watchBounties, watchRels, ensureSheet, syncLevel, listPlayers,
-    maxHp, maxCarry, carryOf, strOf, kgFmt, moneyLine, xpToReach,
+    maxHp, statOf, maxCarry, carryOf, strOf, kgFmt, moneyLine, xpToReach,
     type Sheet, type InvItem, type ChromePiece, type Quest, type Bounty, type NpcRel } from '../lib/persona';
   import { P } from './persona/psfx';
   import HudBg from './persona/HudBg.svelte';
@@ -37,7 +37,7 @@
   const lvl = $derived(Math.max(1, c?.level ?? 1));
   const xp = $derived(c?.xp ?? xpToReach(lvl));
   const xpPct = $derived(Math.max(0, Math.min(1, (xp - xpToReach(lvl)) / Math.max(1, xpToReach(lvl + 1) - xpToReach(lvl)))));
-  const hpMax = $derived(c ? maxHp(c.race, c.stats?.CON ?? 10) : 100);
+  const hpMax = $derived(c ? maxHp(c.race, statOf(c, 'CON'), c.level ?? 1) : 100);
   const hp = $derived(!sheet || sheet.hp < 0 ? hpMax : Math.min(sheet.hp, hpMax));
   const kg = $derived(carryOf(inv)), cap = $derived(maxCarry(strOf(c)));
 

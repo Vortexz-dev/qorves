@@ -4,11 +4,11 @@
   import type { Character, UserProfile } from '../../lib/backend';
   import type { Wallet } from '../../lib/live';
   import { RACES, CLASSES, BACKGROUNDS, FACTIONS } from '../../lib/data/character';
-  import { STATS, maxHp, maxCarry, hardCarry, carryOf, strOf, kgFmt, carryWhy, armorOf, moneyLine, chromeSlots, hasChip, type Sheet, type InvItem, type ChromePiece } from '../../lib/persona';
+  import { STATS, maxHp, statOf, maxCarry, hardCarry, carryOf, strOf, kgFmt, carryWhy, armorOf, moneyLine, chromeSlots, hasChip, type Sheet, type InvItem, type ChromePiece } from '../../lib/persona';
   import { P } from './psfx';
   let { u, c, sheet, inv, chrome, wallet }: { u: UserProfile; c: Character; sheet: Sheet; inv: InvItem[]; chrome: ChromePiece[]; wallet: Wallet | null } = $props();
   const lab = (xs: readonly { id: string; label: string }[], id: string) => xs.find((x) => x.id === id)?.label ?? id;
-  const hpMax = $derived(maxHp(c.race, c.stats?.CON ?? 10));
+  const hpMax = $derived(maxHp(c.race, statOf(c, 'CON'), c.level ?? 1));
   const hp = $derived(sheet.hp < 0 ? hpMax : Math.min(sheet.hp, hpMax));
   const kg = $derived(carryOf(inv)), cap = $derived(maxCarry(strOf(c))), hard = $derived(hardCarry(strOf(c)));
   const arm = $derived(armorOf(inv, sheet.armor));

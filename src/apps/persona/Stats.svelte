@@ -4,7 +4,7 @@
   import type { Character } from '../../lib/backend';
   import { setProfileField } from '../../lib/live';
   import { ask } from '../../lib/confirm.svelte';
-  import { STATS, saveSheet, poolPoints, resetStats, maxHp, maxCarry, hardCarry, kgFmt, type Sheet } from '../../lib/persona';
+  import { STATS, saveSheet, poolPoints, resetStats, maxHp, hpWhy, statMod, maxCarry, hardCarry, kgFmt, type Sheet } from '../../lib/persona';
   import { P } from './psfx';
   let { uid, c, sheet, editable, canEdit, onsheet }: { uid: string; c: Character; sheet: Sheet; editable: boolean; canEdit: boolean; onsheet: (s: Sheet) => void } = $props();
   const META: Record<string, { n: string; h: string; ic: string }> = {
@@ -51,7 +51,7 @@
       <div class="node" class:hov={hov === k} class:fl={flash === k} style:left="{p.x}%" style:top="{p.y}%" role="group" aria-label={META[k].n}
         onmouseenter={() => { hov = k; P.hover(); }} onmouseleave={() => (hov = null)}>
         <div class="hex"><svg viewBox="0 0 24 24"><path d={META[k].ic} /></svg><b>{sv(k)}</b></div>
-        <div class="lb"><span class="mono">{k}</span><strong>{META[k].n}</strong></div>
+        <div class="lb"><span class="mono">{k} · MOD +{statMod(sv(k))}</span><strong>{META[k].n}</strong></div>
         {#if editable && sheet.unspent > 0}<button class="plus" onclick={() => spend(k)} disabled={busy} aria-label="{META[k].n} +1" in:fade>+</button>{/if}
         {#if hov === k}<p class="hint" transition:fade={{ duration: 120 }}>{META[k].h}</p>{/if}
       </div>
@@ -59,13 +59,14 @@
   </div>
   <aside>
     <div class="card"><header class="mono">TÜRETİLMİŞ</header>
-      <div class="kv"><span>Azami can</span><b>{maxHp(c.race, sv('CON') || 10)}</b></div>
+      <div class="kv"><span>Azami can</span><b>{maxHp(c.race, sv('CON'), c.level ?? 1)}</b></div>
+      <div class="kv"><span>Can formülü</span><b class="fx">{hpWhy(c.race, sv('CON'), c.level ?? 1)}</b></div>
       <div class="kv"><span>Taşıma</span><b>{kgFmt(maxCarry(sv('STR')))} kg</b></div>
       <div class="kv"><span>Formül</span><b class="fx">15 + {sv('STR')}×2,5</b></div>
       <div class="kv"><span>Sert limit</span><b>{kgFmt(hardCarry(sv('STR')))} kg</b></div>
       <div class="kv"><span>Toplam dağıtılan</span><b>{STATS.reduce((a, k) => a + sv(k), 0)}</b></div>
     </div>
-    <div class="card"><header class="mono">KURAL</header><p>Her seviye <b>+3</b> puan getirir. 1. seviyede 9 puan dağıtılır. Dağıtılan puan geri alınmaz; sıfırlamayı yalnız DM yapar.</p></div>
+    <div class="card"><header class="mono">KURAL</header><p>Her seviye <b>+3</b> puan getirir. 1. seviyede 9 puan dağıtılır. Statlar 0'dan başlar; MOD = ⌊stat / 5⌋. Dağıtılan puan geri alınmaz; sıfırlamayı yalnız DM yapar.</p></div>
     {#if canEdit}<button class="rst" onclick={reset}>STATLARI SIFIRLA (DM)</button>{/if}
     {#if err}<p class="e">{err}</p>{/if}
   </aside>

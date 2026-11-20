@@ -84,7 +84,12 @@ export function raceHp(race: string) {
   for (const g of RACE_GROUPS) for (const r of g.races) if (r.id === race) return r.hp;
   return 100;
 }
-export function maxHp(race: string, con: number) { return Math.max(1, raceHp(race) + (con - 10) * 5); }
+/** Kural (taslak_v4): statlar 0 tabanlı dağıtılmış puan; MOD = ⌊stat/5⌋. */
+export const statMod = (v: number) => Math.floor(Math.max(0, Number(v) || 0) / 5);
+export const statOf = (c: { stats?: Record<string, number> } | null | undefined, k: string) => Math.max(0, Number(c?.stats?.[k]) || 0);
+/** Max HP = Irk Base HP × (Level + CON mod) */
+export function maxHp(race: string, con: number, level = 1) { return Math.max(1, raceHp(race) * Math.max(1, Math.max(1, level || 1) + statMod(con))); }
+export const hpWhy = (race: string, con: number, level = 1) => `${raceHp(race)} × (Sv ${Math.max(1, level || 1)} + CON mod ${statMod(con)})`;
 /** Taşıma: 15 + GÜÇ×2,5 kg; sert sınır bunun 1,5 katı. GÜÇ 0 tabanlı dağıtılmış puandır (yoksa 0). */
 export function maxCarry(str: number) { return 15 + Math.max(0, +str || 0) * 2.5; }
 export function hardCarry(str: number) { return Math.round(maxCarry(str) * 1.5 * 2) / 2; }
