@@ -1,4 +1,4 @@
-# SPIRE//CLASH — Spark-safe PvP (Firestore lockstep)
+# CROWN CLASH — Spark-safe PvP (Firestore lockstep)
 
 Hedef: Firebase **Spark** (ücretsiz) kotasında, sunucu kodu (Cloud Functions) olmadan gerçek zamanlı 1v1.
 
@@ -31,3 +31,11 @@ Maç başına toplam ≈ 50–120 yazma, ≈ aynı sayıda okuma (dinleyici). Sp
 
 ## Test (emülatör, 2 tarayıcı bağlamı)
 `qtest/t10.mjs`: kael + brokk aynı anda SAVAŞ → eşleşme, iki taraf 40 s kart oynar; her 100 tikte durum hash'i karşılaştırılır (9/9 aynı, kule HP'leri birebir). Teslim: brokk çıkar → kael "ZAFER · rakip ayrıldı".
+
+## v2 (CROWN CLASH) eklemeleri
+- `clash_inv/{uid}` (özel envanter) ve `clash_decks/{uid}` (herkese açık profil) aynı toplu yazımda kaydedilir. Kural, herkese açık kupayı envanterdeki kupaya bağlar.
+- Maç destesi `{id, lv}` listesidir; seviye çarpanı her iki istemcide aynı uygulanır.
+- Emojiler aynı `cmds` koleksiyonuna `c: "~laugh"` olarak yazılır. Motor bunları görmez.
+- Yazma bütçesi:
+  - Maç başına komutlar + 1 toplu kayıt + (botsa) 1 bot güncellemesi.
+  - Arka plan bot maçları için 10 dakikada en çok 9 yazma.
